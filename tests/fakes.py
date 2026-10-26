@@ -210,9 +210,14 @@ class FakeBencher:
         self.calls.append(" ".join(argv))
         target = bench_output_host_path(argv, result_path)
         target.parent.mkdir(parents=True, exist_ok=True)
+        prompts = 1
+        if "--num-prompts" in argv:
+            prompts = int(argv[argv.index("--num-prompts") + 1])
         target.write_text(
             json.dumps(
                 {
+                    "completed": prompts,
+                    "errors": [],
                     "p50_ttft_ms": self.ttft_ms,
                     "p90_ttft_ms": self.ttft_ms + 10,
                     "p99_ttft_ms": self.ttft_ms + 20,

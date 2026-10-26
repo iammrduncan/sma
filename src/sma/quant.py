@@ -123,20 +123,20 @@ def _scheme_family(scheme: Any) -> str:
     return ""
 
 
-def _weight_only_nvfp4(group: dict[str, Any], weight_family: str) -> bool:
-    """fp4 weights with null or missing input activations are W4A16, not W4A4."""
-    if weight_family != "nvfp4":
-        return False
+def _nvfp4_with_activations(group: dict[str, Any]) -> str:
+    """Label NVFP4 weights by the activation scheme. W4A4 is the only `nvfp4`."""
     if "input_activations" not in group or group.get("input_activations") is None:
-        return True
+        return "nvfp4_w4a16"
     acts = group.get("input_activations")
     if not isinstance(acts, dict):
-        return True
-    act_family = _scheme_family(acts)
+        return "nvfp4_w4a16"
+    family = _scheme_family(acts)
     bits = acts.get("num_bits")
-    if act_family == "nvfp4" or bits == 4:
-        return False
-    return True
+    if family == "nvfp4" or bits == 4:
+        return "nvfp4"
+    if family == "fp8" or bits == 8:
+        return "nvfp4_w4a8"
+    return "nvfp4_w4a16"
 
 
 def composition_from_precision_map(blob: dict[str, Any]) -> dict[str, Any] | None:
@@ -176,8 +176,8 @@ def _group_family(group: dict[str, Any], top: str) -> str:
     weight_family = _scheme_family(weights) if isinstance(weights, dict) else ""
     if not weight_family:
         weight_family = _family(str(group.get("format") or "")) or top
-    if weight_family == "nvfp4" and _weight_only_nvfp4(group, "nvfp4"):
-        return "nvfp4_w4a16"
+    if weight_family == "nvfp4":
+        return _nvfp4_with_activations(group)
     return weight_family
 
 
@@ -254,7 +254,7 @@ def classify_blob(blob: dict[str, Any] | None) -> tuple[str, dict[str, Any] | No
             "projections": sum(counts.values()),
             "source": "config_groups" if blob.get("config_groups") else "format",
         }
-        if families == {"nvfp4"} or families == {"nvfp4_w4a16"}:
+        if families in ({"nvfp4"}, {"nvfp4_w4a16"}, {"nvfp4_w4a8"}):
             only = next(iter(families))
             return only, composition
         if families == {"fp8"}:
@@ -406,6 +406,11 @@ def detect_quant(
                 f"{detail}. NVFP4 weight-only (W4A16). This is not W4A4 NVFP4. "
                 "--nvfp4 refuses it and will not label it nvfp4."
             )
+        elif declared == "nvfp4_w4a8":
+            detail = (
+                f"{detail}. NVFP4 weights with FP8 activations (W4A8). "
+                "This is not W4A4 NVFP4. --nvfp4 refuses it and will not label it nvfp4."
+            )
         elif declared == "mixed" and composition and composition.get("formats"):
             rendered = ", ".join(
                 f"{count} {name}" for name, count in sorted(composition["formats"].items())
@@ -496,6 +501,12 @@ def assert_flag_matches(flag: str, detected: DetectedQuant) -> str:
                 f"({detected.detail}). --nvfp4 will not label it nvfp4. "
                 "SMA does not serve W4A16 and does not add a second flag for it."
             )
+        if fmt == "nvfp4_w4a8":
+            raise QuantMismatch(
+                "This checkpoint is NVFP4 weights with FP8 activations (W4A8), not W4A4 NVFP4 "
+                f"({detected.detail}). --nvfp4 will not label it nvfp4. "
+                "SMA does not serve W4A8."
+            )
         if fmt != "nvfp4":
             raise QuantMismatch(
                 f"--nvfp4 does not match this checkpoint ({detected.detail}). "
@@ -514,6 +525,10 @@ def assert_flag_matches(flag: str, detected: DetectedQuant) -> str:
     if fmt == "mixed":
         raise QuantMismatch(
             "This checkpoint is mixed FP8/NVFP4, not native MXFP4. Re-run with --mixed."
+        )
+    if fmt == "nvfp4_w4a8":
+        raise QuantMismatch(
+            "This checkpoint is NVFP4 weights with FP8 activations (W4A8), not native MXFP4."
         )
     if fmt == "nvfp4" or fmt == "nvfp4_w4a16":
         raise QuantMismatch(

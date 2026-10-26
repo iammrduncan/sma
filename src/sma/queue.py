@@ -219,7 +219,15 @@ class JobQueue:
                 continue
             try:
                 job = _read(path)
-            except (OSError, json.JSONDecodeError, SmaError) as exc:
+            except FileNotFoundError:
+                # Another Spark claimed the file between glob and read.
+                continue
+            except OSError as exc:
+                from sma.logsetup import log_event
+
+                log_event("queue_pending_unreadable", file=path.name, error=str(exc))
+                continue
+            except (json.JSONDecodeError, SmaError) as exc:
                 self._quarantine(path, exc)
                 continue
             not_before = _parse_time(job.get("not_before"))

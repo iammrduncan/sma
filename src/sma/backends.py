@@ -7,6 +7,8 @@ not return stays null; nothing is copied from the other engine.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any, Protocol
 
 from sma.config import Config
@@ -61,6 +63,15 @@ class EngineBackend(Protocol):
 # at tag v0.5.10.post1, sample_random_requests.
 SGLANG_DATASET_CONTAINER_PATH = "/sma-run/speed/sglang-random-dataset.json"
 SGLANG_DATASET_NAME = "sglang-random-dataset.json"
+# The bench container must not fetch a tokenizer. vLLM uses
+# tokenizer_id = args.tokenizer or model_id (vllm/benchmarks/serve.py).
+# SGLang falls back to the repo id from /v1/models and
+# AutoTokenizer.from_pretrained(..., trust_remote_code=True)
+# (bench_serving.py around the tokenizer load, and benchmark/utils.py).
+BENCH_OFFLINE_ENV = {
+    "HF_HUB_OFFLINE": "1",
+    "TRANSFORMERS_OFFLINE": "1",
+}
 
 # Names vLLM documents. Absent series stay null.
 VLLM_WATCHED = (
@@ -89,6 +100,36 @@ SGLANG_WATCHED = (
     "sglang:e2e_request_latency_seconds_sum",
     "sglang:e2e_request_latency_seconds_count",
 )
+
+
+def docker_exec(container: str, command: list[str]) -> list[str]:
+    """docker exec with Hub access turned off for the bench process."""
+    argv = ["docker", "exec"]
+    for key, value in BENCH_OFFLINE_ENV.items():
+        argv.extend(["-e", f"{key}={value}"])
+    argv.append(container)
+    argv.extend(command)
+    return argv
+
+
+def sglang_dataset_rows() -> int:
+    meta_path = Path(__file__).resolve().parent / "data" / "sglang-random-dataset.meta.json"
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    rows = meta.get("rows")
+    if not isinstance(rows, int) or rows < 1:
+        raise SmaError(f"{meta_path.name} does not record a positive row count.")
+    return rows
+
+
+def assert_sglang_dataset_covers(num_prompts: int) -> None:
+    """Refuse rather than silently using fewer prompts than configured."""
+    rows = sglang_dataset_rows()
+    if num_prompts > rows:
+        raise SmaError(
+            f"speed.num_prompts is {num_prompts}, but the pinned SGLang dataset "
+            f"{SGLANG_DATASET_NAME} has {rows} rows. SMA will not cap the benchmark. "
+            "Lower speed.num_prompts, or enlarge that file and its sha256."
+        )
 
 
 class VllmBackend:
@@ -160,10 +201,11 @@ class VllmBackend:
     def bench_argv(
         self, cfg: Config, *, container: str, served_name: str, cell: Any, result_dir: str
     ) -> list[str]:
-        return [
-            "docker",
-            "exec",
+        # --model is the served API name. --tokenizer /model is the pinned snapshot.
+        # Without --tokenizer, vLLM sets tokenizer_id from the repo id and pulls main.
+        return docker_exec(
             container,
+            [
             "vllm",
             "bench",
             "serve",
@@ -175,6 +217,8 @@ class VllmBackend:
             "/v1/completions",
             "--model",
             served_name,
+            "--tokenizer",
+            "/model",
             "--dataset-name",
             "random",
             "--random-input-len",
@@ -198,7 +242,8 @@ class VllmBackend:
             "bench.json",
             "--seed",
             str(cfg.seed),
-        ]
+            ],
+        )
 
     def metrics_path(self) -> str:
         return "/metrics"
@@ -307,6 +352,7 @@ class SglangBackend:
         self, cfg: Config, *, container: str, served_name: str, cell: Any, result_dir: str
     ) -> list[str]:
         del served_name
+        assert_sglang_dataset_covers(cfg.speed.num_prompts)
         # Key names checked against sglang tag v0.5.10.post1,
         # python/sglang/bench_serving.py (result dict around the JSONL write)
         # and python/sglang/benchmark/datasets/random.py (ShareGPT download).
@@ -314,10 +360,12 @@ class SglangBackend:
         # and median/p90/p99 e2e latency. It has no p90 TTFT, TPOT, or ITL.
         # --output-details adds per-request ttfts and itls (seconds) so SMA
         # can compute the missing percentiles. The file is appended JSONL.
-        return [
-            "docker",
-            "exec",
+        # --model and --tokenizer are the mounted snapshot, not the repo id
+        # from /v1/models. HF_HUB_OFFLINE makes a Hub fetch fail instead of
+        # drifting to main or executing remote code from the Hub.
+        return docker_exec(
             container,
+            [
             "python3",
             "-m",
             "sglang.bench_serving",
@@ -327,6 +375,10 @@ class SglangBackend:
             "127.0.0.1",
             "--port",
             "8000",
+            "--model",
+            "/model",
+            "--tokenizer",
+            "/model",
             "--dataset-name",
             "random",
             "--dataset-path",
@@ -347,7 +399,8 @@ class SglangBackend:
             "--output-details",
             "--output-file",
             f"{result_dir}/bench.json",
-        ]
+            ],
+        )
 
     def metrics_path(self) -> str:
         return "/metrics"
