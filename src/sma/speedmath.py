@@ -66,6 +66,63 @@ def _percentile(values: list[float], percentile: int) -> float | None:
     return ordered[low] * (1.0 - weight) + ordered[high] * weight
 
 
+def _failed_request_indexes(payload: dict[str, Any]) -> set[int]:
+    """Indexes to drop before a per-request percentile.
+
+    SGLang's output-details arrays include failed requests. bench_serving.py
+    records ttft 0.0 and an empty itl for those, and an errors entry when
+    output.error is set. A success list, when present, wins over the heuristic.
+    """
+    ttfts = payload.get("ttfts")
+    itls = payload.get("itls")
+    count = 0
+    if isinstance(ttfts, list):
+        count = max(count, len(ttfts))
+    if isinstance(itls, list):
+        count = max(count, len(itls))
+    success = payload.get("success")
+    errors = payload.get("errors")
+    failed: set[int] = set()
+    for index in range(count):
+        if isinstance(success, list) and index < len(success):
+            if success[index] is False or success[index] == 0:
+                failed.add(index)
+            continue
+        if isinstance(errors, list) and index < len(errors) and errors[index] not in (None, "", False):
+            failed.add(index)
+            continue
+        if isinstance(ttfts, list) and index < len(ttfts):
+            number = finite(ttfts[index])
+            if number is None or number == 0.0:
+                failed.add(index)
+                continue
+        if isinstance(itls, list) and index < len(itls) and isinstance(itls[index], list) and not itls[index]:
+            failed.add(index)
+    return failed
+
+
+def _keep(values: Any, failed: set[int]) -> Any:
+    if not isinstance(values, list) or not failed:
+        return values
+    return [item for index, item in enumerate(values) if index not in failed]
+
+
+def bench_request_problem(payload: dict[str, Any], num_prompts: int) -> str | None:
+    """Invalid when the bench did not finish every prompt without an error."""
+    completed = payload.get("completed")
+    if isinstance(completed, bool) or not isinstance(completed, (int, float)) or float(completed) != float(num_prompts):
+        return (
+            f"bench completed {completed!r} requests, and speed.num_prompts is {num_prompts}. "
+            "A speed cell is invalid unless every prompt finished."
+        )
+    errors = payload.get("errors")
+    if isinstance(errors, list):
+        bad = [item for item in errors if item not in (None, "", False)]
+        if bad:
+            return f"bench reported {len(bad)} failed request(s). The first error is {bad[0]!r}."
+    return None
+
+
 def _seconds_to_ms(values: Any) -> list[float]:
     """SGLang stores per-request ttft/itl in seconds. See bench_serving.py, which multiplies by 1000 for *_ms."""
     if not isinstance(values, list):
@@ -124,10 +181,15 @@ def normalize_bench(payload: dict[str, Any]) -> dict[str, Any]:
     for canonical, source in aliases.items():
         if finite(out.get(canonical)) is None and finite(out.get(source)) is not None:
             out[canonical] = out[source]
+    failed = _failed_request_indexes(out)
+    if failed:
+        notes.append(
+            f"Dropped {len(failed)} failed request(s) before computing percentiles from per-request arrays."
+        )
     derived = {
-        "p90_ttft_ms": _percentile(_seconds_to_ms(out.get("ttfts")), 90),
-        "p90_tpot_ms": _percentile(_per_request_tpot_ms(out.get("itls")), 90),
-        "p90_itl_ms": _percentile(_seconds_to_ms(out.get("itls")), 90),
+        "p90_ttft_ms": _percentile(_seconds_to_ms(_keep(out.get("ttfts"), failed)), 90),
+        "p90_tpot_ms": _percentile(_per_request_tpot_ms(_keep(out.get("itls"), failed)), 90),
+        "p90_itl_ms": _percentile(_seconds_to_ms(_keep(out.get("itls"), failed)), 90),
     }
     for key, value in derived.items():
         if finite(out.get(key)) is None:

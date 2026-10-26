@@ -4,8 +4,8 @@ sma-corpus-v3 is a vendored public-domain slice of Pride and Prejudice
 (Project Gutenberg ebook 1342). It starts at the novel's first sentence.
 The illustrated edition's list of illustrations and page numbers was removed
 from the previous slice, and the sha256 changed. Commercial use is allowed
-because the text is public domain. The default run scores 48 windows of
-2048 tokens (98304) when the tokenizer yields that many.
+because the text is public domain. The logprob step fails if the tokenizer
+yields fewer than 48 windows of 2048 tokens. It does not score a shorter slice.
 """
 
 from __future__ import annotations

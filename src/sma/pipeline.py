@@ -47,6 +47,7 @@ from sma.records import (
 from sma.runtime import DockerRuntime, StartSpec
 from sma.scrub import assert_text_clean, scrub_text
 from sma.speedmath import (
+    bench_request_problem,
     decode_tok_s,
     load_bench,
     output_tok_s,
@@ -821,7 +822,11 @@ def _cell_record(
         if invalidating_throttle(sample, sw_power_cap_invalidates=ctx.cfg.telemetry.sw_power_cap_invalidates)
     ]
     measurement_note = None
-    if ctx.telemetry is None:
+    bench_problem = bench_request_problem(payload, ctx.cfg.speed.num_prompts)
+    if bench_problem:
+        validity = "invalid"
+        reason = bench_problem
+    elif ctx.telemetry is None:
         validity = "unverified"
         reason = "telemetry was not recorded for this speed cell"
     elif not samples:

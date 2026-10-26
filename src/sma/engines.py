@@ -62,6 +62,12 @@ def compatibility_error(engine: str, detected: DetectedQuant) -> str | None:
             f"({detected.detail}). --nvfp4 will not label it nvfp4. "
             "SMA does not serve W4A16."
         )
+    if fmt == "nvfp4_w4a8":
+        return (
+            "This checkpoint is NVFP4 weights with FP8 activations (W4A8), not W4A4 NVFP4 "
+            f"({detected.detail}). --nvfp4 will not label it nvfp4. "
+            "SMA does not serve W4A8."
+        )
     if engine == "vllm":
         if method == "dgpp_mixed":
             return (
