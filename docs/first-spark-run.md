@@ -35,7 +35,7 @@ After fetch, open `manifest.json`:
 - `architecture_check.message` names `Qwen3ForCausalLM` and does not contain `WARNING`.
 - `architecture_check.ok` is true.
 
-`source: bundled` plus a `WARNING` means the image was not queried. Stop and fix Docker before reading any speed number. The server containers that start after this point use `image@sha256:…`, which you can see in `logs/server-quality.log`'s sibling command records and in `engine.flags_quality` only indirectly. The digest field is the record. A later restart of this run must keep the same `engine.image_digest`.
+`source: bundled` plus a `WARNING` means the image was not queried. Stop and fix Docker before reading any speed number. SMA records the inspect digest on `engine.image_digest`. The quality server, the speed server, and any resume of this run start that same image as `image@sha256:…` taken from `engine.image_digest`, not from the floating tag.
 
 ### 3. Bench tokenizer, offline Hub, and a finished cell
 
@@ -54,7 +54,7 @@ For every cell, the argv must contain all of:
 
 In that JSON, `completed` equals `speed.num_prompts` from `sma.yaml` (default 32). `errors` is absent or empty. The cell in `speed/summary.json` has `validity` `valid`, and `ttft_ms_p50`, `ttft_ms_p90`, and `ttft_ms_p99` are numbers for the prefill cell. The same three percentiles exist for tpot, itl, and e2el. `summary.json` `speed.prefill_tok_s` and `speed.decode_tok_s` are numbers, not null.
 
-If a gated repo is the thing you care about, fetch still uses `HF_TOKEN` on the host. The bench container does not. A speed step that finishes with `/tokenizer /model` and the offline env vars did not refresh the tokenizer from `main`. A Hub timeout or 401 in `logs/speed-*.log` means the offline pin failed. Do not treat that cell as a result. `validity` will be `invalid`, and SMA retries it once, the same way it retries a throttle.
+If a gated repo is the thing you care about, fetch still uses `HF_TOKEN` on the host. The bench container does not. A speed step that finishes with `--tokenizer /model` and the offline env vars did not refresh the tokenizer from `main`. A Hub timeout or 401 in `logs/speed-*.log` means the offline pin failed. Do not treat that cell as a result. `invalidation_reason` is `bench_failed`, and SMA retries it once after a backoff. That retry does not cool the GPU. Only `throttled` waits for a cool-down.
 
 ### 4. Telemetry
 

@@ -92,7 +92,12 @@ def test_incomplete_bench_marks_the_cell_invalid_and_retries(tmp_path: Path) -> 
     summary = json.loads((run_dir / "summary.json").read_text())
     prefill = next(cell for cell in summary["speed"]["cells"] if cell["name"] == "prefill_c1_r1")
     assert prefill["validity"] == "invalid"
+    assert prefill["invalidation_reason"] == "bench_failed"
     assert "completed" in prefill["invalid_reason"]
+    warnings = " ".join(summary["warnings"])
+    assert "backoff" in warnings
+    assert "Cooling down" not in warnings
+    assert "throttled" not in warnings.lower()
     assert summary["speed"]["prefill_tok_s"] is None
 
 

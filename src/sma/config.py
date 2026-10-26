@@ -365,6 +365,11 @@ def validate_config(cfg: Config) -> None:
         raise SmaError("engine.gpu_memory_utilization must be in (0, 1]")
     if cfg.engine.name not in {"vllm", "sglang"}:
         raise SmaError("engine.name must be vllm or sglang")
+    if cfg.engine.name == "sglang":
+        # Before any pull or download. The speed step repeats this check.
+        from sma.backends import assert_sglang_dataset_covers
+
+        assert_sglang_dataset_covers(cfg.speed.num_prompts)
     if cfg.engine.sglang_attention_backend != "flashinfer":
         raise SmaError(
             "engine.sglang_attention_backend must be flashinfer. "
