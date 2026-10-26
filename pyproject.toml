@@ -1,7 +1,7 @@
 [project]
 name = "sma"
 version = "0.1.0"
-description = "SMA: Small Model Arena launcher. Fetch a pinned Hugging Face checkpoint, serve it with vLLM, and record benchmarks."
+description = "SMA: Small Model Arena launcher. Fetch a pinned Hugging Face checkpoint, serve it with vLLM (SGLang opt-in), and record benchmarks."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

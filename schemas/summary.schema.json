@@ -40,16 +40,16 @@
     "warnings"
   ],
   "properties": {
-    "schema_version": { "const": 1 },
+    "schema_version": { "const": 2 },
     "run_id": { "type": "string" },
     "model_repo": { "type": "string" },
     "model_slug": { "type": "string" },
-    "quant_flag": { "enum": ["bf16", "nvfp4", "mxfp4"] },
+    "quant_flag": { "enum": ["bf16", "nvfp4", "mxfp4", "mixed"] },
     "quant_label": { "type": ["string", "null"] },
     "quant_detected": { "type": ["string", "null"] },
     "revision_sha": { "type": ["string", "null"] },
     "host_alias": { "type": "string" },
-    "engine": { "const": "vllm" },
+    "engine": { "enum": ["vllm", "sglang"] },
     "engine_image": { "type": "string" },
     "engine_image_digest": { "type": ["string", "null"] },
     "status": { "enum": ["pending", "running", "done", "failed"] },
@@ -102,7 +102,9 @@
         "repeat",
         "attempt",
         "valid",
+        "validity",
         "invalid_reason",
+        "measurement_note",
         "ttft_ms_p50",
         "ttft_ms_p90",
         "ttft_ms_p99",
@@ -128,7 +130,9 @@
         "repeat": { "type": "integer" },
         "attempt": { "type": "integer" },
         "valid": { "type": "boolean" },
+        "validity": { "enum": ["valid", "invalid", "unverified"] },
         "invalid_reason": { "type": ["string", "null"] },
+        "measurement_note": { "type": ["string", "null"] },
         "ttft_ms_p50": { "type": ["number", "null"] },
         "ttft_ms_p90": { "type": ["number", "null"] },
         "ttft_ms_p99": { "type": ["number", "null"] },
@@ -157,6 +161,7 @@
         "output_tok_s_c4",
         "output_tok_s_c8",
         "invalid_cells",
+        "unverified_cells",
         "bandwidth_ceiling_tok_s",
         "bandwidth_ceiling_note",
         "cells"
@@ -169,6 +174,7 @@
         "output_tok_s_c4": { "type": ["number", "null"] },
         "output_tok_s_c8": { "type": ["number", "null"] },
         "invalid_cells": { "type": "integer", "minimum": 0 },
+        "unverified_cells": { "type": "integer", "minimum": 0 },
         "bandwidth_ceiling_tok_s": { "type": ["number", "null"] },
         "bandwidth_ceiling_note": { "type": "string" },
         "cells": { "type": "array", "items": { "$ref": "#/$defs/cell" } }
@@ -190,12 +196,13 @@
     "thermal": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["temp_start_c", "temp_end_c", "throttle_samples", "clock_cap_mhz", "log"],
+      "required": ["temp_start_c", "temp_end_c", "throttle_samples", "clock_cap_mhz", "sw_power_cap_invalidates", "log"],
       "properties": {
         "temp_start_c": { "type": ["number", "null"] },
         "temp_end_c": { "type": ["number", "null"] },
         "throttle_samples": { "type": "integer", "minimum": 0 },
         "clock_cap_mhz": { "type": ["integer", "null"] },
+        "sw_power_cap_invalidates": { "type": "boolean" },
         "log": { "type": "string" }
       }
     }

@@ -34,12 +34,17 @@ def test_missing_candidate_token_is_labeled_approximate() -> None:
     assert term["kl"] is not None
 
 
-def test_zero_q_tail_with_positive_p_tail_is_infinite() -> None:
+def test_epsilon_floor_keeps_a_zero_tail_in_the_mean() -> None:
     reference = [_entry(1, 0.5)]
     candidate = [_entry(1, 1.0)]
     term = kl_position(reference, candidate)
-    assert term["infinite"] is True
-    assert term["kl"] is None
+    assert term["floored"] is True
+    assert term["kl"] == pytest.approx(0.5 * math.log(0.5 / 1.0) + 0.5 * math.log(0.5 / 1e-12))
+    dumped_ref = _dump([10, 1], [reference], ppl=2.0)
+    dumped_cand = _dump([10, 1], [candidate], ppl=2.0)
+    compared = compare_dumps(dumped_ref, dumped_cand)
+    assert compared["kl_floored_positions"] == 1
+    assert compared["kl_mean"] == pytest.approx(term["kl"])
 
 
 def test_perplexity_and_top1() -> None:

@@ -30,7 +30,7 @@ from sma.identity import assert_alias_safe
 from sma.kl import perplexity
 from sma.locks import GpuLock
 from sma.logsetup import add_run_log, log_event
-from sma.probe import request_window_logprobs, run_determinism
+from sma.probe import run_determinism
 from sma.proc import require_ok, run_command
 from sma.prom import diff_samples, parse_prometheus
 from sma.qualityout import normalize_suite
@@ -56,10 +56,8 @@ from sma.speedmath import (
 )
 from sma.telemetry import TelemetryRecorder, throttled_between
 from sma.httpapi import scrape_metrics, wait_until_healthy
-
-# assert_text_clean may not exist yet. I'll add it to scrub.py if missing.
-# Checking: I planned assert_no_hostname. Let me add it as assert_text_clean in scrub
-# before tests. I'll add the function now if I reference it.
+from sma.engines import compatibility_error, engine_name, image_for, image_ref as digest_ref
+from sma.preflight import check_architecture
 
 PERCENTILES = (50, 90, 99)
 
@@ -79,6 +77,7 @@ class Services:
     telemetry_factory: Callable[[Path, Config], TelemetryRecorder]
     encode: Callable[[str], list[int]] | None = None
     hooks: Hooks = field(default_factory=Hooks)
+    registry: Any = None
 
 
 @dataclass
@@ -90,6 +89,7 @@ class RunSpec:
     pair_job_id: str | None = None
     resume_run_id: str | None = None
     lock_held: bool = False
+    engine: str | None = None
 
 
 @dataclass
@@ -117,11 +117,57 @@ class Ctx:
 
 
 class HubFetcher:
-    def __init__(self, cfg: Config) -> None:
+    def __init__(self, cfg: Config, registry: Any = None, engine: str = "vllm") -> None:
         self.cfg = cfg
+        self.registry = registry
+        self.engine = engine
 
     def fetch(self, repo: str, revision: str | None, quant_flag: str) -> FetchResult:
-        path, sha = download_snapshot(repo, revision, self.cfg)
+        from huggingface_hub import HfApi, hf_hub_download
+
+        from sma.fetch import _read_json
+
+        token = None
+        from sma.config import hf_token
+
+        token = hf_token(self.cfg)
+        api = HfApi(token=token)
+        info = api.model_info(repo_id=repo, revision=revision)
+        sha = info.sha
+        files = [item.rfilename for item in (info.siblings or [])]
+        config_path = hf_hub_download(
+            repo_id=repo, filename="config.json", revision=sha, cache_dir=str(self.cfg.cache_path()), token=token
+        )
+        config = _read_json(Path(config_path)) or {}
+        hf_quant = None
+        if "hf_quant_config.json" in files:
+            quant_path = hf_hub_download(
+                repo_id=repo,
+                filename="hf_quant_config.json",
+                revision=sha,
+                cache_dir=str(self.cfg.cache_path()),
+                token=token,
+            )
+            hf_quant = _read_json(Path(quant_path))
+        from sma.quant import assert_flag_matches, detect_quant
+
+        detected = detect_quant(config, hf_quant)
+        assert_flag_matches(quant_flag, detected)
+        blocked = compatibility_error(self.engine, detected)
+        if blocked:
+            raise SmaError(blocked)
+        verdict = check_architecture(
+            engine=self.engine,
+            detected=detected,
+            config=config,
+            repo_files=files,
+            trust_remote_code=self.cfg.engine.trust_remote_code,
+            registry=self.registry,
+            image=image_for(self.cfg, self.engine),
+        )
+        if not verdict.ok:
+            raise SmaError(verdict.message)
+        path, sha = download_snapshot(repo, sha, self.cfg)
         return inspect_snapshot(
             path,
             repo=repo,
@@ -162,12 +208,16 @@ def production_services(cfg: Config) -> Services:
         recorder.start(sampler=True)
         return recorder
 
+    from sma.preflight import default_registry
+
+    registry = default_registry(cfg)
     return Services(
-        fetcher=HubFetcher(cfg),
+        fetcher=HubFetcher(cfg, registry=registry, engine=cfg.engine.name),
         runtime=DockerRuntime(cfg),
         evaluator=CommandEvaluator(),
         bencher=CommandBencher(),
         telemetry_factory=_telemetry,
+        registry=registry,
     )
 
 
@@ -179,17 +229,20 @@ def execute(
     on_created: Callable[[str], None] | None = None,
 ) -> str:
     assert_alias_safe(cfg.host_alias)
-    if spec.resume_run_id:
-        ctx = _load(spec, cfg, services)
-    else:
-        ctx = _create(spec, cfg, services)
-    if on_created is not None:
-        on_created(ctx.run_id)
+    chosen = engine_name(spec.engine, cfg)
+    spec.engine = chosen
+    ctx: Ctx | None = None
     lock = None if spec.lock_held else GpuLock(cfg.lock_file())
     if lock is not None:
         lock.acquire()
-    handler = _SignalGuard(lambda: _teardown_containers(ctx))
     try:
+        if spec.resume_run_id:
+            ctx = _load(spec, cfg, services)
+        else:
+            ctx = _create(spec, cfg, services)
+        if on_created is not None:
+            on_created(ctx.run_id)
+        handler = _SignalGuard(lambda: _teardown_containers(ctx))
         with handler:
             _guard_containers(ctx)
             _maybe_clock_cap(ctx)
@@ -217,14 +270,15 @@ def execute(
                 raise
             return ctx.run_id
     finally:
-        _finish(ctx)
+        if ctx is not None:
+            _finish(ctx)
         if lock is not None:
             lock.release()
 
 
 def _create(spec: RunSpec, cfg: Config, services: Services) -> Ctx:
     run_id = new_run_id()
-    run_dir = run_dir_for(cfg, spec.repo, spec.quant_flag, run_id)
+    run_dir = run_dir_for(cfg, spec.repo, spec.quant_flag, run_id, spec.engine or "vllm")
     run_dir.mkdir(parents=True, exist_ok=False)
     for name in ("fetch", "logprobs", "quality", "speed", "logs", "steps"):
         (run_dir / name).mkdir(parents=True, exist_ok=True)
@@ -236,6 +290,7 @@ def _create(spec: RunSpec, cfg: Config, services: Services) -> Ctx:
         run_id=run_id,
         reference_run_id=spec.reference_run_id,
         pair_job_id=spec.pair_job_id,
+        engine=spec.engine or "vllm",
     )
     add_run_log(run_dir / "logs" / "sma.log")
     publish(cfg, run_dir, manifest)
@@ -250,6 +305,16 @@ def _load(spec: RunSpec, cfg: Config, services: Services) -> Ctx:
     if found is None:
         raise SmaError(f"No run with id {spec.resume_run_id}")
     manifest = load_manifest(found)
+    if manifest.get("host_alias") and manifest.get("host_alias") != cfg.host_alias:
+        raise SmaError(
+            f"Run {manifest.get('run_id')} is pinned to host alias {manifest.get('host_alias')}. "
+            f"This process is {cfg.host_alias}. A different Spark must not resume it."
+        )
+    recorded_engine = (manifest.get("engine") or {}).get("name")
+    if spec.engine and recorded_engine and recorded_engine != spec.engine:
+        raise SmaError(
+            f"Run {spec.resume_run_id} was started on {recorded_engine}, not {spec.engine}."
+        )
     if manifest.get("model_repo") != spec.repo or manifest.get("quant_flag") != spec.quant_flag:
         raise SmaError(
             f"Run {spec.resume_run_id} is {manifest.get('model_repo')} "
@@ -367,6 +432,11 @@ def _warn(ctx: Ctx, message: str) -> None:
 
 
 def _step_fetch(ctx: Ctx) -> None:
+    fetcher = ctx.services.fetcher
+    if hasattr(fetcher, "engine"):
+        fetcher.engine = ctx.manifest["engine"]["name"]
+    if hasattr(fetcher, "registry") and ctx.services.registry is not None:
+        fetcher.registry = ctx.services.registry
     result = ctx.services.fetcher.fetch(
         ctx.manifest["model_repo"],
         ctx.manifest["revision_requested"],
@@ -387,6 +457,27 @@ def _step_fetch(ctx: Ctx) -> None:
     ctx.manifest["is_moe"] = detected.is_moe
     ctx.manifest["file_hashes"] = dict(result.file_hashes)
     ctx.manifest["tokenizer_fingerprint"] = result.tokenizer_fingerprint
+    ctx.manifest["quant_composition"] = result.detected.composition
+    blocked = compatibility_error(ctx.manifest["engine"]["name"], result.detected)
+    if blocked:
+        raise SmaError(blocked)
+    repo_files = [path.relative_to(ctx.snapshot).as_posix() for path in ctx.snapshot.rglob("*") if path.is_file()]
+    verdict = check_architecture(
+        engine=ctx.manifest["engine"]["name"],
+        detected=result.detected,
+        config=result.config,
+        repo_files=repo_files,
+        trust_remote_code=ctx.cfg.engine.trust_remote_code,
+        registry=getattr(ctx.services, "registry", None),
+        image=ctx.manifest["engine"]["image"],
+    )
+    ctx.manifest["architecture_check"] = {
+        "ok": verdict.ok,
+        "source": verdict.source,
+        "message": verdict.message,
+    }
+    if not verdict.ok:
+        raise SmaError(verdict.message)
     ctx.manifest["params"] = {
         "total": result.params_total,
         "active": result.params_active,
@@ -442,7 +533,7 @@ def _step_determinism(ctx: Ctx) -> None:
 def _step_logprobs(ctx: Ctx) -> None:
     _ensure_server(ctx, "quality")
     encode = ctx.services.encode or _load_encoder(ctx)
-    windows, _text = build_windows(
+    windows, _text, corpus_meta = build_windows(
         encode,
         version=ctx.cfg.logprobs.corpus_version,
         window_tokens=ctx.cfg.logprobs.window_tokens,
@@ -452,14 +543,7 @@ def _step_logprobs(ctx: Ctx) -> None:
     true_logprobs: list[float] = []
     missing = 0
     for index, token_ids in enumerate(windows):
-        positions = request_window_logprobs(
-            base_url=ctx.base_url,
-            served_name=ctx.served_name,
-            token_ids=token_ids,
-            top_k=ctx.cfg.logprobs.top_k,
-            seed=ctx.cfg.seed,
-            timeout_s=ctx.cfg.timeouts.logprob_request_s,
-        )
+        positions = _window_positions(ctx, token_ids)
         for position in positions:
             if position["true_logprob"] is None:
                 missing += 1
@@ -470,6 +554,10 @@ def _step_logprobs(ctx: Ctx) -> None:
     dump = {
         "schema_version": 1,
         "corpus_version": ctx.cfg.logprobs.corpus_version,
+        "corpus_sha256": corpus_meta.get("sha256"),
+        "corpus_dataset": corpus_meta.get("dataset"),
+        "corpus_revision": corpus_meta.get("revision"),
+        "corpus_license": corpus_meta.get("license"),
         "window_tokens": ctx.cfg.logprobs.window_tokens,
         "top_k": ctx.cfg.logprobs.top_k,
         "tokenizer_fingerprint": ctx.manifest.get("tokenizer_fingerprint"),
@@ -484,6 +572,10 @@ def _step_logprobs(ctx: Ctx) -> None:
         ctx.run_dir / "logprobs" / "corpus.json",
         {
             "corpus_version": ctx.cfg.logprobs.corpus_version,
+            "corpus_sha256": corpus_meta.get("sha256"),
+            "corpus_dataset": corpus_meta.get("dataset"),
+            "corpus_revision": corpus_meta.get("revision"),
+            "corpus_license": corpus_meta.get("license"),
             "window_tokens": ctx.cfg.logprobs.window_tokens,
             "num_windows": len(stored_windows),
             "tokenizer_fingerprint": ctx.manifest.get("tokenizer_fingerprint"),
@@ -497,6 +589,20 @@ def _step_logprobs(ctx: Ctx) -> None:
     reference = ctx.manifest.get("reference_run_id")
     if reference:
         _write_reference_kl(ctx, reference)
+
+
+def _window_positions(ctx: Ctx, token_ids: list[int]) -> list[dict[str, Any]]:
+    from sma.backends import get_backend
+
+    backend = get_backend(ctx.manifest["engine"]["name"])
+    return backend.logprob_positions(
+        base_url=ctx.base_url,
+        served_name=ctx.served_name,
+        token_ids=token_ids,
+        top_k=ctx.cfg.logprobs.top_k,
+        seed=ctx.cfg.seed,
+        timeout_s=ctx.cfg.timeouts.logprob_request_s,
+    )
 
 
 def _write_reference_kl(ctx: Ctx, reference_run_id: str) -> None:
@@ -570,11 +676,18 @@ def _step_speed(ctx: Ctx) -> None:
     summary["decode_formula"] = "1 / TPOT_seconds at concurrency 1, using the configured percentile"
     atomic_write_json(ctx.run_dir / "speed" / "summary.json", summary)
     atomic_write_json(ctx.run_dir / "speed" / "windows.json", {"windows": windows})
-    if summary["invalid_cells"]:
+    if summary.get("invalid_cells"):
         _warn(
             ctx,
             f"{summary['invalid_cells']} speed cell(s) were marked invalid after a thermal or power throttle. "
             "Invalid cells are kept and excluded from the headline tok/s.",
+        )
+    if summary.get("unverified_cells"):
+        _warn(
+            ctx,
+            f"{summary['unverified_cells']} speed cell(s) are unverified "
+            "(telemetry missing, failed, empty, or throttle flags were N/A). "
+            "Unverified cells are kept and excluded from the headline tok/s.",
         )
 
 
@@ -592,7 +705,13 @@ def _run_cell(ctx: Ctx, cell: Any) -> tuple[dict[str, Any], dict[str, Any] | Non
             ctx.services.hooks.before_speed_cell(ctx)
         before = _scrape(ctx)
         container = container_name(ctx.cfg, ctx.run_id, "speed")
-        argv = bench_argv(ctx.cfg, container=container, served_name=ctx.served_name, cell=cell)
+        argv = bench_argv(
+            ctx.cfg,
+            container=container,
+            served_name=ctx.served_name,
+            cell=cell,
+            engine=ctx.manifest["engine"]["name"],
+        )
         atomic_write_json(cell_dir / "command.json", {"argv": argv})
         ctx.services.bencher.run(
             argv,
@@ -602,25 +721,34 @@ def _run_cell(ctx: Ctx, cell: Any) -> tuple[dict[str, Any], dict[str, Any] | Non
         )
         after = _scrape(ctx)
         ended = time.time()
+        from sma.backends import get_backend
+
+        backend = get_backend(ctx.manifest["engine"]["name"])
+        diff = diff_samples(
+            parse_prometheus(before),
+            parse_prometheus(after),
+            watched=backend.watched_metrics(),
+        )
         atomic_write_json(
             cell_dir / "metrics.json",
             {
                 "before": before,
                 "after": after,
-                "diff": diff_samples(parse_prometheus(before), parse_prometheus(after)),
+                "diff": diff,
+                "metrics_note": backend.metrics_note(),
             },
         )
-        throttled = []
+        phase = f"speed:{cell.name}:a{attempt}"
+        window_samples = []
         if ctx.telemetry is not None:
-            phase = f"speed:{cell.name}:a{attempt}"
-            # A few milliseconds of slack so a sample taken at the window edge
-            # is not dropped by timestamp rounding. Phase keeps other cells out.
-            throttled = [
+            from sma.telemetry import read_samples
+
+            window_samples = [
                 sample
-                for sample in throttled_between(ctx.telemetry.path, started - 0.05, ended + 0.05)
-                if sample.phase == phase
+                for sample in read_samples(ctx.telemetry.path)
+                if sample.phase == phase and (started - 0.05) <= sample.ts_unix <= (ended + 0.05)
             ]
-        record = _cell_record(cell, attempt, cell_dir / "bench.json", throttled)
+        record = _cell_record(ctx, cell, attempt, cell_dir / "bench.json", window_samples)
         last = record
         last_window = {
             "name": cell.name,
@@ -629,7 +757,7 @@ def _run_cell(ctx: Ctx, cell: Any) -> tuple[dict[str, Any], dict[str, Any] | Non
             "valid": record["valid"],
             "repeats_in_window": 1,
         }
-        if record["valid"] or attempt == attempts:
+        if record["validity"] != "invalid" or attempt == attempts:
             break
         _warn(ctx, f"Speed cell {cell.name} throttled on attempt {attempt}. Cooling down and retrying.")
         _cool(ctx)
@@ -639,17 +767,59 @@ def _run_cell(ctx: Ctx, cell: Any) -> tuple[dict[str, Any], dict[str, Any] | Non
     return last, last_window
 
 
-def _cell_record(cell: Any, attempt: int, bench_path: Path, throttled: list[Any]) -> dict[str, Any]:
+def _derive_percentile(cfg_stat: str) -> int:
+    if cfg_stat in {"p50", "p90", "p99"}:
+        return int(cfg_stat[1:])
+    raise SmaError(f"speed.derive_stat must be p50, p90, or p99, not {cfg_stat}")
+
+
+def _cell_record(
+    ctx: Ctx,
+    cell: Any,
+    attempt: int,
+    bench_path: Path,
+    samples: list[Any],
+) -> dict[str, Any]:
+    from sma.telemetry import invalidating_throttle
+
     payload = load_bench(bench_path) or {}
-    stat = 50
+    stat = _derive_percentile(ctx.cfg.speed.derive_stat)
     ttft = {p: percentile_ms(payload, "ttft", p) for p in PERCENTILES}
     tpot = {p: percentile_ms(payload, "tpot", p) for p in PERCENTILES}
     itl = {p: percentile_ms(payload, "itl", p) for p in PERCENTILES}
     e2el = {p: percentile_ms(payload, "e2el", p) for p in PERCENTILES}
-    valid = not throttled
-    reason = None
-    if throttled:
+    telemetry_missing = ctx.telemetry is None
+    telemetry_failed = ctx.telemetry is not None and ctx.telemetry.failures > 0
+    unverified = [sample for sample in samples if getattr(sample, "flags_unverified", False)]
+    throttled = [
+        sample
+        for sample in samples
+        if invalidating_throttle(sample, sw_power_cap_invalidates=ctx.cfg.telemetry.sw_power_cap_invalidates)
+    ]
+    measurement_note = None
+    if telemetry_missing or (telemetry_failed and not samples):
+        validity = "unverified"
+        reason = "telemetry is missing or failed, and this speed cell has no samples"
+    elif not samples:
+        validity = "unverified"
+        reason = "no telemetry samples in this speed cell"
+    elif telemetry_failed:
+        validity = "unverified"
+        reason = "telemetry queries failed during the run, so this cell is unverified"
+    elif unverified:
+        validity = "unverified"
+        reason = "nvidia-smi throttle flags were N/A or unreadable"
+    elif throttled:
+        validity = "invalid"
         reason = f"thermal or power throttle on {len(throttled)} telemetry sample(s)"
+    else:
+        validity = "valid"
+        reason = None
+    if ttft.get(stat) is None or tpot.get(stat) is None:
+        measurement_note = (
+            f"Bench JSON has no {ctx.cfg.speed.derive_stat} TTFT/TPOT. "
+            "Derived tok/s stays null. Nothing was invented."
+        )
     return {
         "name": cell.name,
         "shape": cell.shape,
@@ -658,8 +828,10 @@ def _cell_record(cell: Any, attempt: int, bench_path: Path, throttled: list[Any]
         "output_len": cell.output_len,
         "repeat": cell.repeat,
         "attempt": attempt,
-        "valid": valid,
+        "valid": validity == "valid",
+        "validity": validity,
         "invalid_reason": reason,
+        "measurement_note": measurement_note,
         "ttft_ms_p50": ttft[50],
         "ttft_ms_p90": ttft[90],
         "ttft_ms_p99": ttft[99],
@@ -715,14 +887,28 @@ def _warmup(ctx: Ctx) -> None:
     atomic_write_json(done, {"finished": utc_now()})
 
 
+def _health_kwargs(ctx: Ctx) -> dict[str, Any]:
+    from sma.backends import get_backend
+
+    backend = get_backend(ctx.manifest["engine"]["name"])
+    return {"engine_label": backend.name, "health_paths": backend.health_paths()}
+
+
 def _scrape(ctx: Ctx) -> str:
-    return scrape_metrics(ctx.base_url, ctx.cfg.timeouts.metrics_s)
+    from sma.backends import get_backend
+
+    backend = get_backend(ctx.manifest["engine"]["name"])
+    return scrape_metrics(
+        ctx.base_url,
+        ctx.cfg.timeouts.metrics_s,
+        path=backend.metrics_path(),
+    )
 
 
 def _remember_digest(ctx: Ctx) -> None:
     if ctx.manifest["engine"].get("image_digest"):
         return
-    digest = ctx.services.runtime.ensure_image()
+    digest = ctx.services.runtime.ensure_image(_resolved_image(ctx))
     if digest:
         ctx.manifest["engine"]["image_digest"] = digest
 
@@ -732,7 +918,11 @@ def _start_server(ctx: Ctx, mode: str) -> None:
         raise SmaError("Snapshot path is missing. Re-run starts at fetch if that step is not done.")
     quant = ctx.manifest["quant_flag"]
     is_moe = bool(ctx.manifest.get("is_moe"))
-    use_chain = is_moe and quant in {"nvfp4", "mxfp4"}
+    use_chain = (
+        ctx.manifest["engine"]["name"] == "vllm"
+        and is_moe
+        and quant in {"nvfp4", "mxfp4", "mixed"}
+    )
     chain: list[str | None]
     if use_chain:
         chain = list(moe_backend_chain(ctx.cfg))
@@ -754,10 +944,15 @@ def _start_server(ctx: Ctx, mode: str) -> None:
                     deadline_s=float(ctx.cfg.timeouts.server_start_s),
                     request_timeout_s=ctx.cfg.timeouts.health_request_s,
                     poll_s=ctx.cfg.timeouts.health_poll_s,
+                    **_health_kwargs(ctx),
                 )
                 primary = moe_backend_chain(ctx.cfg)[0] if use_chain else None
                 fallback = bool(use_chain and backend and backend != primary)
                 _record_start(ctx, mode, spec, backend, fallback=fallback)
+                if mode == "speed":
+                    warmup_done = ctx.run_dir / "speed" / "warmup.done"
+                    if warmup_done.exists():
+                        warmup_done.unlink()
                 return
             except Exception as exc:
                 errors.append(f"{backend or 'default'} attempt {attempt}: {scrub_text(str(exc))}")
@@ -773,8 +968,9 @@ def _start_server(ctx: Ctx, mode: str) -> None:
                     continue
                 break
     joined = " | ".join(errors)[-2000:]
+    engine_name_now = ctx.manifest["engine"]["name"]
     raise SmaError(
-        "vLLM failed to become healthy. The checkpoint was not modified. "
+        f"{engine_name_now} failed to become healthy. The checkpoint was not modified. "
         f"Attempts: {joined}"
     )
 
@@ -784,6 +980,12 @@ def _record_start(ctx: Ctx, mode: str, spec: StartSpec, backend: str | None, fal
     if backend:
         engine["moe_backend_used"] = backend
         engine["moe_backend_fallback"] = fallback
+        if mode == "quality":
+            engine["moe_backend_quality"] = backend
+            engine["moe_backend_quality_fallback"] = fallback
+        else:
+            engine["moe_backend_speed"] = backend
+            engine["moe_backend_speed_fallback"] = fallback
         if fallback:
             _warn(
                 ctx,
@@ -814,7 +1016,13 @@ def _record_start(ctx: Ctx, mode: str, spec: StartSpec, backend: str | None, fal
     publish(ctx.cfg, ctx.run_dir, ctx.manifest)
 
 
+def _resolved_image(ctx: Ctx) -> str:
+    name = ctx.manifest["engine"]["name"]
+    return digest_ref(image_for(ctx.cfg, name), ctx.manifest["engine"].get("image_digest"))
+
+
 def _start_spec(ctx: Ctx, mode: str, backend: str | None, batch_invariant: bool) -> StartSpec:
+    name_engine = ctx.manifest["engine"]["name"]
     serve = serve_argv(
         ctx.cfg,
         mode=mode,
@@ -823,8 +1031,9 @@ def _start_spec(ctx: Ctx, mode: str, backend: str | None, batch_invariant: bool)
         quant_flag=str(ctx.manifest["quant_flag"]),
         moe_backend=backend,
         batch_invariant=batch_invariant,
+        engine=name_engine,
     )
-    env = serve_env(mode=mode, batch_invariant=batch_invariant)
+    env = serve_env(ctx.cfg, mode=mode, batch_invariant=batch_invariant, engine=name_engine)
     name = container_name(ctx.cfg, ctx.run_id, mode)
     assert ctx.snapshot is not None
     command = docker_argv(
@@ -834,6 +1043,7 @@ def _start_spec(ctx: Ctx, mode: str, backend: str | None, batch_invariant: bool)
         run_dir=ctx.run_dir,
         serve=serve,
         env=env,
+        image=_resolved_image(ctx),
     )
     return StartSpec(
         name=name,
@@ -854,6 +1064,7 @@ def _ensure_server(ctx: Ctx, mode: str) -> None:
                 deadline_s=min(30.0, float(ctx.cfg.timeouts.server_start_s)),
                 request_timeout_s=ctx.cfg.timeouts.health_request_s,
                 poll_s=ctx.cfg.timeouts.health_poll_s,
+                **_health_kwargs(ctx),
             )
             return
         except SmaError:

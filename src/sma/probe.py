@@ -139,6 +139,74 @@ def parse_prompt_logprobs(
     return positions
 
 
+def parse_sglang_input_logprobs(body: dict[str, Any], token_ids: list[int], top_k: int) -> list[dict[str, Any]]:
+    """SGLang /generate input_top_logprobs. Missing fields raise; they are not invented."""
+    meta = body.get("meta_info") if isinstance(body, dict) else None
+    if not isinstance(meta, dict):
+        raise SmaError("SGLang response has no meta_info. Input logprobs were not recorded.")
+    tops = meta.get("input_top_logprobs")
+    token_logprobs = meta.get("input_token_logprobs")
+    if not isinstance(tops, list):
+        raise SmaError(
+            "SGLang response has no input_top_logprobs. "
+            "SMA does not substitute completion logprobs for the prompt."
+        )
+    positions: list[dict[str, Any]] = []
+    for index in range(1, len(token_ids)):
+        raw_top = tops[index] if index < len(tops) else None
+        top: list[dict[str, Any]] = []
+        if isinstance(raw_top, list):
+            for item in raw_top:
+                token_id, logprob = _sglang_pair(item)
+                if token_id is None or logprob is None or not math.isfinite(logprob):
+                    continue
+                top.append({"id": token_id, "logprob": logprob})
+        top.sort(key=lambda item: (-float(item["logprob"]), int(item["id"])))
+        top = top[:top_k]
+        true_logprob = None
+        if isinstance(token_logprobs, list) and index < len(token_logprobs):
+            true_id, true_lp = _sglang_pair(token_logprobs[index])
+            if true_lp is not None and math.isfinite(true_lp):
+                true_logprob = true_lp
+            if true_id is not None and true_id != token_ids[index] and true_logprob is not None:
+                true_logprob = None
+        if true_logprob is None:
+            for item in top:
+                if int(item["id"]) == token_ids[index]:
+                    true_logprob = float(item["logprob"])
+                    break
+        mass = sum(probability(float(item["logprob"])) for item in top)
+        tail = max(0.0, min(1.0, 1.0 - mass))
+        positions.append(
+            {
+                "index": index,
+                "true_token_id": token_ids[index],
+                "true_logprob": true_logprob,
+                "top": top,
+                "tail_mass": tail,
+                "tail_logprob": math.log(tail) if tail > 0 else None,
+            }
+        )
+    return positions
+
+
+def _sglang_pair(item: Any) -> tuple[int | None, float | None]:
+    if isinstance(item, (list, tuple)) and len(item) >= 2:
+        logprob, token_id = item[0], item[1]
+        if isinstance(logprob, (int, float)) and isinstance(token_id, int):
+            return int(token_id), float(logprob)
+        if isinstance(token_id, (int, float)) and isinstance(logprob, int) and not isinstance(logprob, bool):
+            # Some builds emit [token_id, logprob].
+            if isinstance(item[1], float):
+                return int(item[0]), float(item[1])
+    if isinstance(item, dict):
+        token_id = item.get("token_id", item.get("id"))
+        logprob = item.get("logprob")
+        if isinstance(token_id, int) and isinstance(logprob, (int, float)):
+            return int(token_id), float(logprob)
+    return None, None
+
+
 def request_window_logprobs(
     *,
     base_url: str,

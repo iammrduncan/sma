@@ -35,7 +35,10 @@ class JobQueue:
     def add(self, legs: list[dict[str, Any]], *, kind: str) -> dict[str, Any]:
         if not legs:
             raise SmaError("A queue job needs at least one checkpoint")
-        job_id = "job-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
+        engines = {item.get("engine") or "vllm" for item in legs}
+        if len(engines) != 1:
+            raise SmaError("Every leg of a job must use the same engine.")
+        job_id = "job-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ") + "-" + uuid.uuid4().hex[:8]
         job = {
             "schema_version": 1,
             "job_id": job_id,
@@ -45,6 +48,9 @@ class JobQueue:
             "claim": None,
             "heartbeat": None,
             "error": None,
+            "attempts": 0,
+            "pinned_host_alias": None,
+            "engine": legs[0].get("engine") or "vllm",
         }
         atomic_write_json(self.path / "pending" / f"{job_id}.json", job)
         return job
@@ -59,35 +65,38 @@ class JobQueue:
         return jobs
 
     def claim(self, worker_id: str, host_alias: str) -> tuple[Path, dict[str, Any]] | None:
+        """Claim a pending job. The claimed file is written with a heartbeat already set."""
         pending = self.path / "pending"
         claimed = self.path / "claimed"
         for path in sorted(pending.glob("*.json")):
+            try:
+                job = _read(path)
+            except (OSError, json.JSONDecodeError, SmaError):
+                continue
+            pin = job.get("pinned_host_alias")
+            if pin and pin != host_alias:
+                continue
             dest = claimed / path.name
             if dest.exists():
-                try:
-                    path.unlink()
-                except FileNotFoundError:
-                    pass
                 continue
+            now = utc_now()
+            job["claim"] = {"worker_id": worker_id, "host_alias": host_alias, "when": now}
+            job["heartbeat"] = now
+            tmp = claimed / f".{path.name}.{uuid.uuid4().hex}.tmp"
+            atomic_write_json(tmp, job)
             try:
-                os.link(path, dest)
+                os.link(tmp, dest)
             except FileExistsError:
+                tmp.unlink(missing_ok=True)
                 continue
             except FileNotFoundError:
+                tmp.unlink(missing_ok=True)
                 continue
+            tmp.unlink(missing_ok=True)
             try:
                 path.unlink()
             except FileNotFoundError:
                 pass
-            job = _read(dest)
-            job["claim"] = {
-                "worker_id": worker_id,
-                "host_alias": host_alias,
-                "when": utc_now(),
-            }
-            job["heartbeat"] = utc_now()
-            job["error"] = None
-            atomic_write_json(dest, job)
             return dest, job
         return None
 
@@ -105,14 +114,31 @@ class JobQueue:
             pass
         return dest
 
-    def reclaim_stale(self, stale_s: float) -> list[str]:
+    def release_to_pending(self, path: Path, job: dict[str, Any]) -> None:
+        """Return a claimed job to pending without clearing its host pin or run ids."""
+        job["claim"] = None
+        job["heartbeat"] = None
+        dest = self.path / "pending" / path.name
+        atomic_write_json(dest, job)
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+
+    def reclaim_stale(self, stale_s: float, *, grace_s: float = 30.0) -> list[str]:
         now = datetime.now(timezone.utc)
         moved: list[str] = []
         for path in sorted((self.path / "claimed").glob("*.json")):
+            if path.name.startswith("."):
+                continue
             job = _read(path)
-            beat = _parse_time(job.get("heartbeat")) or _parse_time(job.get("claim", {}).get("when") if isinstance(job.get("claim"), dict) else None)
+            beat = _parse_time(job.get("heartbeat")) or _parse_time(
+                job.get("claim", {}).get("when") if isinstance(job.get("claim"), dict) else None
+            )
             if beat is None:
-                age = stale_s + 1
+                age = now.timestamp() - path.stat().st_mtime
+                if age < grace_s:
+                    continue
             else:
                 age = (now - beat).total_seconds()
             if age < stale_s:
@@ -132,7 +158,7 @@ class JobQueue:
 
 def _leg(item: dict[str, Any]) -> dict[str, Any]:
     quant = item["quant"]
-    if quant not in {"bf16", "nvfp4", "mxfp4"}:
+    if quant not in {"bf16", "nvfp4", "mxfp4", "mixed"}:
         raise SmaError(f"Unsupported quant {quant}")
     return {
         "repo": item["repo"],
@@ -165,32 +191,53 @@ def run_worker(
     *,
     once: bool,
     worker_id: str | None = None,
+    executor: Any = None,
+    spec_cls: Any = None,
+    exit_when_idle: bool = False,
 ) -> int:
-    """Pull whole jobs. One job (one or both quants) runs on this Spark, never split."""
+    """Pull whole jobs. One bad model is recorded and the worker keeps going."""
     import time
 
     from sma.locks import GpuLock
-    from sma.pipeline import RunSpec, execute
+    from sma.logsetup import log_event
+
+    if executor is None or spec_cls is None:
+        from sma.pipeline import RunSpec, execute
+
+        executor = executor or execute
+        spec_cls = spec_cls or RunSpec
 
     assert_alias_safe(cfg.host_alias)
     queue = JobQueue(cfg.queue_path())
     identity = worker_id or ("worker-" + uuid.uuid4().hex[:8])
     completed = 0
     while True:
-        claimed = queue.claim(identity, cfg.host_alias)
+        lock = GpuLock(cfg.lock_file())
+        try:
+            lock.acquire()
+        except SmaError as exc:
+            if once or exit_when_idle:
+                raise
+            log_event("worker_lock_busy", error=str(exc))
+            time.sleep(cfg.queue.poll_s)
+            continue
+        claimed = None
+        try:
+            claimed = queue.claim(identity, cfg.host_alias)
+            if claimed is not None:
+                path, job = claimed
+                try:
+                    _run_job(cfg, services_factory, queue, path, job, executor, spec_cls)
+                    completed += 1
+                except Exception as exc:
+                    log_event("worker_job_failed", job_id=job.get("job_id"), error=str(exc))
+        finally:
+            lock.release()
         if claimed is None:
-            if once:
+            if once or exit_when_idle:
                 return completed
             time.sleep(cfg.queue.poll_s)
             continue
-        path, job = claimed
-        lock = GpuLock(cfg.lock_file())
-        lock.acquire()
-        try:
-            _run_job(cfg, services_factory, queue, path, job, execute, RunSpec)
-            completed += 1
-        finally:
-            lock.release()
         if once:
             return completed
 
@@ -202,10 +249,12 @@ def _run_job(cfg: Config, services_factory: Any, queue: JobQueue, path: Path, jo
 
     def _pulse() -> None:
         interval = max(1.0, float(cfg.queue.heartbeat_s))
-        while not stop.wait(interval):
+        while True:
             with job_lock:
                 if path.is_file():
                     queue.heartbeat(path, job)
+            if stop.wait(interval):
+                break
 
     beater = threading.Thread(target=_pulse, name="sma-queue-heartbeat", daemon=True)
     beater.start()
@@ -225,6 +274,7 @@ def _run_job(cfg: Config, services_factory: Any, queue: JobQueue, path: Path, jo
                 with job_lock:
                     job["legs"][leg_index]["run_id"] = run_id
                     job["legs"][leg_index]["status"] = "running"
+                    job["pinned_host_alias"] = cfg.host_alias
                     queue.heartbeat(path, job)
 
             services = services_factory(cfg)
@@ -237,6 +287,7 @@ def _run_job(cfg: Config, services_factory: Any, queue: JobQueue, path: Path, jo
                     pair_job_id=job["job_id"] if len(job["legs"]) > 1 else None,
                     resume_run_id=resume,
                     lock_held=True,
+                    engine=job.get("engine") or cfg.engine.name,
                 ),
                 cfg,
                 services,
@@ -253,11 +304,15 @@ def _run_job(cfg: Config, services_factory: Any, queue: JobQueue, path: Path, jo
         from sma.scrub import scrub_text
 
         with job_lock:
+            job["attempts"] = int(job.get("attempts") or 0) + 1
             job["error"] = scrub_text(str(exc))[:2000]
             for leg in job["legs"]:
                 if leg.get("status") == "running":
                     leg["status"] = "failed"
-            queue.finish(path, job, ok=False)
+            if job["attempts"] >= cfg.queue.max_attempts:
+                queue.finish(path, job, ok=False)
+            else:
+                queue.release_to_pending(path, job)
         raise
     finally:
         stop.set()

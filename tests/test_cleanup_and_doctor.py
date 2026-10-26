@@ -27,7 +27,9 @@ def test_joules_are_the_trapezoid_of_power() -> None:
         Sample(0.0, 40.0, 100.0, False, "speed"),
         Sample(10.0, 41.0, 100.0, False, "speed"),
     ]
-    assert integrate_joules(samples) == 1000.0
+    assert integrate_joules(samples, max_gap_s=10.0) == 1000.0
+    # A 10s hole is a gap at the 1 Hz sample rate, not a window to bridge.
+    assert integrate_joules(samples, max_gap_s=2.5) is None
 
 
 def test_throttle_window(tmp_path) -> None:

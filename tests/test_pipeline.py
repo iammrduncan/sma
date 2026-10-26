@@ -25,7 +25,7 @@ def _run(tmp_path: Path, **kwargs):
 
 def test_full_run_writes_a_valid_record_and_stops_the_server(tmp_path: Path) -> None:
     cfg, services, _fetcher, runtime, run_id = _run(tmp_path)
-    run_dir = next((tmp_path / "runs").glob(f"*/*/{run_id}"))
+    run_dir = next((tmp_path / "runs").glob(f"*/*/*/{run_id}"))
     manifest = load_manifest(run_dir)
     summary = json.loads((run_dir / "summary.json").read_text())
     validate_instance(manifest, "manifest.schema.json")
@@ -63,7 +63,7 @@ def test_quant_mismatch_does_not_start_vllm(tmp_path: Path) -> None:
         execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
     assert runtime.specs == []
     assert runtime.running == set()
-    manifest_path = next((tmp_path / "runs").glob("*/*/*/manifest.json"))
+    manifest_path = next((tmp_path / "runs").glob("*/*/*/*/manifest.json"))
     manifest = json.loads(manifest_path.read_text())
     assert manifest["steps"]["fetch"]["status"] == "failed"
     assert "NVFP4" in manifest["steps"]["fetch"]["error"] or "nvfp4" in manifest["steps"]["fetch"]["error"]
@@ -78,7 +78,7 @@ def test_resume_skips_completed_steps(tmp_path: Path) -> None:
         execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
     assert fetcher.calls == 1
     assert runtime.running == set()
-    run_dir = next((tmp_path / "runs").glob("*/*/*"))
+    run_dir = next((tmp_path / "runs").glob("*/*/*/*"))
     run_id = run_dir.name
     assert not (run_dir / "steps" / "determinism.done").is_file()
     assert (run_dir / "steps" / "fetch.done").is_file()
@@ -110,7 +110,7 @@ def test_quality_failure_still_tears_the_server_down(tmp_path: Path) -> None:
         execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
     assert runtime.running == set()
     assert runtime.stop_count >= 1
-    manifest = json.loads(next((tmp_path / "runs").glob("*/*/*/manifest.json")).read_text())
+    manifest = json.loads(next((tmp_path / "runs").glob("*/*/*/*/manifest.json")).read_text())
     assert manifest["steps"]["quality"]["status"] == "failed"
     assert manifest["steps"]["teardown"]["status"] == "done"
     assert manifest["steps"]["speed"]["status"] == "pending"
@@ -121,7 +121,7 @@ def test_moe_nvfp4_falls_back_and_records_the_backend(tmp_path: Path) -> None:
     services, _fetcher, runtime = make_services(tmp_path, cfg, quant="nvfp4", moe=True)
     runtime.fail_backends.add("flashinfer_b12x")
     run_id = execute(RunSpec(repo="example/tiny", quant_flag="nvfp4"), cfg, services)
-    manifest = load_manifest(next((tmp_path / "runs").glob(f"*/*/{run_id}")))
+    manifest = load_manifest(next((tmp_path / "runs").glob(f"*/*/*/{run_id}")))
     assert manifest["engine"]["moe_backend_used"] == "marlin"
     assert manifest["engine"]["moe_backend_fallback"] is True
     assert manifest["is_moe"] is True
@@ -144,7 +144,7 @@ def test_throttled_speed_cell_is_invalid_and_not_a_headline(tmp_path: Path) -> N
 
     services.hooks.before_speed_cell = inject
     run_id = execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
-    summary = json.loads(next((tmp_path / "runs").glob(f"*/*/{run_id}/summary.json")).read_text())
+    summary = json.loads(next((tmp_path / "runs").glob(f"*/*/*/{run_id}/summary.json")).read_text())
     assert summary["speed"]["invalid_cells"] > 0
     assert summary["speed"]["prefill_tok_s"] is None
     assert summary["speed"]["decode_tok_s"] is None
@@ -165,7 +165,7 @@ def test_hostname_in_a_step_error_is_scrubbed(tmp_path: Path, monkeypatch) -> No
     services.fetcher.fetch = fetch
     with pytest.raises(SmaError):
         execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
-    text = next((tmp_path / "runs").glob("*/*/*/manifest.json")).read_text()
+    text = next((tmp_path / "runs").glob("*/*/*/*/manifest.json")).read_text()
     assert "secret-host" not in text
     assert "hf_test_token_value" not in text
     assert runtime.specs == []
@@ -177,7 +177,7 @@ def test_gated_deltanet_does_not_set_batch_invariance(tmp_path: Path) -> None:
     services, _fetcher, runtime = make_services(tmp_path, cfg)
     services.fetcher.snapshot = snapshot
     run_id = execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
-    manifest = load_manifest(next((tmp_path / "runs").glob(f"*/*/{run_id}")))
+    manifest = load_manifest(next((tmp_path / "runs").glob(f"*/*/*/{run_id}")))
     assert manifest["engine"]["batch_invariant_quality"] is False
     assert manifest["engine"]["env_quality"] == {}
     assert any("gated delta-net" in warning for warning in manifest["warnings"])

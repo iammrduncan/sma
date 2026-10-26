@@ -17,15 +17,19 @@ from sma.proc import run_command
 
 _HEADER = (
     "ts_unix,iso,sm_clock_mhz,temp_c,power_w,"
-    "hw_thermal,sw_thermal,hw_power,sw_power,throttle,phase\n"
+    "hw_thermal,sw_thermal,hw_power,sw_power,throttle,flags_unverified,phase\n"
 )
 
 
-def _flag(text: str) -> int:
-    folded = text.strip().lower()
+def _flag(text: str) -> int | None:
+    folded = text.strip().lower().strip("[]")
+    if folded in {"", "n/a", "na", "unknown", "none"}:
+        return None
     if folded in {"1", "active", "yes", "true"}:
         return 1
-    return 0
+    if folded in {"0", "not active", "inactive", "no", "false"}:
+        return 0
+    return None
 
 
 def _number(text: str) -> str:
@@ -43,6 +47,11 @@ class Sample:
     power_w: float | None
     throttle: bool
     phase: str
+    hw_thermal: int | None = 0
+    sw_thermal: int | None = 0
+    hw_power: int | None = 0
+    sw_power: int | None = 0
+    flags_unverified: bool = False
 
 
 def parse_nvidia_line(line: str, *, now: float, phase: str) -> Sample | None:
@@ -59,31 +68,48 @@ def parse_nvidia_line(line: str, *, now: float, phase: str) -> Sample | None:
     except ValueError:
         power = None
     flags = [_flag(part) for part in parts[3:7]]
-    throttled = any(flags)
+    while len(flags) < 4:
+        flags.append(None)
+    unverified = any(flag is None for flag in flags)
+    known = [flag for flag in flags if flag is not None]
+    throttled = any(flag == 1 for flag in known)
     return Sample(
         ts_unix=now,
         temp_c=temp,
         power_w=power,
         throttle=throttled,
         phase=phase,
+        hw_thermal=flags[0],
+        sw_thermal=flags[1],
+        hw_power=flags[2],
+        sw_power=flags[3],
+        flags_unverified=unverified,
     )
 
 
-def format_sample_row(parsed: Sample, raw_clock: str, flags: list[int]) -> str:
+def _flag_cell(flag: int | None) -> str:
+    if flag is None:
+        return "na"
+    return str(flag)
+
+
+def format_sample_row(parsed: Sample, raw_clock: str, flags: list[int | None]) -> str:
     iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(parsed.ts_unix))
     temp = "" if parsed.temp_c is None else f"{parsed.temp_c:.3f}"
     power = "" if parsed.power_w is None else f"{parsed.power_w:.3f}"
+    padded = list(flags) + [None] * (4 - len(flags))
     cells = [
-        f"{parsed.ts_unix:.3f}",
+        f"{parsed.ts_unix:.6f}",
         iso,
         raw_clock,
         temp,
         power,
-        str(flags[0]),
-        str(flags[1]),
-        str(flags[2]),
-        str(flags[3]),
+        _flag_cell(padded[0]),
+        _flag_cell(padded[1]),
+        _flag_cell(padded[2]),
+        _flag_cell(padded[3]),
         "1" if parsed.throttle else "0",
+        "1" if parsed.flags_unverified else "0",
         parsed.phase,
     ]
     return ",".join(cells) + "\n"
@@ -109,9 +135,23 @@ def read_samples(path: Path) -> list[Sample]:
                     power_w=power,
                     throttle=row.get("throttle") == "1",
                     phase=row.get("phase") or "",
+                    hw_thermal=_stored_flag(row.get("hw_thermal")),
+                    sw_thermal=_stored_flag(row.get("sw_thermal")),
+                    hw_power=_stored_flag(row.get("hw_power")),
+                    sw_power=_stored_flag(row.get("sw_power")),
+                    flags_unverified=row.get("flags_unverified") == "1",
                 )
             )
     return rows
+
+
+def _stored_flag(value: str | None) -> int | None:
+    if value is None or value == "" or value == "na":
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
 
 
 def _maybe_float(value: str | None) -> float | None:
@@ -131,19 +171,31 @@ def throttled_between(path: Path, start: float, end: float) -> list[Sample]:
     ]
 
 
-def integrate_joules(samples: list[Sample]) -> float | None:
-    """Trapezoid of GPU power. Scope is the GPU reading, not the wall."""
+def integrate_joules(samples: list[Sample], *, max_gap_s: float = 2.5) -> float | None:
+    """Trapezoid of GPU power inside one continuous window.
+
+    Gaps longer than max_gap_s are not bridged. Callers that have several
+    windows must integrate each window and add the results.
+    """
     points = [(sample.ts_unix, sample.power_w) for sample in samples if sample.power_w is not None]
     points.sort()
     if len(points) < 2:
         return None
     joules = 0.0
+    used = False
     for (t0, p0), (t1, p1) in zip(points, points[1:]):
         dt = t1 - t0
-        if dt <= 0 or p0 is None or p1 is None:
+        if dt <= 0 or dt > max_gap_s or p0 is None or p1 is None:
             continue
         joules += (p0 + p1) / 2.0 * dt
-    return joules
+        used = True
+    return joules if used else None
+
+
+def invalidating_throttle(sample: Sample, *, sw_power_cap_invalidates: bool) -> bool:
+    if sample.hw_thermal == 1 or sample.sw_thermal == 1 or sample.hw_power == 1:
+        return True
+    return bool(sw_power_cap_invalidates and sample.sw_power == 1)
 
 
 class TelemetryRecorder:

@@ -16,6 +16,8 @@
     "quant_detected",
     "quant_detail",
     "quant_producer",
+    "quant_composition",
+    "architecture_check",
     "architecture",
     "architectures",
     "is_moe",
@@ -37,17 +39,19 @@
     "config_snapshot"
   ],
   "properties": {
-    "schema_version": { "const": 1 },
+    "schema_version": { "const": 2 },
     "run_id": { "type": "string", "minLength": 1 },
     "model_repo": { "type": "string", "minLength": 1 },
     "model_slug": { "type": "string", "minLength": 1 },
     "revision_requested": { "type": ["string", "null"] },
     "revision_sha": { "type": ["string", "null"] },
-    "quant_flag": { "enum": ["bf16", "nvfp4", "mxfp4"] },
+    "quant_flag": { "enum": ["bf16", "nvfp4", "mxfp4", "mixed"] },
     "quant_label": { "type": ["string", "null"] },
     "quant_detected": { "type": ["string", "null"] },
     "quant_detail": { "type": ["string", "null"] },
     "quant_producer": { "type": ["string", "null"] },
+    "quant_composition": { "type": ["object", "null"] },
+    "architecture_check": { "type": ["object", "null"] },
     "architecture": { "type": ["string", "null"] },
     "architectures": { "type": "array", "items": { "type": "string" } },
     "is_moe": { "type": ["boolean", "null"] },
@@ -91,7 +95,7 @@
         "model_repo": { "type": "string" },
         "revision_sha": { "type": ["string", "null"] },
         "quant": { "type": "string" },
-        "engine": { "const": "vllm" },
+        "engine": { "enum": ["vllm", "sglang"] },
         "hardware_alias": { "type": "string" }
       }
     },
@@ -107,6 +111,10 @@
         "moe_backend_chain",
         "moe_backend_used",
         "moe_backend_fallback",
+        "moe_backend_quality",
+        "moe_backend_speed",
+        "moe_backend_quality_fallback",
+        "moe_backend_speed_fallback",
         "linear_backend",
         "batch_invariant_quality",
         "batch_invariant_supported",
@@ -121,10 +129,11 @@
         "env_quality",
         "env_speed",
         "clock_cap_mhz",
-        "resolved_backend_note"
+        "resolved_backend_note",
+        "deterministic_quality"
       ],
       "properties": {
-        "name": { "const": "vllm" },
+        "name": { "enum": ["vllm", "sglang"] },
         "image": { "type": "string" },
         "image_digest": { "type": ["string", "null"] },
         "tensor_parallel_size": { "const": 1 },
@@ -132,6 +141,10 @@
         "moe_backend_chain": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
         "moe_backend_used": { "type": ["string", "null"] },
         "moe_backend_fallback": { "type": "boolean" },
+        "moe_backend_quality": { "type": ["string", "null"] },
+        "moe_backend_speed": { "type": ["string", "null"] },
+        "moe_backend_quality_fallback": { "type": "boolean" },
+        "moe_backend_speed_fallback": { "type": "boolean" },
         "linear_backend": { "type": ["string", "null"] },
         "batch_invariant_quality": { "type": "boolean" },
         "batch_invariant_supported": { "type": ["boolean", "null"] },
@@ -140,13 +153,24 @@
         "no_async_scheduling_quality": { "type": "boolean" },
         "seed": { "type": "integer" },
         "max_logprobs": { "type": "integer", "minimum": 1 },
-        "logprobs_mode": { "const": "raw_logprobs" },
+        "logprobs_mode": { "type": "string" },
         "flags_quality": { "type": "array", "items": { "type": "string" } },
         "flags_speed": { "type": "array", "items": { "type": "string" } },
         "env_quality": { "type": "object", "additionalProperties": { "type": "string" } },
         "env_speed": { "type": "object", "additionalProperties": { "type": "string" } },
         "clock_cap_mhz": { "type": ["integer", "null"] },
-        "resolved_backend_note": { "type": ["string", "null"] }
+        "resolved_backend_note": { "type": ["string", "null"] },
+        "deterministic_quality": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["prefix_cache", "attention_backend", "determinism_backend", "radix_cache"],
+          "properties": {
+            "prefix_cache": { "type": "boolean" },
+            "attention_backend": { "type": ["string", "null"] },
+            "determinism_backend": { "type": ["string", "null"] },
+            "radix_cache": { "type": ["boolean", "null"] }
+          }
+        }
       }
     },
     "timestamps": {

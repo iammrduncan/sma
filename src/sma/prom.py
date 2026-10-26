@@ -19,6 +19,11 @@ WATCHED = (
 )
 
 
+def metric_name(key: str) -> str:
+    """Drop Prometheus labels. vLLM emits model_name, engine, and similar."""
+    return key.split("{", 1)[0].strip()
+
+
 def parse_prometheus(text: str) -> dict[str, float]:
     samples: dict[str, float] = {}
     for line in text.splitlines():
@@ -38,13 +43,37 @@ def parse_prometheus(text: str) -> dict[str, float]:
     return samples
 
 
-def diff_samples(before: dict[str, float], after: dict[str, float]) -> dict[str, Any]:
-    keys = sorted(set(before) | set(after))
+def _by_name(samples: dict[str, float]) -> dict[str, float]:
+    grouped: dict[str, float] = {}
+    for key, value in samples.items():
+        name = metric_name(key)
+        grouped[name] = grouped.get(name, 0.0) + value
+    return grouped
+
+
+def diff_samples(
+    before: dict[str, float],
+    after: dict[str, float],
+    *,
+    watched: tuple[str, ...] | None = None,
+) -> dict[str, Any]:
+    before_named = _by_name(before)
+    after_named = _by_name(after)
+    names = sorted(set(before_named) | set(after_named))
     changes: dict[str, float | None] = {}
-    for key in keys:
-        if key in before and key in after:
-            changes[key] = after[key] - before[key]
+    for name in names:
+        if name in before_named and name in after_named:
+            changes[name] = after_named[name] - before_named[name]
         else:
-            changes[key] = None
-    watched = {name: changes.get(name) for name in WATCHED}
-    return {"watched": watched, "counters": changes}
+            changes[name] = None
+    wanted = watched if watched is not None else WATCHED
+    watched_values = {name: changes.get(name) for name in wanted}
+    missing = [name for name, value in watched_values.items() if value is None]
+    reason = None
+    if missing:
+        reason = (
+            "These counters were missing from /metrics and are null: "
+            + ", ".join(missing)
+            + ". Nothing was substituted."
+        )
+    return {"watched": watched_values, "counters": changes, "missing_reason": reason}

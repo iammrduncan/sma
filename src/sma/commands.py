@@ -8,15 +8,13 @@ from pathlib import Path
 from sma.config import Config
 
 
-def image_ref(cfg: Config) -> str:
-    image = cfg.engine.image
-    digest = cfg.engine.image_digest
-    if digest:
-        base = image.split("@", 1)[0]
-        if not digest.startswith("sha256:"):
-            digest = "sha256:" + digest
-        return f"{base}@{digest}"
-    return image
+def image_ref(cfg: Config, digest: str | None = None, *, engine: str | None = None) -> str:
+    from sma.engines import configured_digest, image_for, image_ref as resolved
+
+    name = engine or cfg.engine.name
+    image = image_for(cfg, name)
+    chosen = digest if digest is not None else configured_digest(cfg, name)
+    return resolved(image, chosen)
 
 
 def container_name(cfg: Config, run_id: str, mode: str) -> str:
@@ -42,53 +40,26 @@ def serve_argv(
     quant_flag: str,
     moe_backend: str | None,
     batch_invariant: bool,
+    engine: str = "vllm",
 ) -> list[str]:
-    """vLLM serve argv. NGC images use a pass-through entrypoint, so `vllm` is included."""
-    quality = mode == "quality"
-    flags = [
-        "vllm",
-        "serve",
-        "/model",
-        "--host",
-        "0.0.0.0",
-        "--port",
-        "8000",
-        "--served-model-name",
-        served_name,
-        "--seed",
-        str(cfg.seed),
-        "--tensor-parallel-size",
-        "1",
-        "--gpu-memory-utilization",
-        f"{cfg.engine.gpu_memory_utilization:.4g}",
-        "--max-model-len",
-        str(cfg.engine.max_model_len),
-        "--max-num-seqs",
-        str(cfg.engine.max_num_seqs),
-        "--max-logprobs",
-        str(cfg.logprobs.top_k),
-        "--logprobs-mode",
-        "raw_logprobs",
-    ]
-    if quality and cfg.engine.no_flashinfer_autotune_quality:
-        flags.append("--no-enable-flashinfer-autotune")
-    if quality and batch_invariant and cfg.engine.no_async_scheduling_with_batch_invariant:
-        flags.append("--no-async-scheduling")
-    if is_moe and quant_flag in {"nvfp4", "mxfp4"} and moe_backend:
-        # Explicit backend. Auto-selection on sm_121 can land on Marlin.
-        flags.extend(["--moe-backend", moe_backend])
-    if (not is_moe) and quant_flag == "nvfp4" and cfg.engine.linear_backend:
-        flags.extend(["--linear-backend", cfg.engine.linear_backend])
-    if cfg.engine.trust_remote_code:
-        flags.append("--trust-remote-code")
-    flags.extend(cfg.engine.extra_args)
-    return flags
+    """Server argv. vLLM is the default. SGLang is opt-in."""
+    from sma.backends import get_backend
+
+    return get_backend(engine).serve_argv(
+        cfg,
+        mode=mode,
+        served_name=served_name,
+        is_moe=is_moe,
+        quant_flag=quant_flag,
+        moe_backend=moe_backend,
+        batch_invariant=batch_invariant,
+    )
 
 
-def serve_env(*, mode: str, batch_invariant: bool) -> dict[str, str]:
-    if mode == "quality" and batch_invariant:
-        return {"VLLM_BATCH_INVARIANT": "1"}
-    return {}
+def serve_env(cfg: Config, *, mode: str, batch_invariant: bool, engine: str = "vllm") -> dict[str, str]:
+    from sma.backends import get_backend
+
+    return get_backend(engine).serve_env(cfg, mode=mode, batch_invariant=batch_invariant)
 
 
 def docker_argv(
@@ -99,6 +70,7 @@ def docker_argv(
     run_dir: Path,
     serve: list[str],
     env: dict[str, str],
+    image: str | None = None,
 ) -> list[str]:
     command = [
         "docker",
@@ -120,21 +92,21 @@ def docker_argv(
     ]
     for key, value in env.items():
         command.extend(["-e", f"{key}={value}"])
-    command.append(image_ref(cfg))
+    command.append(image or image_ref(cfg))
     command.extend(serve)
     return command
 
 
-def docker_pull_argv(cfg: Config) -> list[str]:
-    return ["docker", "pull", image_ref(cfg)]
+def docker_pull_argv(cfg: Config, *, engine: str | None = None) -> list[str]:
+    return ["docker", "pull", image_ref(cfg, engine=engine)]
 
 
-def docker_inspect_argv(cfg: Config) -> list[str]:
+def docker_inspect_argv(cfg: Config, *, engine: str | None = None) -> list[str]:
     return [
         "docker",
         "image",
         "inspect",
-        image_ref(cfg),
+        image_ref(cfg, engine=engine),
         "--format",
         "{{json .RepoDigests}}",
     ]
@@ -206,47 +178,13 @@ def bench_argv(
     container: str,
     served_name: str,
     cell: BenchCell,
+    engine: str = "vllm",
 ) -> list[str]:
-    result_dir = f"/sma-run/speed/cells/{cell.name}"
-    return [
-        "docker",
-        "exec",
-        container,
-        "vllm",
-        "bench",
-        "serve",
-        "--backend",
-        "openai",
-        "--base-url",
-        "http://127.0.0.1:8000",
-        "--endpoint",
-        "/v1/completions",
-        "--model",
-        served_name,
-        "--dataset-name",
-        "random",
-        "--random-input-len",
-        str(cell.input_len),
-        "--random-output-len",
-        str(cell.output_len),
-        "--num-prompts",
-        str(cfg.speed.num_prompts),
-        "--max-concurrency",
-        str(cell.concurrency),
-        "--request-rate",
-        "inf",
-        "--percentile-metrics",
-        cfg.speed.percentile_metrics,
-        "--metric-percentiles",
-        cfg.speed.metric_percentiles,
-        "--save-result",
-        "--result-dir",
-        result_dir,
-        "--result-filename",
-        "bench.json",
-        "--seed",
-        str(cfg.seed),
-    ]
+    from sma.backends import get_backend
+
+    return get_backend(engine).bench_argv(
+        cfg, container=container, served_name=served_name, cell=cell
+    )
 
 
 def lm_eval_argv(

@@ -31,12 +31,13 @@ def write_snapshot(
     quant: str = "bf16",
     moe: bool = False,
     model_type: str = "llama",
+    architectures: list[str] | None = None,
     tensors: dict[str, list[int]] | None = None,
 ) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     config: dict[str, Any] = {
         "model_type": model_type,
-        "architectures": ["LlamaForCausalLM"],
+        "architectures": architectures or ["LlamaForCausalLM"],
         "torch_dtype": "bfloat16",
     }
     if moe:
@@ -60,6 +61,30 @@ def write_snapshot(
         )
     elif quant == "mxfp4":
         config["quantization_config"] = {"quant_method": "mxfp4"}
+    elif quant == "compressed-nvfp4":
+        config["quantization_config"] = {
+            "quant_method": "compressed-tensors",
+            "format": "nvfp4-pack-quantized",
+            "config_groups": {
+                "group_0": {
+                    "format": "nvfp4-pack-quantized",
+                    "targets": ["Linear"],
+                    "weights": {"num_bits": 4, "type": "float", "group_size": 16},
+                }
+            },
+        }
+    elif quant == "dgpp_mixed":
+        config["quantization_config"] = {
+            "quant_method": "dgpp_mixed",
+            "activations": "bfloat16",
+            "routed_experts": {
+                "precision_by_layer": {
+                    "2": {"gate": "fp8", "up": "fp8", "down": "fp8"},
+                    "12": {"gate": "fp8", "up": "nvfp4", "down": "fp8"},
+                    "31": {"gate": "nvfp4", "up": "nvfp4", "down": "nvfp4"},
+                }
+            },
+        }
     elif quant == "w4a16":
         (root / "hf_quant_config.json").write_text(
             json.dumps({"quantization": {"quant_algo": "W4A16_NVFP4"}}),
@@ -108,7 +133,7 @@ class FakeRuntime:
         self.digest = "sha256:" + "ab" * 32
         self.server: FakeVLLM | None = None
 
-    def ensure_image(self) -> str:
+    def ensure_image(self, image: str | None = None) -> str:
         return self.digest
 
     def start(self, spec: StartSpec) -> None:
@@ -210,5 +235,16 @@ class FakeBencher:
 def telemetry_factory(run_dir: Path, cfg: Any) -> TelemetryRecorder:
     recorder = TelemetryRecorder(run_dir / "telemetry.csv", cfg)
     recorder.start(sampler=False)
+    original = recorder.set_phase
+
+    def set_phase(phase: str) -> None:
+        original(phase)
+        if phase.startswith("speed:"):
+            recorder.append_parsed(
+                "1500, 45, 80, Not Active, Not Active, Not Active, Not Active",
+                phase=phase,
+            )
+
+    recorder.set_phase = set_phase  # type: ignore[method-assign]
     recorder.append_parsed("1500, 40, 80, Not Active, Not Active, Not Active, Not Active", phase="startup")
     return recorder

@@ -62,6 +62,8 @@ def wait_until_healthy(
     deadline_s: float,
     request_timeout_s: float,
     poll_s: float,
+    engine_label: str = "server",
+    health_paths: tuple[str, ...] = ("/health", "/v1/models"),
 ) -> None:
     import time
 
@@ -69,32 +71,29 @@ def wait_until_healthy(
     last = "no response"
     while time.monotonic() < deadline:
         try:
-            request_json(
-                "GET",
-                base_url.rstrip("/") + "/health",
-                timeout_s=request_timeout_s,
-                attempts=1,
-            )
-            models = request_json(
-                "GET",
-                base_url.rstrip("/") + "/v1/models",
-                timeout_s=request_timeout_s,
-                attempts=1,
-            )
-            if isinstance(models, dict) and models.get("data"):
-                return
-            last = "health passed but /v1/models was empty"
+            for path in health_paths:
+                body = request_json(
+                    "GET",
+                    base_url.rstrip("/") + path,
+                    timeout_s=request_timeout_s,
+                    attempts=1,
+                )
+                if path.endswith("/models"):
+                    if not (isinstance(body, dict) and body.get("data")):
+                        last = f"{path} was empty"
+                        raise SmaError(last)
+            return
         except (SmaError, OSError) as exc:
             last = scrub_text(str(exc))
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             break
         time.sleep(min(poll_s, remaining))
-    raise SmaError(f"vLLM did not become healthy within {deadline_s:.0f}s: {last}")
+    raise SmaError(f"{engine_label} did not become healthy within {deadline_s:.0f}s: {last}")
 
 
-def scrape_metrics(base_url: str, timeout_s: float) -> str:
-    url = base_url.rstrip("/") + "/metrics"
+def scrape_metrics(base_url: str, timeout_s: float, *, path: str = "/metrics") -> str:
+    url = base_url.rstrip("/") + path
     try:
         with httpx.Client(timeout=timeout_s) as client:
             response = client.get(url)

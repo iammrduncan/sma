@@ -22,7 +22,21 @@ def _dump(run_dir: Path) -> dict[str, Any]:
     return payload
 
 
-def compare_run_dirs(reference_dir: Path, candidate_dir: Path) -> dict[str, Any]:
+def _engine_name(manifest: dict[str, Any]) -> str:
+    engine = manifest.get("engine")
+    if isinstance(engine, dict):
+        return str(engine.get("name") or "vllm")
+    if isinstance(engine, str) and engine:
+        return engine
+    return "vllm"
+
+
+def compare_run_dirs(
+    reference_dir: Path,
+    candidate_dir: Path,
+    *,
+    allow_cross_engine: bool = False,
+) -> dict[str, Any]:
     reference = load_manifest(reference_dir)
     candidate = load_manifest(candidate_dir)
     ref_fp = reference.get("tokenizer_fingerprint")
@@ -42,6 +56,14 @@ def compare_run_dirs(reference_dir: Path, candidate_dir: Path) -> dict[str, Any]
         )
     if ref_dump.get("window_tokens") != cand_dump.get("window_tokens"):
         raise CompareRefused("Logprob window lengths differ. Refusing KL.")
+    ref_engine = _engine_name(reference)
+    cand_engine = _engine_name(candidate)
+    if ref_engine != cand_engine and not allow_cross_engine:
+        raise CompareRefused(
+            f"Refusing to compare {ref_engine} with {cand_engine}. "
+            "Engine is part of the subject. Pass --allow-cross-engine to write a labeled "
+            "comparison. Those numbers are not a quant comparison."
+        )
     if ref_dump.get("top_k") != cand_dump.get("top_k"):
         raise CompareRefused(
             f"top-k differs ({ref_dump.get('top_k')} vs {cand_dump.get('top_k')}). "
@@ -66,14 +88,21 @@ def compare_run_dirs(reference_dir: Path, candidate_dir: Path) -> dict[str, Any]
             "Architectures differ. The tokenizer matched, so KL was computed, "
             "but these runs may not be the same base model."
         )
-    if reference.get("engine", {}).get("name") != "vllm" or candidate.get("engine", {}).get("name") != "vllm":
-        notes.append("A run is not labeled vllm. Do not compare it with vLLM rows.")
+    cross = ref_engine != cand_engine
+    if cross:
+        notes.append(
+            f"CROSS-ENGINE comparison of {ref_engine} vs {cand_engine}. "
+            "This is not a quant comparison and must stay labeled."
+        )
     result["reference_run_id"] = reference["run_id"]
     result["candidate_run_id"] = candidate["run_id"]
     result["tokenizer_fingerprint"] = ref_fp
     result["reference_quant"] = reference.get("quant_label") or reference.get("quant_flag")
     result["candidate_quant"] = candidate.get("quant_label") or candidate.get("quant_flag")
-    result["engine"] = "vllm"
+    result["reference_engine"] = ref_engine
+    result["candidate_engine"] = cand_engine
+    result["engine"] = ref_engine if not cross else "cross-engine"
+    result["cross_engine"] = cross
     result["notes"] = notes
     return result
 
