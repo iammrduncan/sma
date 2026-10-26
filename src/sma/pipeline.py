@@ -681,18 +681,29 @@ def _step_speed(ctx: Ctx) -> None:
     summary["decode_formula"] = "1 / TPOT_seconds at concurrency 1, using the configured percentile"
     atomic_write_json(ctx.run_dir / "speed" / "summary.json", summary)
     atomic_write_json(ctx.run_dir / "speed" / "windows.json", {"windows": windows})
-    if summary.get("invalid_cells"):
+    cells = summary.get("cells") or []
+    throttled_n = sum(1 for cell in cells if cell.get("invalidation_reason") == "throttled")
+    bench_n = sum(1 for cell in cells if cell.get("invalidation_reason") == "bench_failed")
+    gap_n = sum(1 for cell in cells if cell.get("invalidation_reason") == "telemetry_gap")
+    if throttled_n:
         _warn(
             ctx,
-            f"{summary['invalid_cells']} speed cell(s) were marked invalid after a thermal or power throttle. "
-            "Invalid cells are kept and excluded from the headline tok/s.",
+            f"{throttled_n} speed cell(s) were invalid because of a thermal or power throttle. "
+            "Those retries waited through a cool-down. Throttled cells stay on disk and are excluded from the headline tok/s.",
         )
-    if summary.get("unverified_cells"):
+    if bench_n:
         _warn(
             ctx,
-            f"{summary['unverified_cells']} speed cell(s) are unverified "
-            "(telemetry missing, failed, empty, or throttle flags were N/A). "
-            "Unverified cells are kept and excluded from the headline tok/s.",
+            f"{bench_n} speed cell(s) were invalid because the bench failed "
+            "(completed count, request errors, or a missing bench result). "
+            "Those retries used a backoff and did not cool down. "
+            "Bench-failed cells stay on disk and are excluded from the headline tok/s.",
+        )
+    if gap_n:
+        _warn(
+            ctx,
+            f"{gap_n} speed cell(s) are unverified because of a telemetry gap, missing samples, or N/A flags. "
+            "They were not retried and are excluded from the headline tok/s.",
         )
 
 
@@ -784,8 +795,27 @@ def _run_cell(ctx: Ctx, cell: Any) -> tuple[dict[str, Any], dict[str, Any] | Non
         }
         if record["validity"] != "invalid" or attempt == attempts:
             break
-        _warn(ctx, f"Speed cell {cell.name} throttled on attempt {attempt}. Cooling down and retrying.")
-        _cool(ctx)
+        kind = record.get("invalidation_reason")
+        if kind == "throttled":
+            _warn(
+                ctx,
+                f"Speed cell {cell.name} throttled on attempt {attempt}. Cooling down and retrying.",
+            )
+            _cool(ctx)
+        elif kind == "bench_failed":
+            _warn(
+                ctx,
+                f"Speed cell {cell.name} bench failed on attempt {attempt}: {record.get('invalid_reason')}. "
+                "Retrying after backoff. This is not a thermal or power throttle, so there is no cool-down.",
+            )
+            if ctx.cfg.retries.backoff_s > 0:
+                time.sleep(ctx.cfg.retries.backoff_s)
+        else:
+            _warn(
+                ctx,
+                f"Speed cell {cell.name} was invalid on attempt {attempt} ({kind}): {record.get('invalid_reason')}. "
+                "Retrying without a cool-down.",
+            )
     if last is None or last_window is None:
         raise SmaError(f"speed cell {cell.name} produced no result")
     atomic_write_json(ctx.run_dir / "speed" / "cells" / cell.name / ".done", {"attempt": last["attempt"]})
@@ -825,12 +855,15 @@ def _cell_record(
     bench_problem = bench_request_problem(payload, ctx.cfg.speed.num_prompts)
     if bench_problem:
         validity = "invalid"
+        invalidation_reason = "bench_failed"
         reason = bench_problem
     elif ctx.telemetry is None:
         validity = "unverified"
+        invalidation_reason = "telemetry_gap"
         reason = "telemetry was not recorded for this speed cell"
     elif not samples:
         validity = "unverified"
+        invalidation_reason = "telemetry_gap"
         reason = "no telemetry samples in this speed cell"
     else:
         gap = coverage_problem(
@@ -843,15 +876,19 @@ def _cell_record(
         )
         if gap:
             validity = "unverified"
+            invalidation_reason = "telemetry_gap"
             reason = gap
         elif unverified:
             validity = "unverified"
+            invalidation_reason = "telemetry_gap"
             reason = "nvidia-smi throttle flags were N/A or unreadable"
         elif throttled:
             validity = "invalid"
+            invalidation_reason = "throttled"
             reason = f"thermal or power throttle on {len(throttled)} telemetry sample(s)"
         else:
             validity = "valid"
+            invalidation_reason = None
             reason = None
     if ttft.get(stat) is None or tpot.get(stat) is None:
         measurement_note = (
@@ -869,6 +906,7 @@ def _cell_record(
         "valid": validity == "valid",
         "validity": validity,
         "invalid_reason": reason,
+        "invalidation_reason": invalidation_reason,
         "measurement_note": measurement_note,
         "ttft_ms_p50": ttft[50],
         "ttft_ms_p90": ttft[90],

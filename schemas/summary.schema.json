@@ -104,6 +104,7 @@
         "valid",
         "validity",
         "invalid_reason",
+        "invalidation_reason",
         "measurement_note",
         "ttft_ms_p50",
         "ttft_ms_p90",
@@ -132,6 +133,10 @@
         "valid": { "type": "boolean" },
         "validity": { "enum": ["valid", "invalid", "unverified"] },
         "invalid_reason": { "type": ["string", "null"] },
+        "invalidation_reason": {
+          "type": ["string", "null"],
+          "enum": ["bench_failed", "telemetry_gap", "throttled", null]
+        },
         "measurement_note": { "type": ["string", "null"] },
         "ttft_ms_p50": { "type": ["number", "null"] },
         "ttft_ms_p90": { "type": ["number", "null"] },

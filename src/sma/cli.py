@@ -214,6 +214,15 @@ def _chosen_engine(args: argparse.Namespace, cfg: Config) -> str:
     return engine_name(getattr(args, "engine", None), cfg)
 
 
+def _guard_sglang_prompts(cfg: Config, engine: str) -> None:
+    """Fail before a pull, a download, or a quality server when SGLang cannot bench."""
+    if engine != "sglang":
+        return
+    from sma.backends import assert_sglang_dataset_covers
+
+    assert_sglang_dataset_covers(cfg.speed.num_prompts)
+
+
 def _second_leg(args: argparse.Namespace) -> tuple[str, str, str | None]:
     if args.nvfp4 and args.mixed:
         raise SmaError("Pass either --nvfp4 or --mixed as the second checkpoint, not both")
@@ -237,6 +246,8 @@ def _reference_leg(args: argparse.Namespace) -> tuple[str, str, str | None]:
 def _cmd_run(args: argparse.Namespace) -> int:
     cfg = _cfg(args)
     quant = _flag(args)
+    engine = _chosen_engine(args, cfg)
+    _guard_sglang_prompts(cfg, engine)
     if args.dry_run:
         if args.assume_moe and quant == "bf16":
             print(
@@ -250,7 +261,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
                 quant_flag=quant,
                 revision=args.revision,
                 assume_moe=bool(args.assume_moe and quant != "bf16"),
-                engine=_chosen_engine(args, cfg),
+                engine=engine,
             ),
             end="",
         )
@@ -265,7 +276,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         args.reference,
         None,
         None,
-        engine=_chosen_engine(args, cfg),
+        engine=engine,
     )
     return 0
 
@@ -275,6 +286,7 @@ def _cmd_run_pair(args: argparse.Namespace) -> int:
     repo, quant, revision = _reference_leg(args)
     other_repo, other_quant, other_revision = _second_leg(args)
     engine = _chosen_engine(args, cfg)
+    _guard_sglang_prompts(cfg, engine)
     if args.dry_run:
         print(
             render_plan(cfg, repo=repo, quant_flag=quant, revision=revision, assume_moe=False, engine=engine),
@@ -457,6 +469,7 @@ def _cmd_cleanup(args: argparse.Namespace) -> int:
 def _cmd_queue_add(args: argparse.Namespace) -> int:
     cfg = _cfg(args)
     engine = _chosen_engine(args, cfg)
+    _guard_sglang_prompts(cfg, engine)
     job = JobQueue(cfg.queue_path()).add(
         [{"repo": args.repo, "quant": _flag(args), "revision": args.revision, "engine": engine}],
         kind="single",
@@ -470,6 +483,7 @@ def _cmd_queue_add_pair(args: argparse.Namespace) -> int:
     repo, quant, revision = _reference_leg(args)
     other_repo, other_quant, other_revision = _second_leg(args)
     engine = _chosen_engine(args, cfg)
+    _guard_sglang_prompts(cfg, engine)
     job = JobQueue(cfg.queue_path()).add(
         [
             {"repo": repo, "quant": quant, "revision": revision, "engine": engine},

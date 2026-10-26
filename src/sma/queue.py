@@ -343,6 +343,10 @@ def run_worker(
 
 
 def _run_job(cfg: Config, services_factory: Any, queue: JobQueue, path: Path, job: dict[str, Any], execute: Any, run_spec: Any) -> None:
+    if (job.get("engine") or cfg.engine.name) == "sglang":
+        from sma.backends import assert_sglang_dataset_covers
+
+        assert_sglang_dataset_covers(cfg.speed.num_prompts)
     reference_id = None
     job_lock = threading.Lock()
     stop = threading.Event()
