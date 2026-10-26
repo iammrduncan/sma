@@ -15,10 +15,19 @@ hf:
   download_timeout_s: 3600
 
 engine:
+  # vLLM is the default. sglang is opt-in (--engine sglang or engine.name).
+  name: vllm
   # Spark playbook tag. Pin engine.image_digest after the first pull.
   # SMA records whatever digest docker inspect returns. It does not invent one.
+  # Later starts of the same run use that digest, not a floating tag.
   image: nvcr.io/nvidia/vllm:26.05.post1-py3
   image_digest: null
+  # Versioned multi-arch CUDA 13 tag for DGX Spark (arm64). Do not pin latest-cu130.
+  sglang_image: lmsysorg/sglang:v0.5.10.post1-cu130
+  sglang_image_digest: null
+  # SM12x requires FlashInfer attention. Deterministic quality mode disables the radix cache.
+  sglang_attention_backend: flashinfer
+  sglang_determinism_backend: flashinfer
   port: 8000
   bind_host: 127.0.0.1
   gpus: all
@@ -74,7 +83,7 @@ logprobs:
   top_k: 64
   window_tokens: 2048
   num_windows: 4
-  corpus_version: sma-corpus-v1
+  corpus_version: sma-corpus-v2
 
 quality:
   enabled: true
@@ -131,6 +140,11 @@ telemetry:
   # Spark spec constants used only to label a bandwidth ceiling. Not measurements.
   spec_bandwidth_gbps: 273
   spec_usable_gb: 115
+  # GB10 sits near ~140 W. A steady sw_power_cap flag is recorded either way.
+  # It invalidates a speed cell only when this is true.
+  sw_power_cap_invalidates: false
+  # Do not trapezoid across holes longer than this. Windows are integrated separately.
+  max_sample_gap_s: 2.5
 
 queue:
   # One directory shared by up to three Sparks, or a private directory per Spark.
@@ -139,6 +153,9 @@ queue:
   poll_s: 5
   stale_claim_s: 3600
   heartbeat_s: 30
+  claim_grace_s: 30
+  # A failed job is marked failed and the worker continues. Raise this to retry.
+  max_attempts: 1
 
 doctor:
   min_free_gb: 20

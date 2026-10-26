@@ -1,4 +1,4 @@
-"""Match a checkpoint's declared quantization to --bf16, --nvfp4, or --mxfp4.
+"""Match a checkpoint's declared quantization to the flag the user passed.
 
 SMA never quantizes. It only reads config.json and hf_quant_config.json.
 """
@@ -10,7 +10,7 @@ from typing import Any
 
 from sma.errors import QuantMismatch
 
-QUANT_FLAGS = ("bf16", "nvfp4", "mxfp4")
+QUANT_FLAGS = ("bf16", "nvfp4", "mxfp4", "mixed")
 
 _MOE_TYPES = {
     "qwen2_moe",
@@ -28,6 +28,7 @@ _MOE_TYPES = {
     "jamba",
     "olmoe",
     "nemotron_h",
+    "flint",
 }
 
 # Gated delta-net attention is rejected by vLLM batch invariance (issue #48613).
@@ -54,6 +55,7 @@ class DetectedQuant:
     batch_invariant_reason: str | None
     producer: str | None
     sources: dict[str, Any]
+    composition: dict[str, Any] | None = None
 
 
 def _nested_text_config(config: dict[str, Any]) -> dict[str, Any]:
@@ -89,27 +91,145 @@ def _algo_and_method(blob: dict[str, Any]) -> tuple[str, str]:
     return algo, method
 
 
-def classify_algo(algo: str, method: str) -> str:
-    """Return a format name, or '' when the blob does not declare a quant."""
-    folded_algo = algo.upper().replace("-", "_")
-    folded_method = method.lower().replace("-", "_")
-    if "MXFP4" in folded_algo or folded_method in {"mxfp4", "gpt_oss_mxfp4"}:
+def _norm_token(value: str) -> str:
+    return value.strip().lower().replace("-", "_")
+
+
+def _family(token: str) -> str:
+    folded = _norm_token(token)
+    if not folded:
+        return ""
+    if "mxfp4" in folded:
         return "mxfp4"
-    if "W4A16" in folded_algo and "NVFP4" in folded_algo:
+    if "w4a16" in folded and "nvfp4" in folded:
         return "nvfp4_w4a16"
-    if "NVFP4" in folded_algo or folded_algo in {"FP4", "FP4_WEIGHT_ONLY"}:
+    if "nvfp4" in folded or folded in {"fp4", "fp4_weight_only"}:
         return "nvfp4"
-    if "FP8" in folded_algo or folded_method in {"fp8", "modelopt_fp8"}:
+    if "fp8" in folded or "float8" in folded:
         return "fp8"
-    if folded_method in {"modelopt_fp4"}:
-        return "nvfp4"
-    if folded_method in {"awq", "gptq", "compressed_tensors", "bitsandbytes", "fbgemm_fp8"}:
-        return "other"
-    if folded_algo or folded_method:
-        if folded_method == "modelopt" and not folded_algo:
-            return "other"
-        return "other"
     return ""
+
+
+def _scheme_family(scheme: Any) -> str:
+    if not isinstance(scheme, dict):
+        return ""
+    bits = scheme.get("num_bits")
+    kind = _norm_token(str(scheme.get("type") or ""))
+    if bits == 4 and kind == "float":
+        return "nvfp4"
+    if bits == 8 and kind == "float":
+        return "fp8"
+    return ""
+
+
+def composition_from_precision_map(blob: dict[str, Any]) -> dict[str, Any] | None:
+    """Count per-projection formats. dgpp_mixed stores these under routed_experts."""
+    routed = blob.get("routed_experts")
+    by_layer = None
+    if isinstance(routed, dict):
+        by_layer = routed.get("precision_by_layer")
+    if not isinstance(by_layer, dict):
+        by_layer = blob.get("precision_by_layer")
+    if not isinstance(by_layer, dict) or not by_layer:
+        return None
+    counts: dict[str, int] = {}
+    for projections in by_layer.values():
+        if not isinstance(projections, dict):
+            continue
+        for precision in projections.values():
+            family = _family(str(precision)) or _norm_token(str(precision))
+            if not family:
+                continue
+            counts[family] = counts.get(family, 0) + 1
+    if not counts:
+        return None
+    activations = blob.get("activations")
+    return {
+        "method": str(blob.get("quant_method") or "per-layer"),
+        "activations": str(activations) if activations else None,
+        "formats": counts,
+        "layers": len(by_layer),
+        "projections": sum(counts.values()),
+        "source": "precision_by_layer",
+    }
+
+
+def _compressed_tensors_families(blob: dict[str, Any]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+
+    def _add(family: str) -> None:
+        if family:
+            counts[family] = counts.get(family, 0) + 1
+
+    top = _family(str(blob.get("format") or ""))
+    groups = blob.get("config_groups")
+    if isinstance(groups, dict) and groups:
+        for group in groups.values():
+            if not isinstance(group, dict):
+                continue
+            family = _family(str(group.get("format") or "")) or top
+            if not family:
+                family = _scheme_family(group.get("weights")) or _scheme_family(group.get("input_activations"))
+            _add(family)
+        return counts
+    _add(top)
+    return counts
+
+
+def classify_blob(blob: dict[str, Any] | None) -> tuple[str, dict[str, Any] | None]:
+    """Return (format, composition). Format is '' when the blob is not a quant config."""
+    if not blob:
+        return "", None
+    method = _norm_token(str(blob.get("quant_method") or ""))
+    algo, method_from_helper = _algo_and_method(blob)
+    if not method:
+        method = _norm_token(method_from_helper)
+    per_layer = composition_from_precision_map(blob)
+    if "mixed" in method or method in {"dgpp_mixed"}:
+        return "mixed", per_layer
+    if per_layer and len(per_layer["formats"]) > 1:
+        return "mixed", per_layer
+    if method == "compressed_tensors":
+        counts = _compressed_tensors_families(blob)
+        families = set(counts)
+        composition = {
+            "method": "compressed-tensors",
+            "activations": None,
+            "formats": counts,
+            "layers": None,
+            "projections": sum(counts.values()),
+            "source": "config_groups" if blob.get("config_groups") else "format",
+        }
+        if families == {"nvfp4"} or families == {"nvfp4_w4a16"}:
+            only = next(iter(families))
+            return only, composition
+        if families == {"fp8"}:
+            return "fp8", composition
+        if "nvfp4" in families and "fp8" in families:
+            return "mixed", composition
+        if "nvfp4" in families and len(families) == 1:
+            return "nvfp4", composition
+        return "other", composition or None
+    folded_algo = algo.upper().replace("-", "_")
+    if "MXFP4" in folded_algo or method in {"mxfp4", "gpt_oss_mxfp4"}:
+        return "mxfp4", None
+    if "W4A16" in folded_algo and "NVFP4" in folded_algo:
+        return "nvfp4_w4a16", None
+    if "NVFP4" in folded_algo or folded_algo in {"FP4", "FP4_WEIGHT_ONLY"} or method == "modelopt_fp4":
+        return "nvfp4", None
+    if "FP8" in folded_algo or method in {"fp8", "modelopt_fp8"}:
+        return "fp8", None
+    if method in {"awq", "gptq", "bitsandbytes", "fbgemm_fp8"}:
+        return "other", None
+    if folded_algo or method:
+        return "other", None
+    return "", None
+
+
+def classify_algo(algo: str, method: str) -> str:
+    """Backwards-compatible wrapper. Prefer classify_blob for real configs."""
+    family, _composition = classify_blob({"quant_method": method, "quant_algo": algo, "format": algo})
+    return family
 
 
 def _dtype_name(config: dict[str, Any]) -> str | None:
@@ -211,25 +331,37 @@ def detect_quant(
 
     hf_blob = _as_dict(hf_quant)
     cfg_blob = _as_dict(config.get("quantization_config"))
-    hf_fmt = classify_algo(*_algo_and_method(hf_blob)) if hf_blob else ""
-    cfg_fmt = classify_algo(*_algo_and_method(cfg_blob)) if cfg_blob else ""
+    hf_fmt, hf_comp = classify_blob(hf_blob) if hf_blob else ("", None)
+    cfg_fmt, cfg_comp = classify_blob(cfg_blob) if cfg_blob else ("", None)
     if hf_fmt and cfg_fmt and hf_fmt != cfg_fmt:
         raise QuantMismatch(
             "hf_quant_config.json and config.json quantization_config disagree "
             f"({hf_fmt} vs {cfg_fmt}). SMA will not guess. Refusing this checkpoint."
         )
     declared = hf_fmt or cfg_fmt
+    composition = hf_comp or cfg_comp
     source = "hf_quant_config.json" if hf_fmt else "config.json quantization_config"
+    quant_method = ""
+    chosen = hf_blob if hf_fmt else cfg_blob
+    if chosen:
+        quant_method = str(chosen.get("quant_method") or "")
     if declared:
-        detail = declared
+        detail = f"{declared} via {source}"
         if declared == "nvfp4_w4a16":
             detail = (
-                "NVFP4 weight-only (W4A16). This is not W4A4 NVFP4. "
+                f"{detail}. NVFP4 weight-only (W4A16). This is not W4A4 NVFP4. "
                 "It is accepted by --nvfp4 and labeled nvfp4_w4a16."
             )
+        elif declared == "mixed" and composition and composition.get("formats"):
+            rendered = ", ".join(
+                f"{count} {name}" for name, count in sorted(composition["formats"].items())
+            )
+            detail = f"{detail} ({quant_method or 'mixed'}: {rendered})"
+        elif declared == "nvfp4" and quant_method:
+            detail = f"{detail}; quant_method {quant_method}"
         return DetectedQuant(
             format=declared,
-            detail=f"{declared} via {source}. {detail}" if declared == "nvfp4_w4a16" else f"{declared} via {source}",
+            detail=detail,
             dtype=dtype,
             model_type=str(model_type) if model_type else None,
             architectures=architectures,
@@ -239,7 +371,12 @@ def detect_quant(
             batch_invariant_supported=supported,
             batch_invariant_reason=reason,
             producer=_producer(config, hf_quant),
-            sources={"hf_quant_config": hf_fmt or None, "quantization_config": cfg_fmt or None},
+            sources={
+                "hf_quant_config": hf_fmt or None,
+                "quantization_config": cfg_fmt or None,
+                "quant_method": quant_method or None,
+            },
+            composition=composition,
         )
 
     if dtype == "bfloat16":
@@ -269,7 +406,8 @@ def detect_quant(
         batch_invariant_supported=supported,
         batch_invariant_reason=reason,
         producer=None,
-        sources={"hf_quant_config": None, "quantization_config": None, "dtype": dtype},
+        sources={"hf_quant_config": None, "quantization_config": None, "dtype": dtype, "quant_method": None},
+        composition=None,
     )
 
 
@@ -283,10 +421,16 @@ def assert_flag_matches(flag: str, detected: DetectedQuant) -> str:
             raise QuantMismatch(
                 f"--bf16 does not match this checkpoint ({detected.detail}). "
                 "SMA does not quantize or cast. Pass the flag for the checkpoint you downloaded "
-                "(--nvfp4 or --mxfp4) or point sma at a BF16 repo."
+                "(--nvfp4, --mxfp4, or --mixed) or point sma at a BF16 repo."
             )
         return "bf16"
     if flag == "nvfp4":
+        if fmt == "mixed":
+            raise QuantMismatch(
+                "This checkpoint is mixed-precision, not NVFP4 "
+                f"({detected.detail}). Re-run with --mixed. "
+                "SMA does not flatten a mixed checkpoint into NVFP4."
+            )
         if fmt == "mxfp4":
             raise QuantMismatch(
                 "This checkpoint is MXFP4, not NVFP4. "
@@ -300,7 +444,19 @@ def assert_flag_matches(flag: str, detected: DetectedQuant) -> str:
                 "SMA does not quantize. Download an NVFP4 checkpoint and pass its repo."
             )
         return "nvfp4"
+    if flag == "mixed":
+        if fmt != "mixed":
+            raise QuantMismatch(
+                f"--mixed does not match this checkpoint ({detected.detail}). "
+                "--mixed is only for checkpoints that already declare mixed FP8/NVFP4 "
+                "(for example quant_method dgpp_mixed). SMA does not mix precisions."
+            )
+        return "mixed"
     # mxfp4
+    if fmt == "mixed":
+        raise QuantMismatch(
+            "This checkpoint is mixed FP8/NVFP4, not native MXFP4. Re-run with --mixed."
+        )
     if fmt == "nvfp4" or fmt == "nvfp4_w4a16":
         raise QuantMismatch(
             "This checkpoint is NVFP4, not native MXFP4. "

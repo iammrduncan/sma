@@ -93,7 +93,7 @@ def test_blank_manifest_matches_the_schema(tmp_path: Path) -> None:
         reference_run_id=None,
         pair_job_id=None,
     )
-    run_dir = tmp_path / "runs" / "example_tiny" / "bf16" / manifest["run_id"]
+    run_dir = tmp_path / "runs" / "example_tiny" / "vllm" / "bf16" / manifest["run_id"]
     run_dir.mkdir(parents=True)
     summary = publish(cfg, run_dir, manifest)
     validate_instance(json.loads((run_dir / "manifest.json").read_text()), "manifest.schema.json")
@@ -126,7 +126,12 @@ def test_scrub_removes_hostname_and_token(monkeypatch) -> None:
 
 def test_repo_config_loads() -> None:
     cfg = load_config(Path(__file__).resolve().parents[1] / "sma.yaml")
+    assert cfg.engine.name == "vllm"
     assert cfg.engine.image == "nvcr.io/nvidia/vllm:26.05.post1-py3"
+    assert cfg.engine.sglang_image == "lmsysorg/sglang:v0.5.10.post1-cu130"
+    assert cfg.engine.sglang_attention_backend == "flashinfer"
+    assert cfg.logprobs.corpus_version == "sma-corpus-v2"
+    assert cfg.telemetry.sw_power_cap_invalidates is False
     assert cfg.engine.moe_backend == "flashinfer_b12x"
     assert cfg.determinism.batch_sizes == [1, 8, 64]
     assert cfg.logprobs.top_k == 64

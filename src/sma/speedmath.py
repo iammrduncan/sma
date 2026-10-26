@@ -101,8 +101,8 @@ def median(values: list[float]) -> float | None:
 
 
 def summarize_cells(cells: list[dict[str, Any]], *, stat: str) -> dict[str, Any]:
-    """Headline tok/s from valid cells. Invalid cells stay in the list and do not contribute."""
-    valid = [cell for cell in cells if cell.get("valid")]
+    """Headline tok/s from valid cells. Invalid and unverified cells stay in the list."""
+    valid = [cell for cell in cells if cell.get("valid") and cell.get("validity", "valid") == "valid"]
 
     def _pick(shape: str, concurrency: int, key: str) -> float | None:
         chosen = [
@@ -114,13 +114,19 @@ def summarize_cells(cells: list[dict[str, Any]], *, stat: str) -> dict[str, Any]
         ]
         return median(chosen)
 
-    invalid = sum(1 for cell in cells if not cell.get("valid"))
+    invalid = sum(
+        1
+        for cell in cells
+        if cell.get("validity") == "invalid" or (cell.get("validity") is None and not cell.get("valid"))
+    )
+    unverified = sum(1 for cell in cells if cell.get("validity") == "unverified")
     return {
         "prefill_tok_s": _pick("prefill", 1, "prefill_tok_s"),
         "decode_tok_s": _pick("decode", 1, "decode_tok_s"),
         "output_tok_s_c4": _pick("sweep", 4, "output_tok_s"),
         "output_tok_s_c8": _pick("sweep", 8, "output_tok_s"),
         "invalid_cells": invalid,
+        "unverified_cells": unverified,
         "derive_stat": stat,
         "cells": cells,
     }

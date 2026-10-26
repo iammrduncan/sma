@@ -31,8 +31,15 @@ class HfConfig:
 
 @dataclass
 class EngineConfig:
+    name: str = "vllm"
     image: str = DEFAULT_IMAGE
     image_digest: str | None = None
+    # Versioned SGLang tag for DGX Spark (arm64, CUDA 13). Digest is recorded at pull.
+    sglang_image: str = "lmsysorg/sglang:v0.5.10.post1-cu130"
+    sglang_image_digest: str | None = None
+    # SM12x requires FlashInfer attention. Deterministic quality mode disables the radix cache.
+    sglang_attention_backend: str = "flashinfer"
+    sglang_determinism_backend: str = "flashinfer"
     port: int = 8000
     bind_host: str = "127.0.0.1"
     gpus: str = "all"
@@ -87,7 +94,7 @@ class LogprobConfig:
     top_k: int = 64
     window_tokens: int = 2048
     num_windows: int = 4
-    corpus_version: str = "sma-corpus-v1"
+    corpus_version: str = "sma-corpus-v2"
 
 
 @dataclass
@@ -156,6 +163,10 @@ class TelemetryConfig:
     # They are not measurements.
     spec_bandwidth_gbps: float = 273.0
     spec_usable_gb: float = 115.0
+    # GB10 sits near a 140 W cap, so a power-cap flag can be steady-state rather than a slowdown.
+    # The raw flag is always stored. It invalidates a speed cell only when this is true.
+    sw_power_cap_invalidates: bool = False
+    max_sample_gap_s: float = 2.5
 
 
 @dataclass
@@ -164,6 +175,8 @@ class QueueConfig:
     poll_s: float = 5.0
     stale_claim_s: float = 3600.0
     heartbeat_s: float = 30.0
+    claim_grace_s: float = 30.0
+    max_attempts: int = 1
 
 
 @dataclass
@@ -341,6 +354,24 @@ def validate_config(cfg: Config) -> None:
         )
     if cfg.engine.gpu_memory_utilization <= 0 or cfg.engine.gpu_memory_utilization > 1:
         raise SmaError("engine.gpu_memory_utilization must be in (0, 1]")
+    if cfg.engine.name not in {"vllm", "sglang"}:
+        raise SmaError("engine.name must be vllm or sglang")
+    if cfg.engine.sglang_attention_backend != "flashinfer":
+        raise SmaError(
+            "engine.sglang_attention_backend must be flashinfer. "
+            "SGLang on SM12x requires FlashInfer attention."
+        )
+    if cfg.engine.sglang_determinism_backend not in {"flashinfer", "fa3", "triton"}:
+        raise SmaError("engine.sglang_determinism_backend must be flashinfer, fa3, or triton")
+    if cfg.speed.derive_stat not in {"p50", "p90", "p99"}:
+        raise SmaError("speed.derive_stat must be p50, p90, or p99")
+    if cfg.queue.max_attempts < 1:
+        raise SmaError("queue.max_attempts must be >= 1")
+    if cfg.queue.stale_claim_s <= cfg.queue.heartbeat_s + cfg.queue.claim_grace_s:
+        raise SmaError(
+            "queue.stale_claim_s must be longer than heartbeat_s plus claim_grace_s "
+            "so a live job is not reclaimed between heartbeats."
+        )
     if cfg.speed.repeats < 1:
         raise SmaError("speed.repeats must be >= 1")
     if 1 not in cfg.speed.sweep_concurrency:

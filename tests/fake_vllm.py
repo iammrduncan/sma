@@ -30,10 +30,14 @@ class FakeVLLM:
                 if self.path.startswith("/metrics"):
                     owner.counter += 1
                     body = (
-                        f"vllm:generation_tokens_total {owner.counter}\n"
-                        f"vllm:prompt_tokens_total {owner.counter}\n"
-                        f"vllm:time_to_first_token_seconds_sum {owner.counter}\n"
-                        f"vllm:time_to_first_token_seconds_count {owner.counter}\n"
+                        'vllm:generation_tokens_total{model_name="fake",engine="0"} '
+                        f"{owner.counter}\n"
+                        'vllm:prompt_tokens_total{model_name="fake",engine="0"} '
+                        f"{owner.counter}\n"
+                        'vllm:time_to_first_token_seconds_sum{model_name="fake"} '
+                        f"{owner.counter}\n"
+                        'vllm:time_to_first_token_seconds_count{model_name="fake"} '
+                        f"{owner.counter}\n"
                     )
                     self._send(200, body.encode(), "text/plain")
                     return
@@ -52,6 +56,11 @@ class FakeVLLM:
                     return
                 if not isinstance(payload, dict):
                     self._send(400, b'{"error":"bad payload"}')
+                    return
+                if self.path.startswith("/generate"):
+                    ids = payload.get("input_ids") or []
+                    k = int(payload.get("top_logprobs_num") or 1)
+                    self._send(200, json.dumps(sglang_generate_body([int(i) for i in ids], k)).encode())
                     return
                 body = completion_body(payload, nondeterministic=owner.nondeterministic)
                 self._send(200, json.dumps(body).encode())
@@ -111,6 +120,25 @@ def completion_body(payload: dict[str, Any], *, nondeterministic: bool) -> dict[
         else:
             texts.append(f"ok:{item}")
     return {"choices": [{"text": text, "index": index} for index, text in enumerate(texts)]}
+
+
+def sglang_generate_body(token_ids: list[int], top_k: int) -> dict[str, Any]:
+    rows = _prompt_logprobs(token_ids, top_k)
+    input_top = []
+    input_token = []
+    for index, row in enumerate(rows):
+        if row is None:
+            input_top.append(None)
+            input_token.append(None)
+            continue
+        pairs = []
+        for key, value in row.items():
+            pairs.append([value["logprob"], int(key)])
+        input_top.append(pairs)
+        true = token_ids[index]
+        true_lp = row.get(str(true), {}).get("logprob")
+        input_token.append([true_lp, true] if true_lp is not None else None)
+    return {"meta_info": {"input_top_logprobs": input_top, "input_token_logprobs": input_token}}
 
 
 def _prompt_logprobs(token_ids: list[int], top_k: int) -> list[dict[str, Any] | None]:

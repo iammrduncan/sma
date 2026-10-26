@@ -12,6 +12,7 @@ from sma.commands import (
     docker_argv,
     docker_inspect_argv,
     docker_pull_argv,
+    image_ref,
     docker_rm_argv,
     lm_eval_argv,
     moe_backend_chain,
@@ -20,6 +21,7 @@ from sma.commands import (
     serve_env,
 )
 from sma.config import Config
+from sma.engines import configured_digest
 
 
 def render_plan(
@@ -29,6 +31,7 @@ def render_plan(
     quant_flag: str,
     revision: str | None,
     assume_moe: bool,
+    engine: str = "vllm",
 ) -> str:
     run_id = "<run-id>"
     run_dir = Path("<run-dir>")
@@ -36,7 +39,9 @@ def render_plan(
     served = repo
     is_moe = assume_moe
     batch_invariant = cfg.engine.batch_invariant
-    backend = cfg.engine.moe_backend if is_moe and quant_flag in {"nvfp4", "mxfp4"} else None
+    backend = None
+    if engine == "vllm" and is_moe and quant_flag in {"nvfp4", "mxfp4", "mixed"}:
+        backend = cfg.engine.moe_backend
     quality_name = container_name(cfg, run_id, "quality")
     speed_name = container_name(cfg, run_id, "speed")
     quality_serve = serve_argv(
@@ -47,6 +52,7 @@ def render_plan(
         quant_flag=quant_flag,
         moe_backend=backend,
         batch_invariant=batch_invariant,
+        engine=engine,
     )
     speed_serve = serve_argv(
         cfg,
@@ -56,18 +62,19 @@ def render_plan(
         quant_flag=quant_flag,
         moe_backend=backend,
         batch_invariant=False,
+        engine=engine,
     )
-    quality_env = serve_env(mode="quality", batch_invariant=batch_invariant)
-    speed_env = serve_env(mode="speed", batch_invariant=False)
+    quality_env = serve_env(cfg, mode="quality", batch_invariant=batch_invariant, engine=engine)
+    speed_env = serve_env(cfg, mode="speed", batch_invariant=False, engine=engine)
     lines = [
         "SMA dry-run",
         f"model: {repo}",
         f"quant: {quant_flag}",
         f"revision: {revision or '<default branch, pinned to the resolved commit SHA>'}",
         f"host_alias: {cfg.host_alias}",
-        f"engine: vllm",
-        f"image: {cfg.engine.image}",
-        f"image_digest: {cfg.engine.image_digest or '<recorded at docker inspect; not invented>'}",
+        f"engine: {engine}",
+        f"image: {cfg.engine.sglang_image if engine == 'sglang' else cfg.engine.image}",
+        f"image_digest: {configured_digest(cfg, engine) or '<recorded at docker inspect; not invented>'}",
         "tensor_parallel_size: 1",
         "quantize: no",
         "",
@@ -77,8 +84,8 @@ def render_plan(
         f"  Refuse unless the checkpoint matches --{quant_flag}. SMA does not quantize.",
         "",
         "2 image",
-        "  " + shlex.join(docker_pull_argv(cfg)),
-        "  " + shlex.join(docker_inspect_argv(cfg)),
+        "  " + shlex.join(docker_pull_argv(cfg, engine=engine)),
+        "  " + shlex.join(docker_inspect_argv(cfg, engine=engine)),
         "",
         "3 serve quality (batch invariance on when the architecture allows it)",
         "quality-server: "
@@ -90,6 +97,7 @@ def render_plan(
                 run_dir=run_dir,
                 serve=quality_serve,
                 env=quality_env,
+                image=image_ref(cfg, engine=engine),
             )
         ),
         f"  env: {quality_env or '{}'}",
@@ -103,8 +111,13 @@ def render_plan(
         "5 logprobs",
         f"  Corpus {cfg.logprobs.corpus_version}, {cfg.logprobs.num_windows} windows of "
         f"{cfg.logprobs.window_tokens} token ids, no chat template.",
-        f"  POST /v1/completions prompt=<token ids> prompt_logprobs={cfg.logprobs.top_k} "
-        "max_tokens=1 temperature=0.",
+        (
+            "  POST /generate input_ids=<token ids> return_logprob top_logprobs_num="
+            f"{cfg.logprobs.top_k}. Input-token top-k. A missing field stays null."
+            if engine == "sglang"
+            else f"  POST /v1/completions prompt=<token ids> prompt_logprobs={cfg.logprobs.top_k} "
+            "max_tokens=1 temperature=0."
+        ),
         "  Store top-k, a tail bucket, and the true next-token logprob. Perplexity = exp(-mean logprob).",
         "",
         "6 quality",
@@ -139,6 +152,7 @@ def render_plan(
                     run_dir=run_dir,
                     serve=speed_serve,
                     env=speed_env,
+                    image=image_ref(cfg, engine=engine),
                 )
             ),
             f"  env: {speed_env or '{}'}",
@@ -151,14 +165,27 @@ def render_plan(
         lines.append(
             "  "
             + shlex.join(
-                bench_argv(cfg, container=speed_name, served_name=served, cell=cell)
+                bench_argv(cfg, container=speed_name, served_name=served, cell=cell, engine=engine)
             )
         )
     lines.extend(
         [
             "  Derived: prefill tok/s = input_len / TTFT at concurrency 1; decode tok/s = 1 / TPOT at concurrency 1.",
-            "  Scrape GET /metrics before and after each cell and store the counter diff.",
-            "  A thermal or power throttle marks that cell invalid and retries once after a cool-down.",
+            (
+                "  Scrape GET /metrics. Watched SGLang counters that are absent are null, with a reason. "
+                "vLLM names are not copied in."
+                if engine == "sglang"
+                else "  Scrape GET /metrics before and after each cell. Metric names match with labels stripped."
+            ),
+            "  A real thermal or power throttle marks that cell invalid and retries once after a cool-down.",
+            "  Missing telemetry, a failed scrape, an empty window, or [N/A] flags mark the cell unverified. "
+            "Unverified cells are not retried and are left out of the headline tok/s.",
+            (
+                "  note: stock vLLM does not load mixed FP8/NVFP4. Fetch refuses --mixed on vllm. "
+                "SMA does not rewrite the checkpoint."
+                if engine == "vllm" and quant_flag == "mixed"
+                else "  quant/engine pair is checked before the snapshot download."
+            ),
             "",
             "9 telemetry",
             "  " + shlex.join(nvidia_smi_query(cfg.doctor.gpu_index)),
@@ -169,14 +196,21 @@ def render_plan(
             "  " + shlex.join(docker_rm_argv(speed_name)),
             "  Drop the page cache if /proc/sys/vm/drop_caches is writable, then idle until cool.",
             "",
-            _moe_note(cfg, quant_flag, assume_moe),
+            _moe_note(cfg, quant_flag, assume_moe, engine),
         ]
     )
     return "\n".join(lines) + "\n"
 
 
-def _moe_note(cfg: Config, quant_flag: str, assume_moe: bool) -> str:
+def _moe_note(cfg: Config, quant_flag: str, assume_moe: bool, engine: str) -> str:
     chain = ", ".join(moe_backend_chain(cfg))
+    if engine == "sglang":
+        return (
+            "moe: SGLang does not take vLLM's --moe-backend chain. "
+            "moe_backend_quality and moe_backend_speed stay unset unless a log line names one. "
+            "SMA does not invent a backend name. NVFP4 on SGLang is accepted for ModelOpt checkpoints; "
+            "compressed-tensors NVFP4 is refused and the error says to use vLLM."
+        )
     if quant_flag == "bf16":
         return (
             "moe: --moe-backend is not passed for BF16. "

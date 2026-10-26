@@ -96,11 +96,12 @@ def new_manifest(
     run_id: str,
     reference_run_id: str | None,
     pair_job_id: str | None,
+    engine: str = "vllm",
 ) -> dict[str, Any]:
     commit, dirty = git_identity()
     now = utc_now()
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "run_id": run_id,
         "model_repo": repo,
         "model_slug": model_slug(repo),
@@ -111,6 +112,8 @@ def new_manifest(
         "quant_detected": None,
         "quant_detail": None,
         "quant_producer": None,
+        "quant_composition": None,
+        "architecture_check": None,
         "architecture": None,
         "architectures": [],
         "is_moe": None,
@@ -129,18 +132,22 @@ def new_manifest(
             "model_repo": repo,
             "revision_sha": None,
             "quant": quant_flag,
-            "engine": "vllm",
+            "engine": engine,
             "hardware_alias": cfg.host_alias,
         },
         "engine": {
-            "name": "vllm",
-            "image": cfg.engine.image,
-            "image_digest": cfg.engine.image_digest,
+            "name": engine,
+            "image": cfg.engine.sglang_image if engine == "sglang" else cfg.engine.image,
+            "image_digest": cfg.engine.sglang_image_digest if engine == "sglang" else cfg.engine.image_digest,
             "tensor_parallel_size": 1,
             "moe_backend_config": cfg.engine.moe_backend,
             "moe_backend_chain": moe_backend_chain(cfg),
             "moe_backend_used": None,
             "moe_backend_fallback": False,
+            "moe_backend_quality": None,
+            "moe_backend_speed": None,
+            "moe_backend_quality_fallback": False,
+            "moe_backend_speed_fallback": False,
             "linear_backend": None,
             "batch_invariant_quality": False,
             "batch_invariant_supported": None,
@@ -151,13 +158,14 @@ def new_manifest(
             ),
             "seed": cfg.seed,
             "max_logprobs": cfg.logprobs.top_k,
-            "logprobs_mode": "raw_logprobs",
+            "logprobs_mode": "sglang_input_top_logprobs" if engine == "sglang" else "raw_logprobs",
             "flags_quality": [],
             "flags_speed": [],
             "env_quality": {},
             "env_speed": {},
             "clock_cap_mhz": cfg.engine.clock_cap_mhz,
             "resolved_backend_note": None,
+            "deterministic_quality": _deterministic_quality(cfg, engine),
         },
         "sma_version": __version__,
         "sma_git_commit": commit,
@@ -173,8 +181,15 @@ def new_manifest(
     }
 
 
-def run_dir_for(cfg: Config, repo: str, quant_flag: str, run_id: str) -> Path:
-    return cfg.runs_path() / model_slug(repo) / quant_flag / run_id
+def _deterministic_quality(cfg: Config, engine: str) -> dict[str, Any]:
+    from sma.backends import get_backend
+
+    return get_backend(engine).deterministic(cfg)
+
+
+def run_dir_for(cfg: Config, repo: str, quant_flag: str, run_id: str, engine: str = "vllm") -> Path:
+    # Engine is part of the subject. Old runs live at runs/<slug>/<quant>/<id>.
+    return cfg.runs_path() / model_slug(repo) / engine / quant_flag / run_id
 
 
 def marker_path(run_dir: Path, step: str) -> Path:
@@ -248,7 +263,7 @@ def build_summary(run_dir: Path, manifest: dict[str, Any], cfg: Config) -> dict[
         manifest.get("quant_label") or manifest.get("quant_flag") or "",
         cfg.telemetry.spec_bandwidth_gbps,
     )
-    energy_joules = _energy(samples, windows)
+    energy_joules = _energy(samples, windows, max_gap_s=cfg.telemetry.max_sample_gap_s)
     bench_requests = _bench_requests(windows, cfg)
     per_request = None
     if energy_joules is not None and bench_requests:
@@ -275,13 +290,22 @@ def build_summary(run_dir: Path, manifest: dict[str, Any], cfg: Config) -> dict[
         "output_tok_s_c4": _dig(speed, "output_tok_s_c4"),
         "output_tok_s_c8": _dig(speed, "output_tok_s_c8"),
         "invalid_cells": int(_dig(speed, "invalid_cells") or 0),
+        "unverified_cells": int(
+            _dig(speed, "unverified_cells")
+            if _dig(speed, "unverified_cells") is not None
+            else sum(
+                1
+                for cell in (_dig(speed, "cells") or [])
+                if isinstance(cell, dict) and cell.get("validity") == "unverified"
+            )
+        ),
         "bandwidth_ceiling_tok_s": ceiling,
         "bandwidth_ceiling_note": ceiling_note,
         "cells": list(_dig(speed, "cells") or []),
     }
     warnings = list(manifest.get("warnings") or [])
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "run_id": manifest["run_id"],
         "model_repo": manifest["model_repo"],
         "model_slug": manifest["model_slug"],
@@ -290,7 +314,7 @@ def build_summary(run_dir: Path, manifest: dict[str, Any], cfg: Config) -> dict[
         "quant_detected": manifest.get("quant_detected"),
         "revision_sha": manifest.get("revision_sha"),
         "host_alias": manifest["host_alias"],
-        "engine": "vllm",
+        "engine": (manifest.get("engine") or {}).get("name") or "vllm",
         "engine_image": engine.get("image") or cfg.engine.image,
         "engine_image_digest": engine.get("image_digest"),
         "status": overall_status(manifest),
@@ -309,11 +333,13 @@ def build_summary(run_dir: Path, manifest: dict[str, Any], cfg: Config) -> dict[
         "energy": {
             "joules": energy_joules,
             "joules_per_bench_request": per_request,
-            "method": "nvidia-smi-1hz-trapezoid",
+            "method": "nvidia-smi-1hz-trapezoid-per-window",
             "sample_hz": cfg.telemetry.interval_s,
             "scope": "gpu",
             "note": (
-                "Integral of GPU power over valid speed-cell windows. "
+                "Each valid speed-cell window is integrated on its own and the joules are summed. "
+                "Gaps between samples longer than telemetry.max_sample_gap_s are not bridged, "
+                "and invalid or unverified windows are excluded. "
                 "Not joules per correct answer, and not a wall-meter reading. "
                 "Null means it was not measured."
             ),
@@ -323,6 +349,7 @@ def build_summary(run_dir: Path, manifest: dict[str, Any], cfg: Config) -> dict[
             "temp_end_c": temps[-1] if temps else None,
             "throttle_samples": throttle_samples,
             "clock_cap_mhz": engine.get("clock_cap_mhz"),
+            "sw_power_cap_invalidates": bool(cfg.telemetry.sw_power_cap_invalidates),
             "log": "telemetry.csv",
         },
         "params_total": params.get("total"),
@@ -349,25 +376,30 @@ def _dig(payload: Any, key: str) -> Any:
     return None
 
 
-def _energy(samples: list[Any], windows: Any) -> float | None:
+def _energy(samples: list[Any], windows: Any, *, max_gap_s: float) -> float | None:
+    """Sum per-window integrals. A gap between windows is not trapezoided."""
     if not isinstance(windows, dict):
         return None
-    spans = []
+    total = 0.0
+    measured = False
     for item in windows.get("windows") or []:
         if not isinstance(item, dict) or not item.get("valid"):
             continue
         start = item.get("start_unix")
         end = item.get("end_unix")
-        if isinstance(start, (int, float)) and isinstance(end, (int, float)):
-            spans.append((float(start), float(end)))
-    if not spans:
-        return None
-    selected = [
-        sample
-        for sample in samples
-        if any(start <= sample.ts_unix <= end for start, end in spans)
-    ]
-    return integrate_joules(selected)
+        if not isinstance(start, (int, float)) or not isinstance(end, (int, float)):
+            continue
+        selected = [
+            sample
+            for sample in samples
+            if float(start) <= sample.ts_unix <= float(end)
+        ]
+        joules = integrate_joules(selected, max_gap_s=max_gap_s)
+        if joules is None:
+            continue
+        total += joules
+        measured = True
+    return total if measured else None
 
 
 def _bench_requests(windows: Any, cfg: Config) -> int:

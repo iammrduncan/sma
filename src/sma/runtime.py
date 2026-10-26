@@ -36,12 +36,15 @@ class DockerRuntime:
     cfg: Config
     commands: list[list[str]] = field(default_factory=list)
 
-    def ensure_image(self) -> str | None:
-        inspect = docker_inspect_argv(self.cfg)
+    def ensure_image(self, image: str | None = None) -> str | None:
+        from sma.commands import image_ref
+
+        ref = image or image_ref(self.cfg)
+        inspect = ["docker", "image", "inspect", ref, "--format", "{{json .RepoDigests}}"]
         self.commands.append(inspect)
         looked = run_command(inspect, timeout_s=self.cfg.timeouts.docker_s, what="docker image inspect")
         if not looked.ok:
-            pull = docker_pull_argv(self.cfg)
+            pull = ["docker", "pull", ref]
 
             def _pull() -> None:
                 self.commands.append(pull)

@@ -42,6 +42,10 @@ def top1_id(entries: list[dict[str, Any]]) -> int | None:
     return int(best["id"])
 
 
+# Positions that would have been infinite KL stay in the mean, floored here.
+KL_EPSILON = 1e-12
+
+
 def _tail(mass: float) -> float:
     if mass < 0 and mass > -1e-9:
         return 0.0
@@ -74,30 +78,33 @@ def kl_position(
         method = "page_topk_tail"
     q_sum = sum(cand[token_id] for token_id, _ in used)
     q_tail = _tail(1.0 - q_sum)
-    infinite = False
+    floored = False
     kl = 0.0
     for token_id, p_mass in used:
-        q_mass = cand[token_id]
         if p_mass == 0:
             continue
-        if q_mass <= 0:
-            infinite = True
-            break
+        q_mass = cand[token_id]
+        if q_mass < KL_EPSILON:
+            q_mass = KL_EPSILON
+            floored = True
         kl += p_mass * math.log(p_mass / q_mass)
-    if not infinite:
-        if p_tail > 0 and q_tail > 0:
-            kl += p_tail * math.log(p_tail / q_tail)
-        elif p_tail > 0 and q_tail == 0:
-            infinite = True
+    if p_tail > 0:
+        q_tail_used = q_tail
+        if q_tail_used < KL_EPSILON:
+            q_tail_used = KL_EPSILON
+            floored = True
+        kl += p_tail * math.log(p_tail / q_tail_used)
     return {
-        "kl": None if infinite else kl,
-        "infinite": infinite,
+        "kl": kl,
+        "infinite": False,
+        "floored": floored,
         "approximate": approximate,
         "method": method,
         "k": k,
         "missing_ids": missing,
         "p_tail": p_tail,
         "q_tail": q_tail,
+        "epsilon": KL_EPSILON,
     }
 
 
@@ -115,7 +122,7 @@ def compare_dumps(reference: dict[str, Any], candidate: dict[str, Any]) -> dict[
     k_values: set[int] = set()
     methods: set[str] = set()
     finite: list[float] = []
-    infinite_positions = 0
+    floored_positions = 0
     approximate_positions = 0
     top1_hit = 0
     top1_total = 0
@@ -150,11 +157,12 @@ def compare_dumps(reference: dict[str, Any], candidate: dict[str, Any]) -> dict[
             methods.add(str(term["method"]))
             if term["approximate"]:
                 approximate_positions += 1
-            if term["infinite"] or term["kl"] is None:
-                infinite_positions += 1
-            else:
-                finite.append(float(term["kl"]))
-                window_kl.append(float(term["kl"]))
+            if term.get("floored"):
+                floored_positions += 1
+            if term["kl"] is None:
+                continue
+            finite.append(float(term["kl"]))
+            window_kl.append(float(term["kl"]))
             ref_top1 = top1_id(list(ref_pos.get("top") or []))
             cand_top1 = top1_id(list(cand_pos.get("top") or []))
             if ref_top1 is not None and cand_top1 is not None:
@@ -190,12 +198,16 @@ def compare_dumps(reference: dict[str, Any], candidate: dict[str, Any]) -> dict[
         "approximation": (
             "Top-k KL plus one tail bucket. q_tail = 1 - q mass on the reference "
             "top-k ids when those ids are present. Missing ids are folded into the "
-            "tail and counted in approximate_positions. This is not full-vocabulary KL."
+            "tail and counted in approximate_positions. Probabilities below "
+            f"{KL_EPSILON} are floored so those positions stay in the mean. "
+            "This is not full-vocabulary KL."
         ),
+        "kl_epsilon": KL_EPSILON,
         "kl_mean": (sum(finite) / len(finite)) if finite else None,
         "kl_positions": positions,
         "kl_finite_positions": len(finite),
-        "kl_infinite_positions": infinite_positions,
+        "kl_floored_positions": floored_positions,
+        "kl_infinite_positions": floored_positions,
         "kl_approximate_positions": approximate_positions,
         "top1_agreement": (top1_hit / top1_total) if top1_total else None,
         "top1_positions": top1_total,

@@ -1,23 +1,56 @@
 # SMA
 
-SMA (Small Model Arena launcher) is a standalone CLI. It takes one Hugging Face checkpoint and a quant flag, checks that the checkpoint already is that quant, serves it with vLLM, and writes a resumable run folder.
+SMA (Small Model Arena launcher) is a standalone CLI. It takes one Hugging Face checkpoint that is already in the quant you name, serves it, and writes a resumable run folder.
 
-SMA does not quantize. It does not use tensor parallelism, including across machines. One Spark runs one model at a time.
+SMA does not quantize. It does not use tensor parallelism, including across machines. One Spark runs one model at a time. The host alias in the run record is not a hostname, and the HF token is read from the environment only.
+
+vLLM is the default engine. SGLang is opt-in (`--engine sglang`, `engine.name` in `sma.yaml`, or `engine` on a queue job). The engine is part of the subject. A vLLM row and an SGLang row are not the same run.
 
 ```bash
-sma run RecursiveSI/flint --bf16
-sma run HawkBearPig/flint-FP8-NVFP4 --nvfp4
+sma run Qwen/Qwen3-8B --bf16
+sma run RedHatAI/Qwen3-8B-NVFP4 --nvfp4
 ```
 
-Both quants of one model should run on the same Spark. Queue them as one job, or use `run-pair`:
+Both legs of a pair use the same engine and the same Spark. `run-pair` holds one GPU lock across both legs. A queue pair is one job, pinned to the alias that created the first run, so a different Spark cannot pick up leg 1.
 
 ```bash
-sma run-pair --bf16 RecursiveSI/flint --nvfp4 HawkBearPig/flint-FP8-NVFP4
-sma queue add-pair --bf16 RecursiveSI/flint --nvfp4 HawkBearPig/flint-FP8-NVFP4
+sma run-pair --bf16 Qwen/Qwen3-8B --nvfp4 RedHatAI/Qwen3-8B-NVFP4
+sma queue add-pair --bf16 Qwen/Qwen3-8B --nvfp4 RedHatAI/Qwen3-8B-NVFP4
 sma worker
 ```
 
 `--mxfp4` is for checkpoints that already ship as MXFP4, such as gpt-oss. A native MXFP4 model is its own reference. There is no second quant and no KL unless you compare two runs yourself.
+
+`--mixed` is for checkpoints that already declare mixed FP8 and NVFP4, such as `quant_method: dgpp_mixed`. `--nvfp4` refuses those and tells you to pass `--mixed`. SMA does not flatten a mixed checkpoint into NVFP4.
+
+## What does not start
+
+These commands fail in preflight, before the weight snapshot is downloaded. A dry-run only prints the plan. It does not mean the engine can load the architecture.
+
+`RecursiveSI/flint` is `FlintForCausalLM` (`model_type: flint`). The repo has no `auto_map`. It ships `sglang/flint_sglang-0.1.4-py3-none-any.whl` and no vLLM modeling code. SMA does not install that wheel.
+
+```bash
+sma run RecursiveSI/flint --bf16
+# vLLM preflight fails. The error suggests --engine sglang.
+
+sma run RecursiveSI/flint --bf16 --engine sglang
+# Stock SGLang preflight also fails. FlintForCausalLM is not in the pinned image's registry.
+```
+
+`HawkBearPig/flint-FP8-NVFP4` is the same architecture with `quant_method: dgpp_mixed` (FP8 and NVFP4 expert projections, BF16 activations).
+
+```bash
+sma run HawkBearPig/flint-FP8-NVFP4 --nvfp4
+# Refused. The error says to pass --mixed.
+
+sma run HawkBearPig/flint-FP8-NVFP4 --mixed
+# Refused on vLLM. Stock vLLM does not implement dgpp_mixed.
+
+sma run HawkBearPig/flint-FP8-NVFP4 --mixed --engine sglang
+# The quant is accepted. Architecture preflight still fails on a stock SGLang image.
+```
+
+Preflight uses the container's model registry when Docker can run the image with no network. If it cannot, SMA uses a bundled list and still fails closed on an unknown architecture. `trust_remote_code` plus a causal-LM `auto_map` is the only bypass, and it is off by default.
 
 ## Quickstart
 
@@ -33,66 +66,71 @@ Edit `sma.yaml` if you need to. The host alias defaults to `gpu-host-1`. It must
 
 ```bash
 sma doctor
-sma run tiny-model --bf16 --dry-run
-sma run org/model --bf16
+sma run Qwen/Qwen3-8B --bf16 --dry-run
+sma run Qwen/Qwen3-8B --bf16
 sma status
 sma list
 sma resume <run-id>
 sma compare <bf16-run-id> <nvfp4-run-id>
 ```
 
-`sma doctor` checks Docker, the NGC image, `nvidia-smi`, that the GPU has no compute process, free disk, and that `HF_TOKEN` is set. It does not pull the image and it does not print the token.
+`sma doctor` checks Docker, the configured image, `nvidia-smi`, that the GPU has no compute process, free disk, and that `HF_TOKEN` is set. It does not pull the image and it does not print the token.
 
-A dry-run prints the plan and the exact commands. It does not download, start a container, or write a run folder.
+A dry-run prints the plan and the exact commands. It does not download, start a container, or write a run folder. It also does not prove the checkpoint's architecture is registered.
 
 ## What a run does
 
-Each step is idempotent. A `steps/<name>.done` marker is written only after the step finishes. `sma resume <run-id>` skips steps that have a marker. A crash mid-step redoes that step and does not redo finished ones.
+Each step is idempotent. A `steps/<name>.done` marker is written only after the step finishes. `sma resume <run-id>` skips steps that have a marker, and only on the host alias that started the run. A crash mid-step redoes that step and does not redo finished ones.
 
-1. **Fetch.** Resolve the repo to a commit SHA and download that snapshot with `huggingface_hub` (resumable). Hash the weight files. Count total and active parameters from safetensors shapes. Read `config.json` and `hf_quant_config.json` and refuse if they do not match `--bf16`, `--nvfp4`, or `--mxfp4`.
-2. **Serve for quality.** NVIDIA NGC vLLM image, digest recorded from `docker image inspect`. `VLLM_BATCH_INVARIANT=1` when the architecture allows it, `--no-enable-flashinfer-autotune`, `--no-async-scheduling`, fixed seed, `--tensor-parallel-size 1`. Health check with a deadline.
-3. **Determinism.** The same prompts at batch sizes 1, 8, and 64. A mismatch is recorded. The run continues.
-4. **Logprobs.** A versioned corpus is cut into 2048-token windows and scored as raw token ids, with no chat template. Each position stores top-k (default 64), a tail bucket, and the true next-token logprob. Perplexity is `exp(-mean logprob)`.
+1. **Fetch.** Resolve the repo to a commit SHA. Read `config.json` and, when present, `hf_quant_config.json`. Refuse a quant mismatch, an unsupported quant/engine pair, or an architecture the engine cannot load. Then download that snapshot with `huggingface_hub` (resumable). Hash the weight files. Count total and active parameters from safetensors shapes. Flags are `--bf16`, `--nvfp4`, `--mxfp4`, and `--mixed`.
+2. **Serve for quality.** The pinned image, then the digest recorded from `docker image inspect` on later starts. vLLM: `VLLM_BATCH_INVARIANT=1` when the architecture allows it, `--no-enable-flashinfer-autotune`, `--no-enable-prefix-caching`, `--no-async-scheduling`, fixed seed, `--tensor-parallel-size 1`. SGLang: `--attention-backend flashinfer`, `--tp-size 1`, `--enable-deterministic-inference`, and `--disable-radix-cache` because FlashInfer determinism does not keep the radix cache. Health check with a deadline.
+3. **Determinism.** The same prompts at batch sizes 1, 8, and 64, on the quality server with prefix caching off. A mismatch is recorded. The run continues.
+4. **Logprobs.** The pinned corpus is cut into 2048-token windows and scored as raw token ids, with no chat template. vLLM uses `/v1/completions` `prompt_logprobs`. SGLang uses `/generate` input-token top-k. Each position stores top-k (default 64), a tail bucket, and the true next-token logprob. Perplexity is `exp(-mean logprob)`. A field the server does not return stays null.
 5. **Quality.** lm-eval against the local OpenAI-compatible server, at the concurrency in `sma.yaml`. Raw samples and scores are saved. The scorer label is `lm-eval-harness`.
-6. **Speed.** The server is restarted with batch invariance off. After a warm-up soak, `vllm bench serve` runs prefill-heavy and decode-heavy shapes at concurrency 1, then a concurrency sweep (1, 4, 8). Percentiles are ttft, tpot, itl, and e2el at 50, 90, and 99. `/metrics` is scraped before and after each cell.
-7. **Telemetry.** A 1 Hz `nvidia-smi` sample of SM clock, temperature, power, and throttle reasons for the whole run. A thermal or power slowdown marks that speed cell invalid and retries it once after a cool-down. Invalid cells stay on disk and are left out of the headline tok/s.
+6. **Speed.** The server is restarted with batch invariance off. A fresh speed server, including on resume, runs the warm-up soak again. `vllm bench serve` or `python3 -m sglang.bench_serving` runs prefill-heavy and decode-heavy shapes at concurrency 1, then a concurrency sweep (1, 4, 8). Percentiles are ttft, tpot, itl, and e2el at 50, 90, and 99 when the tool writes them. `/metrics` is scraped before and after each cell. Metric names match with labels stripped (`model_name`, `engine`, and the rest).
+7. **Telemetry.** A 1 Hz `nvidia-smi` sample of SM clock, temperature, power, and throttle reasons for the whole run. A real thermal or power slowdown marks that speed cell invalid and retries it once after a cool-down. `sw_power_cap` is always stored. It invalidates a cell only when `telemetry.sw_power_cap_invalidates` is true, because a GB10 near 140 W can show that flag in steady state. Missing telemetry, a failed query, a window with no samples, or `[N/A]` flags mark the cell `unverified`. Unverified cells are not retried. Invalid and unverified cells stay on disk and are left out of the headline tok/s.
 8. **Teardown.** The container is removed on success, failure, Ctrl-C, and SIGTERM. The page cache is dropped when the process is allowed to write `/proc/sys/vm/drop_caches`. The run then waits until the GPU is cool, or until the idle timeout.
 
-Derived headlines, labeled as derived:
+Headline tok/s uses `speed.derive_stat` (`p50` by default, or `p90` / `p99`):
 
 - prefill tok/s = input length / TTFT at concurrency 1
 - decode tok/s = 1 / TPOT at concurrency 1
 
-`sma compare <reference> <candidate>` computes per-token KL with the reference top-k plus a tail bucket, top-1 agreement, and delta perplexity. It records k. It refuses when the tokenizer fingerprints differ, or when the token-id windows differ. Top-k KL is an approximation.
+If that percentile is absent, the derived number is null and the cell records why. SMA does not invent it.
 
-For MoE NVFP4 and MXFP4, SMA always passes `--moe-backend`. The default chain is `flashinfer_b12x`, then `marlin` if the server never becomes healthy. The backend that actually started is stored on the run. Auto-selection is not used. Dense NVFP4 also passes `--linear-backend` (default `flashinfer_b12x`). BF16 does not get the FP4 MoE backend.
+`sma compare <reference> <candidate>` computes per-token KL with an epsilon floor (`1e-12`) instead of dropping infinite-KL positions. The floored count is stored. It also records top-1 agreement and delta perplexity, and it records k. It accepts a BF16 reference against a `mixed` candidate when the tokenizer, corpus, and engine match. It refuses a different engine unless you pass `--allow-cross-engine`, and that result is labeled `CROSS-ENGINE`. It refuses when the tokenizer fingerprints differ, or when the token-id windows differ.
+
+For MoE NVFP4, MXFP4, and mixed on vLLM, SMA always passes `--moe-backend`. The chain is `flashinfer_b12x`, then `marlin` if that server never becomes healthy. Quality and speed each record the backend that started. Auto-selection is not used. Dense NVFP4 also passes `--linear-backend` (default `flashinfer_b12x`). BF16 does not get the FP4 MoE backend. SGLang does not take that chain. Its MoE fields stay unset unless a log line names a backend. SMA does not invent one.
+
+NVFP4 on vLLM includes ModelOpt and compressed-tensors `nvfp4-pack-quantized` (for example `RedHatAI/Qwen3-8B-NVFP4`). SGLang NVFP4 is ModelOpt checkpoints. Compressed-tensors NVFP4 and W4A16 are refused on SGLang, and the error says to use vLLM. A W4A16 NVFP4 checkpoint is accepted by `--nvfp4` on vLLM and stored as `nvfp4_w4a16`.
 
 ## Queue
 
-Up to three Sparks can run `sma worker` against one queue directory. The directory has to be on a single filesystem because a claim is an atomic `link`. Each worker holds the GPU lock and runs one whole job at a time. A pair job runs the reference quant, then NVFP4, on that same Spark, and passes the reference run into the KL step.
+Up to three Sparks can run `sma worker` against one queue directory. The directory has to be on a single filesystem because a claim is an atomic `link`. The worker takes the GPU lock before it claims. If the lock is busy it does not take a job. Each claimed job is heartbeated until it finishes. One failed model is marked failed (or returned to pending while `attempts` is under `queue.max_attempts`) and the worker continues.
 
-Spark 1 is the one you keep a worker on. The other two are opportunistic: start a worker when the machine is free. Nothing in the queue requires them. Jobs are never split across Sparks.
+A pair is one claim. The alias that created the first run is stored on the job and is not cleared when the claim is reclaimed. Leg 1 runs on that same Spark. `sma resume` refuses a run whose `host_alias` is not this process.
 
 ```bash
-sma queue add org/model --bf16
+sma queue add Qwen/Qwen3-8B --bf16
+sma queue add org/model --nvfp4 --engine sglang
 sma queue list
 sma queue reclaim          # return a claim whose heartbeat is stale
 sma worker --once
 ```
 
-`gpu.lock` stops two SMA processes on the same Spark from starting two models.
+`gpu.lock` stops two SMA processes on the same Spark from starting two models. `run-pair` holds that lock for both legs.
 
 ## Run record contract
 
 ```
-runs/<model-slug>/<quant>/<run-id>/
-  manifest.json                 schema version 1
+runs/<model-slug>/<engine>/<quant>/<run-id>/
+  manifest.json                 schema version 2
   summary.json                  flat headline numbers; null means not measured
   steps/<step>.done             the resume marker
-  fetch/result.json             SHA, hashes, params, detected quant
+  fetch/result.json             SHA, hashes, params, detected quant, composition
   determinism.json
   logprobs/dump.json            per-token top-k, tail, true-token logprob
-  logprobs/corpus.json
+  logprobs/corpus.json          dataset, revision, sha256, license
   logprobs/perplexity.json
   logprobs/kl_vs_reference.json only when a reference run was supplied
   quality/<suite>/scores.json
@@ -103,56 +141,75 @@ runs/<model-slug>/<quant>/<run-id>/
   telemetry.csv
   logs/
   cleanup.json
-runs/catalog.sqlite              fast index
+runs/catalog.sqlite              fast index, including engine
 runs/index.json                  atomic snapshot of the catalog
 runs/compares/<ref>__<cand>.json output of sma compare
 ```
+
+Older runs that live at `runs/<model-slug>/<quant>/<run-id>/` are still found by `sma list`, `sma status`, `sma resume`, and `sma compare`. New runs are engine-separated. A resumed run keeps the engine it was started with.
 
 Schemas: [`schemas/manifest.schema.json`](schemas/manifest.schema.json) and [`schemas/summary.schema.json`](schemas/summary.schema.json).
 
 JSON is written to a temp file, fsynced, and renamed. A crash does not leave a half-written manifest or summary.
 
-The manifest is the subject record: model repo, revision SHA, weight hashes, quant, parameter counts, engine image and digest, every vLLM flag that was passed, the env vars SMA set, the SMA git commit, the host alias, timestamps, and step status. It does not contain the machine hostname or the HF token. `summary.json` uses null for anything that was not measured. It does not fill missing scores with zero.
+The manifest is the subject record: model repo, revision SHA, weight hashes, quant, mixed composition when the config exposes layer or group counts, architecture check, parameter counts, engine name, image and digest, every server flag that was passed, the env vars SMA set, the MoE backend for quality and for speed, the SMA git commit, the host alias, timestamps, and step status. It does not contain the machine hostname or the HF token. `summary.json` uses null for anything that was not measured. It does not fill missing scores with zero. `quant` in the index is `mixed` for a mixed checkpoint.
 
-A future app should list runs from `runs/index.json` or `catalog.sqlite` and read `summary.json` for headlines. Per-sample quality output and per-token logprobs stay in the run folder.
+Energy in `summary.json` is the sum of per-window GPU power integrals over valid speed cells. A gap longer than `telemetry.max_sample_gap_s` (default 2.5 s) is not trapezoided, and the gap between two cells is not one interval. Invalid and unverified windows are excluded. Scope is `gpu`. Null means it was not measured.
+
+## Corpus
+
+`sma-corpus-v2` is a vendored public-domain slice of Pride and Prejudice, Project Gutenberg ebook 1342, file `1342-0.txt`. Commercial use is allowed. The bytes are pinned:
+
+| Field | Value |
+| --- | --- |
+| dataset | `project-gutenberg-1342` |
+| revision | `1342-0.txt` |
+| license | `public-domain` |
+| sha256 | `0823f27e959d45615f89e715f9510174563cad92f093a7b88834415b93347bd4` |
+| size | 448,887 characters, 78,119 words |
+
+`load_corpus` checks the hash and refuses a mismatch. The exact token count depends on the checkpoint tokenizer. A typical BPE encoding of this slice is on the order of 100k tokens. The windows that were actually scored are what `sma compare` checks.
 
 ## Config
 
-`sma.yaml` in the working directory, or `--config`. Unknown keys are an error. `--quantization` and `--tensor-parallel-size` other than 1 are refused, including inside `engine.extra_args`.
+`sma.yaml` in the working directory, or `--config`. Unknown keys are an error. `--quantization` and `--tensor-parallel-size` other than 1 are refused, including inside `engine.extra_args`. SGLang attention must stay `flashinfer` (required on SM12x). `--tp-size` is forced to 1.
 
-The image tag is pinned in config (`nvcr.io/nvidia/vllm:26.05.post1-py3`, the current DGX Spark playbook tag). Set `engine.image_digest` when you have a digest. SMA records the digest `docker image inspect` returns. It does not invent one.
+The vLLM tag is pinned (`nvcr.io/nvidia/vllm:26.05.post1-py3`). The SGLang tag is pinned (`lmsysorg/sglang:v0.5.10.post1-cu130`, the versioned arm64 / CUDA 13 tag, not `latest-cu130`). Set `engine.image_digest` or `engine.sglang_image_digest` when you already know a digest. Otherwise SMA records the digest `docker image inspect` returns and uses `image@sha256:…` for later starts in that run, including the other leg and a restart. It does not invent a digest.
 
 ## Caveats
 
 - Batch invariance is beta. vLLM documents it for newer datacenter GPUs. It is not verified here on sm_121 or with NVFP4. Gated delta-net models (Qwen3.5 / Qwen3.6) are rejected by that mode, so SMA does not set the flag for those architectures, records a warning, and continues at the fixed concurrency.
-- Turning batch invariance on is not enough if async scheduling is still composing the next batch. Quality mode also passes `--no-async-scheduling`. That flag was not executed against a live vLLM in this repo.
-- MoE backend auto-selection on SM121 can pick Marlin, and Marlin NVFP4 on SM121 has crash reports. SMA sets `--moe-backend` explicitly. If every backend in the chain fails, the step is failed, not skipped.
-- Some Spark units throttle or power off under a sustained vLLM load. Throttled speed cells are marked invalid. They are not deleted.
-- Top-k KL is an approximation. The tail is one bucket. If a reference top-k id is missing from the candidate's stored top-k, that mass is folded into the tail and the position is labeled approximate. Full-vocabulary KL is not computed.
+- Turning batch invariance on is not enough if async scheduling is still composing the next batch. vLLM quality mode also passes `--no-async-scheduling`. That flag was not executed against a live vLLM in this repo.
+- MoE backend auto-selection on SM121 can pick Marlin, and Marlin NVFP4 on SM121 has crash reports. vLLM MoE NVFP4 and MXFP4 set `--moe-backend` explicitly, then try `marlin` if `flashinfer_b12x` never becomes healthy. That is step 1 of the arena plan's NVFP4 chain. If every backend in the chain fails, the step is failed, not skipped. SMA does not quantize and does not switch to SGLang as a fallback.
+- Some Spark units throttle or power off under a sustained load. Throttled speed cells are marked invalid. They are not deleted. `sw_power_cap` is recorded and, by default, does not invalidate the cell.
+- Top-k KL is an approximation. The tail is one bucket. If a reference top-k id is missing from the candidate's stored top-k, that mass is folded into the tail and the position is labeled approximate. Positions that would have been infinite KL stay in the mean with probability floored at `1e-12`, and the count is `kl_floored_positions`. Full-vocabulary KL is not computed.
 - Tokenizers must match. `sma compare` refuses otherwise. Tokens per answer are not a shared unit across models.
-- lm-eval scores are not the arena's pinned scorers. The default suite list is small and limited (ifeval, gsm8k, mmlu_pro, gpqa_diamond). Clear `limit` to run a whole task. The arena's full suite set is not the v0 default.
-- v0 speed repeats default to 1, plus a warm-up. The arena plan's "at least 3 runs" is `speed.repeats`.
-- Energy is the trapezoid of 1 Hz GPU power samples over valid speed windows (`scope: gpu`). It is not joules per correct answer and not a wall-meter reading. Null means it was not measured.
-- The bandwidth ceiling in the summary uses the configured 273 GB/s spec constant and approximate bytes per parameter. It is not a measurement. NVFP4 scale overhead is not included.
-- The determinism probe sends one completions request with N copies of each prompt. The client cannot force the scheduler to fuse those copies into one batch. `max_num_seqs` is at least 64 so a batch of 64 is allowed.
-- Logprobs go through the running server's `/v1/completions` `prompt_logprobs` on raw token ids. A second offline `LLM()` process is not started, because the quality server already holds the GPU.
-- SMA only produces vLLM rows. A result from another engine has to be labeled as that engine and is not comparable with these rows.
+- lm-eval scores are not the arena's pinned scorers. The default suite list is small and limited (ifeval, gsm8k, mmlu_pro, gpqa_diamond). Clear `limit` to run a whole task. The arena's full suite set is not the default.
+- Speed repeats default to 1, plus a warm-up. The arena plan's "at least 3 runs" is `speed.repeats`.
+- Energy is the sum of 1 Hz GPU power integrals over valid speed windows (`scope: gpu`). It is not joules per correct answer and not a wall-meter reading.
+- The bandwidth ceiling in the summary uses the configured 273 GB/s spec constant and approximate bytes per parameter. It is not a measurement. NVFP4 scale overhead is not included. Mixed checkpoints have no single byte width, so that ceiling is null.
+- The determinism probe sends one completions request with N copies of each prompt, with prefix caching disabled on the quality server. The client cannot force the scheduler to fuse those copies into one batch. `max_num_seqs` is at least 64 so a batch of 64 is allowed.
+- Logprobs go through the server that is already up. A second offline `LLM()` process is not started, because the quality server already holds the GPU.
+- SGLang measurements that the bench JSON or `/metrics` scrape does not contain are null, with a reason on the cell or in `metrics.json`. They are not copied from vLLM's metric names.
 - SMA does not apply arena fidelity verdicts (broken / degraded / faithful / lossless). It records KL, top-1, and perplexity. Thresholds belong to the arena.
 
 ## What this environment did not verify
 
-This workspace has no NVIDIA GPU and no DGX Spark. The tests use a fake HTTP server and a fake container runtime. They do not pull the NGC image, start vLLM, run lm-eval, or read a real GPU sensor.
+This workspace has no NVIDIA GPU and no DGX Spark. The tests use a fake HTTP server and a fake container runtime. They do not pull the NGC or SGLang image, start vLLM or SGLang, run lm-eval, or read a real GPU sensor.
 
 Not verified on hardware:
 
-- the NGC image tag actually starting on GB10 / sm_121 / ARM64 / CUDA 13
+- either pinned image actually starting on GB10 / sm_121 / ARM64 / CUDA 13
 - `VLLM_BATCH_INVARIANT=1` and `--no-async-scheduling` on sm_121 or NVFP4
 - `--moe-backend flashinfer_b12x` and the Marlin fallback on a real MoE checkpoint
-- `--no-enable-flashinfer-autotune` and `--max-logprobs` against the pinned image
+- `--no-enable-flashinfer-autotune`, `--no-enable-prefix-caching`, and `--max-logprobs` against the pinned vLLM image
+- SGLang `--attention-backend flashinfer`, `--enable-deterministic-inference`, and `--disable-radix-cache` on SM12x
+- SGLang `/generate` input-token top-k, `sglang.bench_serving` JSON, and SGLang `/metrics` names on the pinned image
 - `vllm bench serve` writing the JSON shape this parser accepts (several historical shapes are accepted; a new shape needs a parser update)
 - lm-eval task names (`mmlu_pro`, `gpqa_diamond`) on the installed harness
 - thermal throttle flags from `nvidia-smi` on a Spark, including the older `clocks_throttle_reasons` names
 - dropping the page cache (the unit test only checks that a permission error is recorded)
+- loading `FlintForCausalLM` or `dgpp_mixed` in any image
 - any benchmark number, quality score, tok/s, joules, or KL on a real model
 
 No benchmark numbers are shipped with this repo.
@@ -164,4 +221,4 @@ uv sync --extra dev
 uv run pytest
 ```
 
-`sma run tiny-model --bf16 --dry-run` is covered by the tests and does not need a GPU.
+`sma run Qwen/Qwen3-8B --bf16 --dry-run` does not need a GPU. It does not check that vLLM's registry contains `Qwen3ForCausalLM`; a real run does.

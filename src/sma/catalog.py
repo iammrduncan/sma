@@ -66,16 +66,17 @@ class Catalog:
                 conn.execute(
                     """
                     INSERT INTO runs (
-                      run_id, model_repo, model_slug, quant, revision_sha, status,
+                      run_id, model_repo, model_slug, quant, engine, revision_sha, status,
                       host_alias, run_dir, created_at, updated_at, reference_run_id, pair_job_id
                     ) VALUES (
-                      :run_id, :model_repo, :model_slug, :quant, :revision_sha, :status,
+                      :run_id, :model_repo, :model_slug, :quant, :engine, :revision_sha, :status,
                       :host_alias, :run_dir, :created_at, :updated_at, :reference_run_id, :pair_job_id
                     )
                     ON CONFLICT(run_id) DO UPDATE SET
                       model_repo=excluded.model_repo,
                       model_slug=excluded.model_slug,
                       quant=excluded.quant,
+                      engine=excluded.engine,
                       revision_sha=excluded.revision_sha,
                       status=excluded.status,
                       host_alias=excluded.host_alias,
@@ -110,7 +111,13 @@ class Catalog:
     def rebuild(self) -> int:
         rows: list[dict[str, Any]] = []
         if self.runs_dir.is_dir():
-            for manifest_path in sorted(self.runs_dir.glob("*/*/*/manifest.json")):
+            manifests = list(self.runs_dir.glob("*/*/*/*/manifest.json"))
+            manifests.extend(self.runs_dir.glob("*/*/*/manifest.json"))
+            seen: set[Path] = set()
+            for manifest_path in sorted(manifests):
+                if manifest_path in seen or manifest_path.parent.name in {"quality", "speed", "logprobs", "fetch", "logs", "steps"}:
+                    continue
+                seen.add(manifest_path)
                 try:
                     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
                 except (OSError, json.JSONDecodeError):
@@ -127,10 +134,10 @@ class Catalog:
                     conn.execute(
                         """
                         INSERT INTO runs (
-                          run_id, model_repo, model_slug, quant, revision_sha, status,
+                          run_id, model_repo, model_slug, quant, engine, revision_sha, status,
                           host_alias, run_dir, created_at, updated_at, reference_run_id, pair_job_id
                         ) VALUES (
-                          :run_id, :model_repo, :model_slug, :quant, :revision_sha, :status,
+                          :run_id, :model_repo, :model_slug, :quant, :engine, :revision_sha, :status,
                           :host_alias, :run_dir, :created_at, :updated_at, :reference_run_id, :pair_job_id
                         )
                         """,
@@ -156,13 +163,15 @@ class Catalog:
     def _scan_manifest(self, run_id: str) -> Path | None:
         if not self.runs_dir.is_dir():
             return None
-        for manifest_path in self.runs_dir.glob("*/*/*/manifest.json"):
-            try:
-                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
-                continue
-            if isinstance(manifest, dict) and manifest.get("run_id") == run_id:
-                return manifest_path.parent
+        patterns = ("*/*/*/*/manifest.json", "*/*/*/manifest.json")
+        for pattern in patterns:
+            for manifest_path in self.runs_dir.glob(pattern):
+                try:
+                    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    continue
+                if isinstance(manifest, dict) and manifest.get("run_id") == run_id:
+                    return manifest_path.parent
         return None
 
 
@@ -183,6 +192,7 @@ def _ensure(conn: sqlite3.Connection) -> None:
           model_repo TEXT NOT NULL,
           model_slug TEXT NOT NULL,
           quant TEXT NOT NULL,
+          engine TEXT,
           revision_sha TEXT,
           status TEXT NOT NULL,
           host_alias TEXT,
@@ -194,6 +204,9 @@ def _ensure(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(runs)")}
+    if "engine" not in columns:
+        conn.execute("ALTER TABLE runs ADD COLUMN engine TEXT")
 
 
 def _all(conn: sqlite3.Connection) -> list[dict[str, Any]]:
@@ -212,7 +225,8 @@ def _row(manifest: dict[str, Any], run_dir: Path) -> dict[str, Any]:
             "run_id": manifest["run_id"],
             "model_repo": manifest["model_repo"],
             "model_slug": manifest["model_slug"],
-            "quant": manifest["quant_flag"],
+            "quant": manifest.get("quant_label") or manifest["quant_flag"],
+            "engine": _engine_name(manifest),
             "revision_sha": manifest.get("revision_sha"),
             "status": _status(manifest),
             "host_alias": manifest.get("host_alias"),
@@ -223,6 +237,15 @@ def _row(manifest: dict[str, Any], run_dir: Path) -> dict[str, Any]:
             "pair_job_id": manifest.get("pair_job_id"),
         }
     )
+
+
+def _engine_name(manifest: dict[str, Any]) -> str:
+    engine = manifest.get("engine")
+    if isinstance(engine, dict):
+        return str(engine.get("name") or "vllm")
+    if isinstance(engine, str) and engine:
+        return engine
+    return "vllm"
 
 
 def _status(manifest: dict[str, Any]) -> str:

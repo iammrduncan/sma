@@ -1,52 +1,42 @@
-"""Versioned corpus of token-id windows. No chat template is applied."""
+"""Versioned natural-text corpus. No chat template is applied.
+
+sma-corpus-v2 is a vendored public-domain slice of Pride and Prejudice
+(Project Gutenberg ebook 1342). The bytes are pinned by sha256. Commercial
+use is allowed because the text is public domain. Token count depends on the
+checkpoint tokenizer; the word count is the stable size of the slice.
+"""
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Callable
+from pathlib import Path
+from typing import Any
 
-CORPUS_VERSION = "sma-corpus-v1"
-
-# A small fixed vocabulary. The generator, not English quality, is the contract.
-_WORDS = (
-    "the", "model", "reads", "a", "fixed", "window", "of", "tokens", "and",
-    "scores", "the", "next", "one", "without", "a", "chat", "template",
-    "spark", "memory", "holds", "weights", "and", "cache", "together",
-    "prefill", "is", "compute", "bound", "decode", "is", "bandwidth", "bound",
-    "north", "south", "east", "west", "river", "stone", "cedar", "signal",
-    "alpha", "beta", "gamma", "delta", "epsilon", "lambda", "sigma", "omega",
-    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
-    "return", "value", "function", "table", "row", "column", "sum", "mean",
-)
+CORPUS_VERSION = "sma-corpus-v2"
+_DATA = Path(__file__).resolve().parent / "data"
 
 
-def _lcg(seed: int) -> Callable[[], int]:
-    state = seed & 0x7FFFFFFF
-
-    def _next() -> int:
-        nonlocal state
-        state = (1103515245 * state + 12345) & 0x7FFFFFFF
-        return state
-
-    return _next
-
-
-def generate_text(version: str, min_chars: int) -> str:
+def corpus_paths(version: str) -> tuple[Path, Path]:
     if version != CORPUS_VERSION:
         raise ValueError(
-            f"Unknown corpus version {version!r}. This build knows {CORPUS_VERSION}."
+            f"Unknown corpus version {version!r}. This build ships {CORPUS_VERSION}."
         )
-    # The seed is the version string itself, not Python's salted hash().
-    seed = int.from_bytes(version.encode("utf-8"), "little") & 0x7FFFFFFF
-    draw = _lcg(seed or 1)
-    parts: list[str] = []
-    produced = 0
-    while produced < min_chars:
-        length = 8 + (draw() % 9)
-        words = [_WORDS[draw() % len(_WORDS)] for _ in range(length)]
-        sentence = " ".join(words).capitalize() + "."
-        parts.append(sentence)
-        produced += len(sentence) + 1
-    return " ".join(parts)
+    return _DATA / "sma-corpus-v2.txt", _DATA / "sma-corpus-v2.json"
+
+
+def load_corpus(version: str) -> tuple[str, dict[str, Any]]:
+    text_path, meta_path = corpus_paths(version)
+    text = text_path.read_text(encoding="utf-8")
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    if digest != meta.get("sha256"):
+        raise ValueError(
+            f"Corpus {version} hash is {digest}, metadata says {meta.get('sha256')}. "
+            "Refusing to score a corpus whose bytes changed."
+        )
+    return text, meta
 
 
 def windows_from_ids(
@@ -72,22 +62,16 @@ def build_windows(
     version: str,
     window_tokens: int,
     num_windows: int,
-) -> tuple[list[list[int]], str]:
-    """Grow the versioned text until `num_windows` exact windows exist."""
-    chars = max(256, window_tokens * num_windows)
-    text = ""
-    ids: list[int] = []
-    windows: list[list[int]] = []
-    for _ in range(12):
-        text = generate_text(version, chars)
-        ids = list(encode(text))
-        windows, _dropped = windows_from_ids(
-            ids, window_tokens=window_tokens, num_windows=num_windows
-        )
-        if len(windows) >= num_windows:
-            return windows, text
-        chars *= 2
-    raise ValueError(
-        f"Corpus {version} produced {len(ids)} tokens, "
-        f"which is fewer than {num_windows} windows of {window_tokens}."
+) -> tuple[list[list[int]], str, dict[str, Any]]:
+    """Cut the pinned corpus into exact token windows. No chat template."""
+    text, meta = load_corpus(version)
+    ids = list(encode(text))
+    windows, _dropped = windows_from_ids(
+        ids, window_tokens=window_tokens, num_windows=num_windows
     )
+    if len(windows) < num_windows:
+        raise ValueError(
+            f"Corpus {version} produced {len(ids)} tokens, "
+            f"which is fewer than {num_windows} windows of {window_tokens}."
+        )
+    return windows, text, meta
