@@ -1,0 +1,145 @@
+# SMA defaults for one DGX Spark. Values here are the contract the dry-run prints.
+# SMA never quantizes. Point it at the checkpoint that already has the quant you name.
+# Do not put a hostname or a token in this file. host_alias is published; the HF token
+# comes from the HF_TOKEN environment variable.
+
+schema_version: 1
+host_alias: gpu-host-1
+runs_dir: runs
+seed: 0
+lock_path: ~/.local/share/sma/locks/gpu.lock
+
+hf:
+  cache_dir: ~/.cache/sma/hf
+  token_env: HF_TOKEN
+  download_timeout_s: 3600
+
+engine:
+  # Spark playbook tag. Pin engine.image_digest after the first pull.
+  # SMA records whatever digest docker inspect returns. It does not invent one.
+  image: nvcr.io/nvidia/vllm:26.05.post1-py3
+  image_digest: null
+  port: 8000
+  bind_host: 127.0.0.1
+  gpus: all
+  shm_size: 16g
+  # A fraction of the Spark's unified memory. An OOM hits the whole box.
+  gpu_memory_utilization: 0.90
+  max_model_len: 8192
+  # At least the largest determinism batch (64).
+  max_num_seqs: 64
+  # Explicit MoE backend for NVFP4 and MXFP4. Auto-selection can land on Marlin.
+  moe_backend: flashinfer_b12x
+  moe_backend_fallbacks:
+    - marlin
+  # Dense NVFP4 only. Recorded in the manifest.
+  linear_backend: flashinfer_b12x
+  batch_invariant: true
+  no_flashinfer_autotune_quality: true
+  # Batch invariance does not hold while async scheduling composes the next batch.
+  no_async_scheduling_with_batch_invariant: true
+  trust_remote_code: false
+  extra_args: []
+  server_stop_timeout_s: 30
+  clock_cap_mhz: null
+  apply_clock_cap: false
+  container_prefix: sma
+
+timeouts:
+  server_start_s: 900
+  health_request_s: 5
+  health_poll_s: 2
+  command_s: 120
+  bench_s: 7200
+  eval_s: 14400
+  docker_s: 300
+  metrics_s: 10
+  logprob_request_s: 600
+
+retries:
+  attempts: 3
+  backoff_s: 2.0
+  backoff_factor: 2.0
+
+determinism:
+  prompts:
+    - "The capital of France is"
+    - "2 + 2 ="
+    - "def add(a, b):\n    return"
+  batch_sizes: [1, 8, 64]
+  max_tokens: 32
+  temperature: 0
+
+logprobs:
+  top_k: 64
+  window_tokens: 2048
+  num_windows: 4
+  corpus_version: sma-corpus-v1
+
+quality:
+  enabled: true
+  concurrency: 8
+  model_backend: local-chat-completions
+  executable: lm_eval
+  # v0 default is a small lm-eval list with limits. Scores are labeled
+  # lm-eval-harness. They are not the arena's pinned bench scorers.
+  # The arena plan's full item counts (IFEval 541, GPQA Diamond 198, and the
+  # rest) are not the default. Clear a limit to run the whole task.
+  suites:
+    - name: ifeval
+      limit: 50
+    - name: gsm8k
+      limit: 50
+    - name: mmlu_pro
+      limit: 50
+    - name: gpqa_diamond
+      limit: 20
+
+speed:
+  warmup_requests: 4
+  warmup_max_tokens: 8
+  warmup_soak_s: 30
+  num_prompts: 32
+  # The arena plan asks for at least 3 repeats. v0 defaults to 1. Raise this
+  # when you want the repeat rule.
+  repeats: 1
+  percentile_metrics: ttft,tpot,itl,e2el
+  metric_percentiles: 50,90,99
+  derive_stat: p50
+  throttle_retries: 1
+  prefill:
+    name: prefill
+    input_len: 2048
+    output_len: 64
+  decode:
+    name: decode
+    input_len: 128
+    output_len: 512
+  sweep:
+    name: sweep
+    input_len: 1024
+    output_len: 256
+  sweep_concurrency: [1, 4, 8]
+
+telemetry:
+  interval_s: 1.0
+  idle_until_cool_c: 55
+  idle_timeout_s: 600
+  poll_s: 5
+  drop_page_cache: true
+  cool_between_legs: true
+  # Spark spec constants used only to label a bandwidth ceiling. Not measurements.
+  spec_bandwidth_gbps: 273
+  spec_usable_gb: 115
+
+queue:
+  # One directory shared by up to three Sparks, or a private directory per Spark.
+  # Claims use atomic link, so the directory must be one filesystem.
+  dir: ~/.local/share/sma/queue
+  poll_s: 5
+  stale_claim_s: 3600
+  heartbeat_s: 30
+
+doctor:
+  min_free_gb: 20
+  gpu_index: 0

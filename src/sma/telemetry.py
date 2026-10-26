@@ -1,0 +1,261 @@
+"""1 Hz GPU samples and throttle detection from the CSV log."""
+
+from __future__ import annotations
+
+import csv
+import threading
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import IO, Any
+
+from sma.atomic import atomic_write_text
+from sma.commands import nvidia_smi_query, nvidia_smi_query_legacy
+from sma.config import Config
+from sma.logsetup import log_event
+from sma.proc import run_command
+
+_HEADER = (
+    "ts_unix,iso,sm_clock_mhz,temp_c,power_w,"
+    "hw_thermal,sw_thermal,hw_power,sw_power,throttle,phase\n"
+)
+
+
+def _flag(text: str) -> int:
+    folded = text.strip().lower()
+    if folded in {"1", "active", "yes", "true"}:
+        return 1
+    return 0
+
+
+def _number(text: str) -> str:
+    cleaned = text.strip().split()[0] if text.strip() else ""
+    try:
+        return str(float(cleaned))
+    except ValueError:
+        return ""
+
+
+@dataclass
+class Sample:
+    ts_unix: float
+    temp_c: float | None
+    power_w: float | None
+    throttle: bool
+    phase: str
+
+
+def parse_nvidia_line(line: str, *, now: float, phase: str) -> Sample | None:
+    parts = [part.strip() for part in line.split(",")]
+    if len(parts) < 7:
+        return None
+    temp = power = None
+    try:
+        temp = float(parts[1])
+    except ValueError:
+        temp = None
+    try:
+        power = float(parts[2])
+    except ValueError:
+        power = None
+    flags = [_flag(part) for part in parts[3:7]]
+    throttled = any(flags)
+    return Sample(
+        ts_unix=now,
+        temp_c=temp,
+        power_w=power,
+        throttle=throttled,
+        phase=phase,
+    )
+
+
+def format_sample_row(parsed: Sample, raw_clock: str, flags: list[int]) -> str:
+    iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(parsed.ts_unix))
+    temp = "" if parsed.temp_c is None else f"{parsed.temp_c:.3f}"
+    power = "" if parsed.power_w is None else f"{parsed.power_w:.3f}"
+    cells = [
+        f"{parsed.ts_unix:.3f}",
+        iso,
+        raw_clock,
+        temp,
+        power,
+        str(flags[0]),
+        str(flags[1]),
+        str(flags[2]),
+        str(flags[3]),
+        "1" if parsed.throttle else "0",
+        parsed.phase,
+    ]
+    return ",".join(cells) + "\n"
+
+
+def read_samples(path: Path) -> list[Sample]:
+    if not path.is_file():
+        return []
+    rows: list[Sample] = []
+    with path.open(encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            try:
+                ts = float(row["ts_unix"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            temp = _maybe_float(row.get("temp_c"))
+            power = _maybe_float(row.get("power_w"))
+            rows.append(
+                Sample(
+                    ts_unix=ts,
+                    temp_c=temp,
+                    power_w=power,
+                    throttle=row.get("throttle") == "1",
+                    phase=row.get("phase") or "",
+                )
+            )
+    return rows
+
+
+def _maybe_float(value: str | None) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
+def throttled_between(path: Path, start: float, end: float) -> list[Sample]:
+    return [
+        sample
+        for sample in read_samples(path)
+        if sample.throttle and start <= sample.ts_unix <= end
+    ]
+
+
+def integrate_joules(samples: list[Sample]) -> float | None:
+    """Trapezoid of GPU power. Scope is the GPU reading, not the wall."""
+    points = [(sample.ts_unix, sample.power_w) for sample in samples if sample.power_w is not None]
+    points.sort()
+    if len(points) < 2:
+        return None
+    joules = 0.0
+    for (t0, p0), (t1, p1) in zip(points, points[1:]):
+        dt = t1 - t0
+        if dt <= 0 or p0 is None or p1 is None:
+            continue
+        joules += (p0 + p1) / 2.0 * dt
+    return joules
+
+
+class TelemetryRecorder:
+    """Writes telemetry.csv. A scripted feeder can append rows in tests."""
+
+    def __init__(self, path: Path, cfg: Config) -> None:
+        self.path = path
+        self.cfg = cfg
+        self.phase = "startup"
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._handle: IO[str] | None = None
+        self.start_temp: float | None = None
+        self.end_temp: float | None = None
+        self._query = nvidia_smi_query(cfg.doctor.gpu_index)
+        self.failures = 0
+
+    def start(self, sampler: bool = True) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        new_file = not self.path.exists() or self.path.stat().st_size == 0
+        self._handle = self.path.open("a", encoding="utf-8")
+        if new_file:
+            self._handle.write(_HEADER)
+            self._handle.flush()
+        self._stop.clear()
+        if not sampler:
+            return
+        self._thread = threading.Thread(target=self._loop, name="sma-telemetry", daemon=True)
+        self._thread.start()
+
+    def set_phase(self, phase: str) -> None:
+        self.phase = phase
+
+    def stop(self) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=self.cfg.telemetry.interval_s + 5)
+        if self._handle is not None:
+            self._handle.flush()
+            self._handle.close()
+            self._handle = None
+        samples = read_samples(self.path)
+        temps = [sample.temp_c for sample in samples if sample.temp_c is not None]
+        if temps:
+            if self.start_temp is None:
+                self.start_temp = temps[0]
+            self.end_temp = temps[-1]
+
+    def append_parsed(self, line: str, *, now: float | None = None, phase: str | None = None) -> None:
+        stamp = time.time() if now is None else now
+        parts = [part.strip() for part in line.split(",")]
+        if len(parts) < 7:
+            return
+        flags = [_flag(part) for part in parts[3:7]]
+        sample = parse_nvidia_line(line, now=stamp, phase=phase or self.phase)
+        if sample is None:
+            return
+        if self.start_temp is None and sample.temp_c is not None:
+            self.start_temp = sample.temp_c
+        if sample.temp_c is not None:
+            self.end_temp = sample.temp_c
+        row = format_sample_row(sample, _number(parts[0]), flags)
+        if self._handle is None:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a", encoding="utf-8") as handle:
+                if self.path.stat().st_size == 0:
+                    handle.write(_HEADER)
+                handle.write(row)
+            return
+        self._handle.write(row)
+        self._handle.flush()
+
+    def latest_temp(self) -> float | None:
+        samples = read_samples(self.path)
+        for sample in reversed(samples):
+            if sample.temp_c is not None:
+                return sample.temp_c
+        return None
+
+    def _loop(self) -> None:
+        while not self._stop.is_set():
+            started = time.time()
+            try:
+                result = run_command(self._query, timeout_s=10, what="nvidia-smi")
+                if result.returncode != 0:
+                    legacy = run_command(
+                        nvidia_smi_query_legacy(self.cfg.doctor.gpu_index),
+                        timeout_s=10,
+                        what="nvidia-smi legacy",
+                    )
+                    result = legacy if legacy.returncode == 0 else result
+                if result.returncode == 0 and result.stdout.strip():
+                    self.append_parsed(result.stdout.strip().splitlines()[0])
+                    self.failures = 0
+                else:
+                    self.failures += 1
+                    if self.failures == 1 or self.failures % 30 == 0:
+                        log_event("telemetry_error", failures=self.failures, stderr=result.stderr[-200:])
+            except Exception as exc:
+                self.failures += 1
+                log_event("telemetry_error", error=str(exc))
+            elapsed = time.time() - started
+            wait = max(0.0, self.cfg.telemetry.interval_s - elapsed)
+            self._stop.wait(wait)
+
+
+def write_note(path: Path, payload: dict[str, Any]) -> None:
+    from sma.atomic import atomic_write_json
+
+    atomic_write_json(path, payload)
+
+
+def ensure_header(path: Path) -> None:
+    if not path.exists() or path.stat().st_size == 0:
+        atomic_write_text(path, _HEADER)

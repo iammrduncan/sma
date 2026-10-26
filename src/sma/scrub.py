@@ -1,0 +1,81 @@
+"""Remove hostnames and secrets before anything is stored in a run record."""
+
+from __future__ import annotations
+
+import os
+import re
+import socket
+from typing import Any
+
+from sma.errors import SmaError
+
+# Match credential fields only. "tokens", "tokenizer", and "token_count" are data.
+_SECRET_KEY = re.compile(
+    r"(?:^|_)(?:hf_token|access_token|refresh_token|id_token|auth_token|token|secret|password|authorization|credential)$"
+    r"|api[_-]?key",
+    re.IGNORECASE,
+)
+
+
+def host_names() -> list[str]:
+    found: list[str] = []
+    for getter in (socket.gethostname, socket.getfqdn):
+        try:
+            value = getter()
+        except OSError:
+            continue
+        if not value:
+            continue
+        lowered = value.lower()
+        if lowered in {"localhost", "localhost.localdomain"}:
+            continue
+        found.append(value)
+    # Longest first so an FQDN is replaced before its short name.
+    return sorted(set(found), key=len, reverse=True)
+
+
+def scrub_text(text: str) -> str:
+    if not text:
+        return text
+    redacted = text
+    for name in host_names():
+        if len(name) < 3:
+            continue
+        pattern = re.compile(
+            rf"(?<![A-Za-z0-9._-]){re.escape(name)}(?![A-Za-z0-9._-])",
+            re.IGNORECASE,
+        )
+        redacted = pattern.sub("<host>", redacted)
+    for key in ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN", "HUGGINGFACE_TOKEN"):
+        value = os.environ.get(key)
+        if value and len(value) >= 4:
+            redacted = redacted.replace(value, "<redacted>")
+    return redacted
+
+
+def assert_text_clean(text: str, what: str) -> str:
+    """Fail closed when text contains a hostname or a known token."""
+    cleaned = scrub_text(text)
+    if cleaned != text:
+        raise SmaError(
+            f"The {what} contains this machine's hostname or a secret. "
+            "SMA does not write those into run records. "
+            "Move the Hugging Face cache to a path that does not include the hostname."
+        )
+    return text
+
+
+def scrub_obj(value: Any) -> Any:
+    if isinstance(value, dict):
+        cleaned: dict[str, Any] = {}
+        for key, item in value.items():
+            if _SECRET_KEY.search(str(key)):
+                cleaned[str(key)] = "<redacted>"
+            else:
+                cleaned[str(key)] = scrub_obj(item)
+        return cleaned
+    if isinstance(value, list):
+        return [scrub_obj(item) for item in value]
+    if isinstance(value, str):
+        return scrub_text(value)
+    return value
