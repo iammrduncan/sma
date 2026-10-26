@@ -1,0 +1,15 @@
+{
+  "version": "sma-corpus-v3",
+  "dataset": "project-gutenberg-1342",
+  "title": "Pride and Prejudice",
+  "author": "Jane Austen",
+  "revision": "1342-0.txt",
+  "source_url": "https://www.gutenberg.org/files/1342/1342-0.txt",
+  "license": "public-domain",
+  "commercial_use": true,
+  "sha256": "a09bbe27eade79c728f69f22f8e0bee90ef75c3e28ee99d396533de4733fb2ed",
+  "characters": 441736,
+  "words": 77566,
+  "slice": "novel text only; the illustrated edition's list of illustrations and page numbers before the first sentence was removed",
+  "note": "Public-domain novel text starting at the first sentence. The illustration list and page numbers that opened the previous slice were removed, and the sha256 changed. Vendored and hashed so every run scores the same bytes. The logprob step fails if the tokenizer yields fewer than 48 windows of 2048 tokens. It does not score a shorter slice. The exact token count is recorded per checkpoint."
+}
