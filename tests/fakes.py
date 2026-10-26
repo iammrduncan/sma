@@ -70,6 +70,7 @@ def write_snapshot(
                     "format": "nvfp4-pack-quantized",
                     "targets": ["Linear"],
                     "weights": {"num_bits": 4, "type": "float", "group_size": 16},
+                    "input_activations": {"num_bits": 4, "type": "float", "group_size": 16},
                 }
             },
         }
@@ -207,8 +208,9 @@ class FakeBencher:
 
     def run(self, argv: list[str], result_path: Path, timeout_s: float, log_path: Path) -> None:
         self.calls.append(" ".join(argv))
-        result_path.parent.mkdir(parents=True, exist_ok=True)
-        result_path.write_text(
+        target = bench_output_host_path(argv, result_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
             json.dumps(
                 {
                     "p50_ttft_ms": self.ttft_ms,
@@ -230,6 +232,38 @@ class FakeBencher:
         )
         log_path.parent.mkdir(parents=True, exist_ok=True)
         log_path.write_text("fake bench\n", encoding="utf-8")
+
+
+def container_bench_output(argv: list[str]) -> str | None:
+    """The output file named by a vLLM or SGLang bench command."""
+    if "--output-file" in argv:
+        return argv[argv.index("--output-file") + 1]
+    if "--result-dir" in argv and "--result-filename" in argv:
+        directory = argv[argv.index("--result-dir") + 1]
+        name = argv[argv.index("--result-filename") + 1]
+        return str(Path(directory) / name)
+    return None
+
+
+def bench_output_host_path(argv: list[str], result_path: Path) -> Path:
+    """Map /sma-run/... from the command onto the run directory SMA will read.
+
+    The file is written only where the command says. If that is not the attempt
+    directory SMA reads, the bench JSON stays missing and the cell cannot
+    invent a tok/s number.
+    """
+    declared = container_bench_output(argv)
+    if not declared:
+        raise RuntimeError("bench command does not name an output file")
+    normalized = declared.replace("\\", "/")
+    marker = "/sma-run/"
+    if marker not in normalized:
+        return Path(declared)
+    relative = normalized.split(marker, 1)[1]
+    # result_path is <run>/speed/cells/<cell>/attempt-N/bench.json
+    if len(result_path.parents) < 5:
+        return Path(declared)
+    return result_path.parents[4] / relative
 
 
 def telemetry_factory(run_dir: Path, cfg: Any) -> TelemetryRecorder:

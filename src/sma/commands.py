@@ -179,11 +179,17 @@ def bench_argv(
     served_name: str,
     cell: BenchCell,
     engine: str = "vllm",
+    result_dir: str | None = None,
 ) -> list[str]:
     from sma.backends import get_backend
 
+    directory = result_dir or f"/sma-run/speed/cells/{cell.name}/attempt-1"
     return get_backend(engine).bench_argv(
-        cfg, container=container, served_name=served_name, cell=cell
+        cfg,
+        container=container,
+        served_name=served_name,
+        cell=cell,
+        result_dir=directory,
     )
 
 

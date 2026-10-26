@@ -165,7 +165,14 @@ def render_plan(
         lines.append(
             "  "
             + shlex.join(
-                bench_argv(cfg, container=speed_name, served_name=served, cell=cell, engine=engine)
+                bench_argv(
+                    cfg,
+                    container=speed_name,
+                    served_name=served,
+                    cell=cell,
+                    engine=engine,
+                    result_dir=f"/sma-run/speed/cells/{cell.name}/attempt-1",
+                )
             )
         )
     lines.extend(

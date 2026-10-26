@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -15,13 +16,131 @@ def _as_mapping(payload: Any) -> dict[str, Any] | None:
     return None
 
 
+def _last_json_object(text: str) -> dict[str, Any] | None:
+    """SGLang appends one JSON object per line. A retry must not break the parse."""
+    last: dict[str, Any] | None = None
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            parsed = json.loads(stripped)
+        except json.JSONDecodeError:
+            continue
+        mapped = _as_mapping(parsed)
+        if mapped is not None:
+            last = mapped
+    return last
+
+
 def load_bench(path: Path) -> dict[str, Any] | None:
     if not path.is_file():
         return None
     try:
-        return _as_mapping(json.loads(path.read_text(encoding="utf-8")))
-    except (OSError, json.JSONDecodeError):
+        text = path.read_text(encoding="utf-8")
+    except OSError:
         return None
+    stripped = text.strip()
+    if not stripped:
+        return None
+    payload: dict[str, Any] | None
+    try:
+        payload = _as_mapping(json.loads(stripped))
+    except json.JSONDecodeError:
+        payload = _last_json_object(stripped)
+    if payload is None:
+        return None
+    return normalize_bench(payload)
+
+
+def _percentile(values: list[float], percentile: int) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    if len(ordered) == 1:
+        return ordered[0]
+    rank = (percentile / 100.0) * (len(ordered) - 1)
+    low = int(math.floor(rank))
+    high = min(low + 1, len(ordered) - 1)
+    weight = rank - low
+    return ordered[low] * (1.0 - weight) + ordered[high] * weight
+
+
+def _seconds_to_ms(values: Any) -> list[float]:
+    """SGLang stores per-request ttft/itl in seconds. See bench_serving.py, which multiplies by 1000 for *_ms."""
+    if not isinstance(values, list):
+        return []
+    numbers: list[float] = []
+    for item in values:
+        if isinstance(item, list):
+            numbers.extend(_seconds_to_ms(item))
+            continue
+        number = finite(item)
+        if number is not None:
+            numbers.append(number * 1000.0)
+    return numbers
+
+
+def _per_request_tpot_ms(itls: Any) -> list[float]:
+    """TPOT is the mean inter-token gap of one request. SGLang uses (latency - ttft) / (output_len - 1), in seconds."""
+    if not isinstance(itls, list):
+        return []
+    means: list[float] = []
+    for item in itls:
+        if isinstance(item, list):
+            gaps = [finite(value) for value in item]
+            usable = [value * 1000.0 for value in gaps if value is not None]
+        else:
+            number = finite(item)
+            usable = [] if number is None else [number * 1000.0]
+        if usable:
+            means.append(sum(usable) / len(usable))
+    return means
+
+
+def normalize_bench(payload: dict[str, Any]) -> dict[str, Any]:
+    """Copy SGLang's result keys onto the p50/p90/p99 names SMA already reads.
+
+    Checked against sglang tag v0.5.10.post1, python/sglang/bench_serving.py
+    (the result dict written as JSONL). That build emits median and p99 for
+    TTFT and TPOT, median/p95/p99 for ITL, and median/p90/p99 for e2e latency
+    (`median_e2e_latency_ms`, `p90_e2e_latency_ms`, `p99_e2e_latency_ms`).
+    It does not emit p90 TTFT, TPOT, or ITL. Those are computed from
+    `--output-details` arrays when present, and otherwise stay null.
+    """
+    out = dict(payload)
+    notes: list[str] = []
+    aliases = {
+        "p50_ttft_ms": "median_ttft_ms",
+        "p99_ttft_ms": "p99_ttft_ms",
+        "p50_tpot_ms": "median_tpot_ms",
+        "p99_tpot_ms": "p99_tpot_ms",
+        "p50_itl_ms": "median_itl_ms",
+        "p99_itl_ms": "p99_itl_ms",
+        "p50_e2el_ms": "median_e2e_latency_ms",
+        "p90_e2el_ms": "p90_e2e_latency_ms",
+        "p99_e2el_ms": "p99_e2e_latency_ms",
+    }
+    for canonical, source in aliases.items():
+        if finite(out.get(canonical)) is None and finite(out.get(source)) is not None:
+            out[canonical] = out[source]
+    derived = {
+        "p90_ttft_ms": _percentile(_seconds_to_ms(out.get("ttfts")), 90),
+        "p90_tpot_ms": _percentile(_per_request_tpot_ms(out.get("itls")), 90),
+        "p90_itl_ms": _percentile(_seconds_to_ms(out.get("itls")), 90),
+    }
+    for key, value in derived.items():
+        if finite(out.get(key)) is None:
+            if value is None:
+                notes.append(
+                    f"{key} is not in the SGLang summary and per-request data was absent, so it is null."
+                )
+            else:
+                out[key] = value
+                notes.append(f"{key} was computed from per-request arrays, not copied from a summary field.")
+    if notes:
+        out["percentile_notes"] = notes
+    return out
 
 
 def finite(value: Any) -> float | None:

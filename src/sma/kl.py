@@ -79,24 +79,29 @@ def kl_position(
     q_sum = sum(cand[token_id] for token_id, _ in used)
     q_tail = _tail(1.0 - q_sum)
     floored = False
+    infinite = False
     kl = 0.0
     for token_id, p_mass in used:
         if p_mass == 0:
             continue
         q_mass = cand[token_id]
+        if q_mass <= 0:
+            infinite = True
         if q_mass < KL_EPSILON:
             q_mass = KL_EPSILON
             floored = True
         kl += p_mass * math.log(p_mass / q_mass)
     if p_tail > 0:
         q_tail_used = q_tail
+        if q_tail_used <= 0:
+            infinite = True
         if q_tail_used < KL_EPSILON:
             q_tail_used = KL_EPSILON
             floored = True
         kl += p_tail * math.log(p_tail / q_tail_used)
     return {
         "kl": kl,
-        "infinite": False,
+        "infinite": infinite,
         "floored": floored,
         "approximate": approximate,
         "method": method,
@@ -123,6 +128,7 @@ def compare_dumps(reference: dict[str, Any], candidate: dict[str, Any]) -> dict[
     methods: set[str] = set()
     finite: list[float] = []
     floored_positions = 0
+    infinite_positions = 0
     approximate_positions = 0
     top1_hit = 0
     top1_total = 0
@@ -159,6 +165,8 @@ def compare_dumps(reference: dict[str, Any], candidate: dict[str, Any]) -> dict[
                 approximate_positions += 1
             if term.get("floored"):
                 floored_positions += 1
+            if term.get("infinite"):
+                infinite_positions += 1
             if term["kl"] is None:
                 continue
             finite.append(float(term["kl"]))
@@ -207,7 +215,7 @@ def compare_dumps(reference: dict[str, Any], candidate: dict[str, Any]) -> dict[
         "kl_positions": positions,
         "kl_finite_positions": len(finite),
         "kl_floored_positions": floored_positions,
-        "kl_infinite_positions": floored_positions,
+        "kl_infinite_positions": infinite_positions,
         "kl_approximate_positions": approximate_positions,
         "top1_agreement": (top1_hit / top1_total) if top1_total else None,
         "top1_positions": top1_total,

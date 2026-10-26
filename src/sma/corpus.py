@@ -1,9 +1,11 @@
 """Versioned natural-text corpus. No chat template is applied.
 
-sma-corpus-v2 is a vendored public-domain slice of Pride and Prejudice
-(Project Gutenberg ebook 1342). The bytes are pinned by sha256. Commercial
-use is allowed because the text is public domain. Token count depends on the
-checkpoint tokenizer; the word count is the stable size of the slice.
+sma-corpus-v3 is a vendored public-domain slice of Pride and Prejudice
+(Project Gutenberg ebook 1342). It starts at the novel's first sentence.
+The illustrated edition's list of illustrations and page numbers was removed
+from the previous slice, and the sha256 changed. Commercial use is allowed
+because the text is public domain. The default run scores 48 windows of
+2048 tokens (98304) when the tokenizer yields that many.
 """
 
 from __future__ import annotations
@@ -14,7 +16,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-CORPUS_VERSION = "sma-corpus-v2"
+CORPUS_VERSION = "sma-corpus-v3"
 _DATA = Path(__file__).resolve().parent / "data"
 
 
@@ -23,7 +25,7 @@ def corpus_paths(version: str) -> tuple[Path, Path]:
         raise ValueError(
             f"Unknown corpus version {version!r}. This build ships {CORPUS_VERSION}."
         )
-    return _DATA / "sma-corpus-v2.txt", _DATA / "sma-corpus-v2.json"
+    return _DATA / "sma-corpus-v3.txt", _DATA / "sma-corpus-v3.json"
 
 
 def load_corpus(version: str) -> tuple[str, dict[str, Any]]:

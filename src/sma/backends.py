@@ -32,7 +32,9 @@ class EngineBackend(Protocol):
 
     def health_paths(self) -> tuple[str, ...]: ...
 
-    def bench_argv(self, cfg: Config, *, container: str, served_name: str, cell: Any) -> list[str]: ...
+    def bench_argv(
+        self, cfg: Config, *, container: str, served_name: str, cell: Any, result_dir: str
+    ) -> list[str]: ...
 
     def metrics_path(self) -> str: ...
 
@@ -53,6 +55,12 @@ class EngineBackend(Protocol):
 
     def deterministic(self, cfg: Config) -> dict[str, Any]: ...
 
+
+# Mounted into the run directory. SGLang's random dataset downloads ShareGPT
+# when this path is missing. See python/sglang/benchmark/datasets/random.py
+# at tag v0.5.10.post1, sample_random_requests.
+SGLANG_DATASET_CONTAINER_PATH = "/sma-run/speed/sglang-random-dataset.json"
+SGLANG_DATASET_NAME = "sglang-random-dataset.json"
 
 # Names vLLM documents. Absent series stay null.
 VLLM_WATCHED = (
@@ -149,8 +157,9 @@ class VllmBackend:
     def health_paths(self) -> tuple[str, ...]:
         return ("/health", "/v1/models")
 
-    def bench_argv(self, cfg: Config, *, container: str, served_name: str, cell: Any) -> list[str]:
-        result_dir = f"/sma-run/speed/cells/{cell.name}"
+    def bench_argv(
+        self, cfg: Config, *, container: str, served_name: str, cell: Any, result_dir: str
+    ) -> list[str]:
         return [
             "docker",
             "exec",
@@ -269,6 +278,11 @@ class SglangBackend:
             str(cfg.engine.max_model_len),
             "--attention-backend",
             backend,
+            "--max-running-requests",
+            str(cfg.engine.max_num_seqs),
+            "--random-seed",
+            str(cfg.seed),
+            "--enable-metrics",
         ]
         if mode == "quality":
             # FlashInfer deterministic serving disables the radix cache.
@@ -289,9 +303,17 @@ class SglangBackend:
     def health_paths(self) -> tuple[str, ...]:
         return ("/health", "/v1/models")
 
-    def bench_argv(self, cfg: Config, *, container: str, served_name: str, cell: Any) -> list[str]:
+    def bench_argv(
+        self, cfg: Config, *, container: str, served_name: str, cell: Any, result_dir: str
+    ) -> list[str]:
         del served_name
-        result_dir = f"/sma-run/speed/cells/{cell.name}"
+        # Key names checked against sglang tag v0.5.10.post1,
+        # python/sglang/bench_serving.py (result dict around the JSONL write)
+        # and python/sglang/benchmark/datasets/random.py (ShareGPT download).
+        # That result dict has median/p99 TTFT and TPOT, median/p95/p99 ITL,
+        # and median/p90/p99 e2e latency. It has no p90 TTFT, TPOT, or ITL.
+        # --output-details adds per-request ttfts and itls (seconds) so SMA
+        # can compute the missing percentiles. The file is appended JSONL.
         return [
             "docker",
             "exec",
@@ -307,14 +329,22 @@ class SglangBackend:
             "8000",
             "--dataset-name",
             "random",
+            "--dataset-path",
+            SGLANG_DATASET_CONTAINER_PATH,
+            "--tokenize-prompt",
             "--num-prompts",
             str(cfg.speed.num_prompts),
             "--random-input-len",
             str(cell.input_len),
             "--random-output-len",
             str(cell.output_len),
+            "--random-range-ratio",
+            "1.0",
+            "--seed",
+            str(cfg.seed),
             "--max-concurrency",
             str(cell.concurrency),
+            "--output-details",
             "--output-file",
             f"{result_dir}/bench.json",
         ]

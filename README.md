@@ -21,7 +21,7 @@ sma worker
 
 `--mxfp4` is for checkpoints that already ship as MXFP4, such as gpt-oss. A native MXFP4 model is its own reference. There is no second quant and no KL unless you compare two runs yourself.
 
-`--mixed` is for checkpoints that already declare mixed FP8 and NVFP4, such as `quant_method: dgpp_mixed`. `--nvfp4` refuses those and tells you to pass `--mixed`. SMA does not flatten a mixed checkpoint into NVFP4.
+`--mixed` is only for a checkpoint whose counted per-layer or per-group formats include both FP8 and NVFP4. The name `dgpp_mixed` is not enough. `HawkBearPig/flint-FP8-BF16` (dgpp_mixed, recipe fp8) and a dgpp_mixed config with no layer map are not `mixed`, and `--mixed` refuses them. A real FP8+NVFP4 map is still refused on stock vLLM and on stock SGLang: vLLM does not implement `dgpp_mixed`, and SGLang refuses that method too. vLLM does accept compressed-tensors configs that count both FP8 and NVFP4. SGLang refuses every compressed-tensors checkpoint. `--nvfp4` refuses mixed configs and tells you to pass `--mixed`. SMA does not flatten a mixed checkpoint into NVFP4.
 
 ## What does not start
 
@@ -47,10 +47,10 @@ sma run HawkBearPig/flint-FP8-NVFP4 --mixed
 # Refused on vLLM. Stock vLLM does not implement dgpp_mixed.
 
 sma run HawkBearPig/flint-FP8-NVFP4 --mixed --engine sglang
-# The quant is accepted. Architecture preflight still fails on a stock SGLang image.
+# Refused. Stock SGLang does not implement dgpp_mixed. Flint is refused either way.
 ```
 
-Preflight uses the container's model registry when Docker can run the image with no network. If it cannot, SMA uses a bundled list and still fails closed on an unknown architecture. `trust_remote_code` plus a causal-LM `auto_map` is the only bypass, and it is off by default.
+Preflight pulls the engine image, with its own timeout and progress, then queries that image's recorded digest rather than the moving tag. If the pull or the registry query fails, SMA warns and continues when the architecture is only absent from the built-in list. Flint is still refused. A registry query that succeeds and does not list the architecture fails the run. `trust_remote_code` plus a causal-LM `auto_map` is a bypass for other architectures, and it is off by default. SMA does not install a Flint wheel.
 
 ## Quickstart
 
@@ -82,13 +82,13 @@ A dry-run prints the plan and the exact commands. It does not download, start a 
 
 Each step is idempotent. A `steps/<name>.done` marker is written only after the step finishes. `sma resume <run-id>` skips steps that have a marker, and only on the host alias that started the run. A crash mid-step redoes that step and does not redo finished ones.
 
-1. **Fetch.** Resolve the repo to a commit SHA. Read `config.json` and, when present, `hf_quant_config.json`. Refuse a quant mismatch, an unsupported quant/engine pair, or an architecture the engine cannot load. Then download that snapshot with `huggingface_hub` (resumable). Hash the weight files. Count total and active parameters from safetensors shapes. Flags are `--bf16`, `--nvfp4`, `--mxfp4`, and `--mixed`.
+1. **Fetch.** Resolve the repo to a commit SHA. Read `config.json` and, when present, `hf_quant_config.json`. Refuse a quant mismatch or an unsupported quant/engine pair before the weight snapshot. Pull the engine image and query its digest for the architecture registry. Flint is refused. If the image cannot be queried, an unknown architecture is a warning and the download continues. Then download that snapshot with `huggingface_hub` (resumable). Hash the weight files. Count total and active parameters from safetensors shapes. Flags are `--bf16`, `--nvfp4`, `--mxfp4`, and `--mixed`.
 2. **Serve for quality.** The pinned image, then the digest recorded from `docker image inspect` on later starts. vLLM: `VLLM_BATCH_INVARIANT=1` when the architecture allows it, `--no-enable-flashinfer-autotune`, `--no-enable-prefix-caching`, `--no-async-scheduling`, fixed seed, `--tensor-parallel-size 1`. SGLang: `--attention-backend flashinfer`, `--tp-size 1`, `--enable-deterministic-inference`, and `--disable-radix-cache` because FlashInfer determinism does not keep the radix cache. Health check with a deadline.
 3. **Determinism.** The same prompts at batch sizes 1, 8, and 64, on the quality server with prefix caching off. A mismatch is recorded. The run continues.
 4. **Logprobs.** The pinned corpus is cut into 2048-token windows and scored as raw token ids, with no chat template. vLLM uses `/v1/completions` `prompt_logprobs`. SGLang uses `/generate` input-token top-k. Each position stores top-k (default 64), a tail bucket, and the true next-token logprob. Perplexity is `exp(-mean logprob)`. A field the server does not return stays null.
 5. **Quality.** lm-eval against the local OpenAI-compatible server, at the concurrency in `sma.yaml`. Raw samples and scores are saved. The scorer label is `lm-eval-harness`.
-6. **Speed.** The server is restarted with batch invariance off. A fresh speed server, including on resume, runs the warm-up soak again. `vllm bench serve` or `python3 -m sglang.bench_serving` runs prefill-heavy and decode-heavy shapes at concurrency 1, then a concurrency sweep (1, 4, 8). Percentiles are ttft, tpot, itl, and e2el at 50, 90, and 99 when the tool writes them. `/metrics` is scraped before and after each cell. Metric names match with labels stripped (`model_name`, `engine`, and the rest).
-7. **Telemetry.** A 1 Hz `nvidia-smi` sample of SM clock, temperature, power, and throttle reasons for the whole run. A real thermal or power slowdown marks that speed cell invalid and retries it once after a cool-down. `sw_power_cap` is always stored. It invalidates a cell only when `telemetry.sw_power_cap_invalidates` is true, because a GB10 near 140 W can show that flag in steady state. Missing telemetry, a failed query, a window with no samples, or `[N/A]` flags mark the cell `unverified`. Unverified cells are not retried. Invalid and unverified cells stay on disk and are left out of the headline tok/s.
+6. **Speed.** The server is restarted with batch invariance off. A fresh speed server, including on resume, runs the warm-up soak again. Each attempt's bench command writes `speed/cells/<cell>/attempt-<n>/bench.json`, which is the file SMA reads. vLLM uses `vllm bench serve` with ttft, tpot, itl, and e2el at 50, 90, and 99. SGLang uses `sglang.bench_serving` with `--dataset-name random`, a pinned local dataset at `/sma-run/speed/sglang-random-dataset.json` (so the container does not download ShareGPT), `--random-range-ratio 1.0`, `--seed`, and `--output-details`. That tool's summary, in tag `v0.5.10.post1` (`python/sglang/bench_serving.py`), has median and p99 TTFT/TPOT, median/p95/p99 ITL, and median/p90/p99 end-to-end latency (`median_e2e_latency_ms`, `p90_e2e_latency_ms`). It does not emit p90 TTFT, TPOT, or ITL. SMA computes those from the per-request arrays when they are present, and otherwise stores null with a reason. The file is JSONL and is parsed from the last JSON object, so a retry cannot glue two objects into one invalid document. SGLang serve passes `--enable-metrics`, `--max-running-requests` (the same cap as vLLM `max_num_seqs`), and `--random-seed`. A failed `/metrics` scrape stores null counters and a reason. It does not fail the cell. These SGLang commands are what the code builds. They have not been executed against the pinned image.
+7. **Telemetry.** A 1 Hz `nvidia-smi` sample of SM clock, temperature, power, and throttle reasons for the whole run. A real thermal or power slowdown marks that speed cell invalid and retries it once after a cool-down. `sw_power_cap` is always stored. It invalidates a cell only when `telemetry.sw_power_cap_invalidates` is true, because a GB10 near 140 W can show that flag in steady state. A cell is `unverified` unless it has about `duration / interval` samples (`telemetry.min_sample_ratio`, default 0.8) and its largest gap is no bigger than `telemetry.max_sample_gap_s`. `[N/A]` flags are unverified too. The sampler's failure counter is not used, because a later success resets it. Unverified cells are not retried. Invalid and unverified cells stay on disk and are left out of the headline tok/s.
 8. **Teardown.** The container is removed on success, failure, Ctrl-C, and SIGTERM. The page cache is dropped when the process is allowed to write `/proc/sys/vm/drop_caches`. The run then waits until the GPU is cool, or until the idle timeout.
 
 Headline tok/s uses `speed.derive_stat` (`p50` by default, or `p90` / `p99`):
@@ -98,23 +98,25 @@ Headline tok/s uses `speed.derive_stat` (`p50` by default, or `p90` / `p99`):
 
 If that percentile is absent, the derived number is null and the cell records why. SMA does not invent it.
 
-`sma compare <reference> <candidate>` computes per-token KL with an epsilon floor (`1e-12`) instead of dropping infinite-KL positions. The floored count is stored. It also records top-1 agreement and delta perplexity, and it records k. It accepts a BF16 reference against a `mixed` candidate when the tokenizer, corpus, and engine match. It refuses a different engine unless you pass `--allow-cross-engine`, and that result is labeled `CROSS-ENGINE`. It refuses when the tokenizer fingerprints differ, or when the token-id windows differ.
+`sma compare <reference> <candidate>` computes per-token KL with an epsilon floor (`1e-12`) instead of dropping positions. A probability that was actually zero is counted in `kl_infinite_positions` before the floor. `kl_floored_positions` counts every position that hit the floor, including those zeros and merely tiny positive masses. It also records top-1 agreement and delta perplexity, and it records k. It accepts a BF16 reference against a `mixed` candidate when the tokenizer, corpus, and engine match. It refuses a different engine unless you pass `--allow-cross-engine`, and that result is labeled `CROSS-ENGINE`. Different image digests are labeled `IMAGE DIGEST` and are not refused. It refuses when the tokenizer fingerprints differ, or when the token-id windows differ.
 
 For MoE NVFP4, MXFP4, and mixed on vLLM, SMA always passes `--moe-backend`. The chain is `flashinfer_b12x`, then `marlin` if that server never becomes healthy. Quality and speed each record the backend that started. Auto-selection is not used. Dense NVFP4 also passes `--linear-backend` (default `flashinfer_b12x`). BF16 does not get the FP4 MoE backend. SGLang does not take that chain. Its MoE fields stay unset unless a log line names a backend. SMA does not invent one.
 
-NVFP4 on vLLM includes ModelOpt and compressed-tensors `nvfp4-pack-quantized` (for example `RedHatAI/Qwen3-8B-NVFP4`). SGLang NVFP4 is ModelOpt checkpoints. Compressed-tensors NVFP4 and W4A16 are refused on SGLang, and the error says to use vLLM. A W4A16 NVFP4 checkpoint is accepted by `--nvfp4` on vLLM and stored as `nvfp4_w4a16`.
+NVFP4 on vLLM includes ModelOpt W4A4 and compressed-tensors `nvfp4-pack-quantized` when the activation scheme is also 4-bit float (for example a group whose `input_activations.num_bits` is 4). A compressed-tensors group with fp4 weights and `input_activations: null` is `nvfp4_w4a16`. `--nvfp4` refuses it and will not label it `nvfp4`. SMA does not serve W4A16. SGLang NVFP4 is ModelOpt checkpoints. SGLang refuses compressed-tensors NVFP4, FP8, and mixed FP8/NVFP4, and the error says to use vLLM.
 
 ## Queue
 
 Up to three Sparks can run `sma worker` against one queue directory. The directory has to be on a single filesystem because a claim is an atomic `link`. The worker takes the GPU lock before it claims. If the lock is busy it does not take a job. Each claimed job is heartbeated until it finishes. One failed model is marked failed (or returned to pending while `attempts` is under `queue.max_attempts`) and the worker continues.
 
-A pair is one claim. The alias that created the first run is stored on the job and is not cleared when the claim is reclaimed. Leg 1 runs on that same Spark. `sma resume` refuses a run whose `host_alias` is not this process.
+A pair is one claim. The alias that created the first run is stored on the job and is not cleared when the claim is reclaimed. Leg 1 runs on that same Spark. `sma resume` refuses a run whose `host_alias` is not this process. If that Spark is gone, `sma queue unpin JOB` or `sma queue reassign JOB --host ALIAS` clears the run ids and starts the job fresh on the next host. It does not resume the old run on a different machine. A failed attempt waits (`queue.retry_backoff_s`) and then sorts behind jobs that have not failed. A pending file that is not valid JSON is logged and moved to `corrupt/`.
 
 ```bash
 sma queue add Qwen/Qwen3-8B --bf16
 sma queue add org/model --nvfp4 --engine sglang
 sma queue list
 sma queue reclaim          # return a claim whose heartbeat is stale
+sma queue unpin <job-id>
+sma queue reassign <job-id> --host gpu-host-2
 sma worker --once
 ```
 
@@ -158,17 +160,17 @@ Energy in `summary.json` is the sum of per-window GPU power integrals over valid
 
 ## Corpus
 
-`sma-corpus-v2` is a vendored public-domain slice of Pride and Prejudice, Project Gutenberg ebook 1342, file `1342-0.txt`. Commercial use is allowed. The bytes are pinned:
+`sma-corpus-v3` is a vendored public-domain slice of Pride and Prejudice, Project Gutenberg ebook 1342, file `1342-0.txt`. It starts at "It is a truth universally acknowledged". The illustrated edition's list of illustrations and page numbers that opened the previous slice was removed, and the hash changed. Commercial use is allowed. The bytes are pinned:
 
 | Field | Value |
 | --- | --- |
 | dataset | `project-gutenberg-1342` |
 | revision | `1342-0.txt` |
 | license | `public-domain` |
-| sha256 | `0823f27e959d45615f89e715f9510174563cad92f093a7b88834415b93347bd4` |
-| size | 448,887 characters, 78,119 words |
+| sha256 | `a09bbe27eade79c728f69f22f8e0bee90ef75c3e28ee99d396533de4733fb2ed` |
+| size | 441,736 characters, 77,566 words |
 
-`load_corpus` checks the hash and refuses a mismatch. The exact token count depends on the checkpoint tokenizer. A typical BPE encoding of this slice is on the order of 100k tokens. The windows that were actually scored are what `sma compare` checks.
+`load_corpus` checks the hash and refuses a mismatch. The default asks for 48 windows of 2048 tokens (98,304 scored tokens). If a tokenizer yields fewer tokens than that, the logprob step fails instead of scoring a shorter corpus. The windows that were actually scored are what `sma compare` checks.
 
 ## Config
 
@@ -203,8 +205,9 @@ Not verified on hardware:
 - `VLLM_BATCH_INVARIANT=1` and `--no-async-scheduling` on sm_121 or NVFP4
 - `--moe-backend flashinfer_b12x` and the Marlin fallback on a real MoE checkpoint
 - `--no-enable-flashinfer-autotune`, `--no-enable-prefix-caching`, and `--max-logprobs` against the pinned vLLM image
-- SGLang `--attention-backend flashinfer`, `--enable-deterministic-inference`, and `--disable-radix-cache` on SM12x
-- SGLang `/generate` input-token top-k, `sglang.bench_serving` JSON, and SGLang `/metrics` names on the pinned image
+- SGLang `--attention-backend flashinfer`, `--enable-deterministic-inference`, `--disable-radix-cache`, `--enable-metrics`, `--max-running-requests`, and `--random-seed` on SM12x
+- SGLang `/generate` input-token top-k, `sglang.bench_serving` JSONL from the pinned tag, and SGLang `/metrics` after `--enable-metrics`
+- that the vendored novel slice tokenizes to at least 98,304 tokens on a real checkpoint tokenizer
 - `vllm bench serve` writing the JSON shape this parser accepts (several historical shapes are accepted; a new shape needs a parser update)
 - lm-eval task names (`mmlu_pro`, `gpqa_diamond`) on the installed harness
 - thermal throttle flags from `nvidia-smi` on a Spark, including the older `clocks_throttle_reasons` names

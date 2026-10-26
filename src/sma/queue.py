@@ -66,13 +66,9 @@ class JobQueue:
 
     def claim(self, worker_id: str, host_alias: str) -> tuple[Path, dict[str, Any]] | None:
         """Claim a pending job. The claimed file is written with a heartbeat already set."""
-        pending = self.path / "pending"
         claimed = self.path / "claimed"
-        for path in sorted(pending.glob("*.json")):
-            try:
-                job = _read(path)
-            except (OSError, json.JSONDecodeError, SmaError):
-                continue
+        now_dt = datetime.now(timezone.utc)
+        for path, job in self._eligible_pending(now_dt):
             pin = job.get("pinned_host_alias")
             if pin and pin != host_alias:
                 continue
@@ -114,10 +110,18 @@ class JobQueue:
             pass
         return dest
 
-    def release_to_pending(self, path: Path, job: dict[str, Any]) -> None:
-        """Return a claimed job to pending without clearing its host pin or run ids."""
+    def release_to_pending(self, path: Path, job: dict[str, Any], *, delay_s: float = 0) -> None:
+        """Return a claimed job to pending without clearing its host pin or run ids.
+
+        delay_s pushes not_before into the future so the worker does not retry
+        this job before other pending jobs. Retried jobs also sort behind jobs
+        that have not failed yet.
+        """
         job["claim"] = None
         job["heartbeat"] = None
+        if delay_s > 0:
+            when = datetime.now(timezone.utc).timestamp() + delay_s
+            job["not_before"] = datetime.fromtimestamp(when, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         dest = self.path / "pending" / path.name
         atomic_write_json(dest, job)
         try:
@@ -154,6 +158,94 @@ class JobQueue:
                 pass
             moved.append(job["job_id"])
         return moved
+
+    def unpin(self, job_id: str) -> dict[str, Any]:
+        """Drop the host pin and run ids. The next claim starts a fresh run."""
+        return self._reassign(job_id, host_alias=None)
+
+    def reassign(self, job_id: str, host_alias: str) -> dict[str, Any]:
+        """Pin the job to another alias and clear run ids so that host starts fresh.
+
+        The previous run folder is not resumed. Cross-host resume stays refused.
+        """
+        assert_alias_safe(host_alias)
+        return self._reassign(job_id, host_alias=host_alias)
+
+    def _reassign(self, job_id: str, *, host_alias: str | None) -> dict[str, Any]:
+        found = self._find(job_id)
+        if found is None:
+            raise SmaError(f"No queue job {job_id}")
+        path, job, state = found
+        if state == "claimed":
+            raise SmaError(
+                f"{job_id} is claimed. Reclaim it before unpinning or reassigning it."
+            )
+        previous = job.get("pinned_host_alias")
+        for leg in job.get("legs") or []:
+            leg["run_id"] = None
+            leg["status"] = "pending"
+            leg["reference_run_id"] = None
+        job["pinned_host_alias"] = host_alias
+        job["claim"] = None
+        job["heartbeat"] = None
+        job["not_before"] = None
+        job["attempts"] = 0
+        job["error"] = (
+            "Reassigned. The next host starts this job fresh and will not resume the previous run."
+        )
+        job["reassigned_from"] = previous
+        dest = self.path / "pending" / path.name
+        atomic_write_json(dest, job)
+        if path != dest:
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                pass
+        return job
+
+    def _find(self, job_id: str) -> tuple[Path, dict[str, Any], str] | None:
+        for state in ("pending", "claimed", "done", "failed"):
+            path = self.path / state / f"{job_id}.json"
+            if not path.is_file():
+                continue
+            return path, _read(path), state
+        return None
+
+    def _eligible_pending(self, now: datetime) -> list[tuple[Path, dict[str, Any]]]:
+        pending = self.path / "pending"
+        rows: list[tuple[Path, dict[str, Any]]] = []
+        for path in pending.glob("*.json"):
+            if path.name.startswith("."):
+                continue
+            try:
+                job = _read(path)
+            except (OSError, json.JSONDecodeError, SmaError) as exc:
+                self._quarantine(path, exc)
+                continue
+            not_before = _parse_time(job.get("not_before"))
+            if not_before is not None and not_before > now:
+                continue
+            rows.append((path, job))
+
+        def _key(item: tuple[Path, dict[str, Any]]) -> tuple[int, str, str, str]:
+            path, job = item
+            retried = 1 if int(job.get("attempts") or 0) else 0
+            return (retried, str(job.get("not_before") or ""), str(job.get("created") or ""), path.name)
+
+        rows.sort(key=_key)
+        return rows
+
+    def _quarantine(self, path: Path, exc: BaseException) -> None:
+        from sma.logsetup import log_event
+
+        dest_dir = self.path / "corrupt"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        log_event("queue_corrupt", file=path.name, error=str(exc))
+        (dest_dir / f"{path.name}.error").write_text(str(exc)[:2000], encoding="utf-8")
+        try:
+            os.replace(path, dest_dir / path.name)
+        except OSError as move_exc:
+            log_event("queue_corrupt_move_failed", file=path.name, error=str(move_exc))
 
 
 def _leg(item: dict[str, Any]) -> dict[str, Any]:
@@ -312,7 +404,10 @@ def _run_job(cfg: Config, services_factory: Any, queue: JobQueue, path: Path, jo
             if job["attempts"] >= cfg.queue.max_attempts:
                 queue.finish(path, job, ok=False)
             else:
-                queue.release_to_pending(path, job)
+                delay = cfg.queue.retry_backoff_s * (
+                    cfg.queue.retry_backoff_factor ** max(0, job["attempts"] - 1)
+                )
+                queue.release_to_pending(path, job, delay_s=delay)
         raise
     finally:
         stop.set()

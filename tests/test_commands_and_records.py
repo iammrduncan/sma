@@ -130,7 +130,8 @@ def test_repo_config_loads() -> None:
     assert cfg.engine.image == "nvcr.io/nvidia/vllm:26.05.post1-py3"
     assert cfg.engine.sglang_image == "lmsysorg/sglang:v0.5.10.post1-cu130"
     assert cfg.engine.sglang_attention_backend == "flashinfer"
-    assert cfg.logprobs.corpus_version == "sma-corpus-v2"
+    assert cfg.logprobs.corpus_version == "sma-corpus-v3"
+    assert cfg.logprobs.num_windows == 48
     assert cfg.telemetry.sw_power_cap_invalidates is False
     assert cfg.engine.moe_backend == "flashinfer_b12x"
     assert cfg.determinism.batch_sizes == [1, 8, 64]

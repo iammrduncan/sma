@@ -111,6 +111,7 @@ def _family(token: str) -> str:
 
 
 def _scheme_family(scheme: Any) -> str:
+    """Family of one weight or activation scheme. Empty when the scheme is absent."""
     if not isinstance(scheme, dict):
         return ""
     bits = scheme.get("num_bits")
@@ -120,6 +121,22 @@ def _scheme_family(scheme: Any) -> str:
     if bits == 8 and kind == "float":
         return "fp8"
     return ""
+
+
+def _weight_only_nvfp4(group: dict[str, Any], weight_family: str) -> bool:
+    """fp4 weights with null or missing input activations are W4A16, not W4A4."""
+    if weight_family != "nvfp4":
+        return False
+    if "input_activations" not in group or group.get("input_activations") is None:
+        return True
+    acts = group.get("input_activations")
+    if not isinstance(acts, dict):
+        return True
+    act_family = _scheme_family(acts)
+    bits = acts.get("num_bits")
+    if act_family == "nvfp4" or bits == 4:
+        return False
+    return True
 
 
 def composition_from_precision_map(blob: dict[str, Any]) -> dict[str, Any] | None:
@@ -154,6 +171,16 @@ def composition_from_precision_map(blob: dict[str, Any]) -> dict[str, Any] | Non
     }
 
 
+def _group_family(group: dict[str, Any], top: str) -> str:
+    weights = group.get("weights")
+    weight_family = _scheme_family(weights) if isinstance(weights, dict) else ""
+    if not weight_family:
+        weight_family = _family(str(group.get("format") or "")) or top
+    if weight_family == "nvfp4" and _weight_only_nvfp4(group, "nvfp4"):
+        return "nvfp4_w4a16"
+    return weight_family
+
+
 def _compressed_tensors_families(blob: dict[str, Any]) -> dict[str, int]:
     counts: dict[str, int] = {}
 
@@ -167,13 +194,29 @@ def _compressed_tensors_families(blob: dict[str, Any]) -> dict[str, int]:
         for group in groups.values():
             if not isinstance(group, dict):
                 continue
-            family = _family(str(group.get("format") or "")) or top
-            if not family:
-                family = _scheme_family(group.get("weights")) or _scheme_family(group.get("input_activations"))
-            _add(family)
+            _add(_group_family(group, top))
         return counts
-    _add(top)
+    # A bare nvfp4 format with no activation scheme is not evidence of W4A4.
+    if top == "nvfp4":
+        _add("nvfp4_w4a16")
+    else:
+        _add(top)
     return counts
+
+
+_UNQUANTIZED = {"bf16", "bfloat16", "fp16", "float16", "fp32", "float32", "float"}
+
+
+def _quantized_formats(counts: dict[str, int]) -> set[str]:
+    return {name for name in counts if name not in _UNQUANTIZED}
+
+
+def _recipe_name(blob: dict[str, Any]) -> str:
+    for key in ("recipe", "quant_recipe", "precision"):
+        raw = blob.get(key)
+        if isinstance(raw, str) and raw.strip():
+            return _norm_token(raw)
+    return ""
 
 
 def classify_blob(blob: dict[str, Any] | None) -> tuple[str, dict[str, Any] | None]:
@@ -185,10 +228,21 @@ def classify_blob(blob: dict[str, Any] | None) -> tuple[str, dict[str, Any] | No
     if not method:
         method = _norm_token(method_from_helper)
     per_layer = composition_from_precision_map(blob)
-    if "mixed" in method or method in {"dgpp_mixed"}:
+    counted = _quantized_formats(per_layer["formats"]) if per_layer else set()
+    # The method name is not enough. mixed means both FP8 and NVFP4 were counted.
+    if per_layer and "fp8" in counted and "nvfp4" in counted:
         return "mixed", per_layer
-    if per_layer and len(per_layer["formats"]) > 1:
-        return "mixed", per_layer
+    if method == "dgpp_mixed" or (method.endswith("_mixed") and "compressed" not in method):
+        if per_layer and counted == {"fp8"}:
+            return "fp8", per_layer
+        if per_layer and counted == {"nvfp4"}:
+            return "nvfp4", per_layer
+        recipe = _recipe_name(blob)
+        if recipe in {"fp8", "float8", "float8_e4m3fn"} and "nvfp4" not in counted:
+            return "fp8", per_layer
+        if recipe in {"nvfp4", "fp4"} and "fp8" not in counted:
+            return "nvfp4", per_layer
+        return "other", per_layer
     if method == "compressed_tensors":
         counts = _compressed_tensors_families(blob)
         families = set(counts)
@@ -350,7 +404,7 @@ def detect_quant(
         if declared == "nvfp4_w4a16":
             detail = (
                 f"{detail}. NVFP4 weight-only (W4A16). This is not W4A4 NVFP4. "
-                "It is accepted by --nvfp4 and labeled nvfp4_w4a16."
+                "--nvfp4 refuses it and will not label it nvfp4."
             )
         elif declared == "mixed" and composition and composition.get("formats"):
             rendered = ", ".join(
@@ -437,7 +491,11 @@ def assert_flag_matches(flag: str, detected: DetectedQuant) -> str:
                 "Re-run with --mxfp4. SMA does not convert it."
             )
         if fmt == "nvfp4_w4a16":
-            return "nvfp4_w4a16"
+            raise QuantMismatch(
+                "This checkpoint is weight-only NVFP4 (W4A16), not W4A4 NVFP4 "
+                f"({detected.detail}). --nvfp4 will not label it nvfp4. "
+                "SMA does not serve W4A16 and does not add a second flag for it."
+            )
         if fmt != "nvfp4":
             raise QuantMismatch(
                 f"--nvfp4 does not match this checkpoint ({detected.detail}). "
@@ -448,8 +506,8 @@ def assert_flag_matches(flag: str, detected: DetectedQuant) -> str:
         if fmt != "mixed":
             raise QuantMismatch(
                 f"--mixed does not match this checkpoint ({detected.detail}). "
-                "--mixed is only for checkpoints that already declare mixed FP8/NVFP4 "
-                "(for example quant_method dgpp_mixed). SMA does not mix precisions."
+                "--mixed requires both FP8 and NVFP4 in the counted per-layer or group "
+                "formats. A quant_method name alone is not enough. SMA does not mix precisions."
             )
         return "mixed"
     # mxfp4

@@ -134,6 +134,23 @@ def _parser() -> argparse.ArgumentParser:
     _add_common(qreclaim)
     qreclaim.set_defaults(func=_cmd_queue_reclaim)
 
+    qunpin = qsub.add_parser(
+        "unpin",
+        help="Drop a host pin and start the job fresh. Does not resume the old run.",
+    )
+    qunpin.add_argument("job_id")
+    _add_common(qunpin)
+    qunpin.set_defaults(func=_cmd_queue_unpin)
+
+    qreassign = qsub.add_parser(
+        "reassign",
+        help="Pin a job to another alias and start it fresh there. Does not resume cross-host.",
+    )
+    qreassign.add_argument("job_id")
+    qreassign.add_argument("--host", required=True, help="Host alias that should run the job from scratch")
+    _add_common(qreassign)
+    qreassign.set_defaults(func=_cmd_queue_reassign)
+
     worker = sub.add_parser("worker", help="Pull whole jobs and run them one at a time")
     _add_common(worker)
     worker.add_argument("--once", action="store_true", help="Run at most one job, then exit")
@@ -486,6 +503,20 @@ def _cmd_queue_reclaim(args: argparse.Namespace) -> int:
         return 0
     for job_id in moved:
         print(job_id)
+    return 0
+
+
+def _cmd_queue_unpin(args: argparse.Namespace) -> int:
+    cfg = _cfg(args)
+    job = JobQueue(cfg.queue_path()).unpin(args.job_id)
+    print(f"{job['job_id']} unpinned; the next host starts it fresh")
+    return 0
+
+
+def _cmd_queue_reassign(args: argparse.Namespace) -> int:
+    cfg = _cfg(args)
+    job = JobQueue(cfg.queue_path()).reassign(args.job_id, args.host)
+    print(f"{job['job_id']} reassigned to {args.host}; the run starts fresh and is not resumed")
     return 0
 
 

@@ -43,36 +43,62 @@ def image_ref(image: str, digest: str | None = None) -> str:
     return f"{base}@{token}"
 
 
+def _method_token(detected: DetectedQuant) -> str:
+    raw = str((detected.sources or {}).get("quant_method") or "")
+    return raw.strip().lower().replace("-", "_")
+
+
 def compatibility_error(engine: str, detected: DetectedQuant) -> str | None:
-    """Refuse quant/engine pairs SMA cannot honestly serve. SMA never converts them."""
+    """Refuse quant_method x engine pairs SMA cannot honestly serve.
+
+    The decision is the checkpoint's quant_method, not only the coarse format.
+    SMA never converts one format into another.
+    """
     fmt = detected.format
-    method = str((detected.sources or {}).get("quant_method") or "").lower()
+    method = _method_token(detected)
+    if fmt == "nvfp4_w4a16":
+        return (
+            "This checkpoint is weight-only NVFP4 (W4A16), not W4A4 NVFP4 "
+            f"({detected.detail}). --nvfp4 will not label it nvfp4. "
+            "SMA does not serve W4A16."
+        )
     if engine == "vllm":
-        if fmt == "mixed":
+        if method == "dgpp_mixed":
             return (
-                "vLLM cannot load this mixed checkpoint "
-                f"({detected.detail}). SMA will not rewrite it. "
-                "Mixed FP8/NVFP4 checkpoints such as quant_method dgpp_mixed need "
-                "--mixed and an engine that implements that format. "
-                "Stock vLLM does not. --engine sglang is opt-in and still refuses "
-                "architectures its image does not register."
+                "Stock vLLM does not implement quant_method dgpp_mixed "
+                f"({detected.detail}). SMA will not rewrite it and will not "
+                "install a plugin. --engine sglang refuses dgpp_mixed as well."
             )
-        if fmt in {"bf16", "nvfp4", "nvfp4_w4a16", "mxfp4", "fp8"}:
+        if fmt == "mixed" and "compressed" not in method:
+            return (
+                "vLLM mixed support in SMA is only for compressed-tensors configs "
+                "that count both FP8 and NVFP4. "
+                f"This checkpoint is {detected.detail}."
+            )
+        if fmt in {"bf16", "nvfp4", "mxfp4", "fp8", "mixed"}:
             return None
         if fmt in {"fp16", "fp32", "unknown", "other", ""}:
             return None
         return f"vLLM support for quant format {fmt} is not implemented in SMA."
-    if fmt == "nvfp4" and "compressed" in method:
+    # SGLang.
+    if method == "dgpp_mixed":
         return (
-            "SGLang in SMA accepts NVFP4 from ModelOpt checkpoints, not compressed-tensors. "
-            f"This checkpoint is {detected.detail}. Re-run with --engine vllm."
+            "Stock SGLang refuses quant_method dgpp_mixed "
+            f"({detected.detail}). SMA does not install a Flint or DGPP plugin."
         )
-    if fmt == "nvfp4_w4a16":
+    if "compressed" in method:
         return (
-            "This NVFP4 checkpoint is weight-only W4A16. "
-            "SMA serves that on vLLM only. Re-run with --engine vllm."
+            "SGLang in SMA refuses compressed-tensors checkpoints, including "
+            "NVFP4, FP8, and mixed FP8/NVFP4. That combination is not verified "
+            f"on the pinned image. This checkpoint is {detected.detail}. "
+            "Re-run with --engine vllm."
         )
-    if fmt in {"bf16", "nvfp4", "mxfp4", "fp8", "mixed"}:
+    if fmt == "mixed":
+        return (
+            "SGLang mixed support is not verified for this quant_method "
+            f"({detected.detail}). SMA will not serve it."
+        )
+    if fmt in {"bf16", "nvfp4", "mxfp4", "fp8"}:
         return None
     if fmt in {"fp16", "fp32", "unknown", "other", ""}:
         return None
