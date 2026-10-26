@@ -94,6 +94,17 @@ def compare_run_dirs(
             f"CROSS-ENGINE comparison of {ref_engine} vs {cand_engine}. "
             "This is not a quant comparison and must stay labeled."
         )
+    ref_digest = _image_digest(reference)
+    cand_digest = _image_digest(candidate)
+    if ref_digest and cand_digest and ref_digest != cand_digest:
+        notes.append(
+            "IMAGE DIGEST differs "
+            f"({ref_digest} vs {cand_digest}). These runs did not use the same image."
+        )
+    elif not ref_digest or not cand_digest:
+        notes.append(
+            "One or both runs have no recorded image digest, so image identity was not checked."
+        )
     result["reference_run_id"] = reference["run_id"]
     result["candidate_run_id"] = candidate["run_id"]
     result["tokenizer_fingerprint"] = ref_fp
@@ -103,8 +114,22 @@ def compare_run_dirs(
     result["candidate_engine"] = cand_engine
     result["engine"] = ref_engine if not cross else "cross-engine"
     result["cross_engine"] = cross
+    result["reference_image_digest"] = ref_digest
+    result["candidate_image_digest"] = cand_digest
+    result["image_digest_match"] = (
+        ref_digest == cand_digest if ref_digest and cand_digest else None
+    )
     result["notes"] = notes
     return result
+
+
+def _image_digest(manifest: dict[str, Any]) -> str | None:
+    engine = manifest.get("engine")
+    if isinstance(engine, dict):
+        digest = engine.get("image_digest")
+        if isinstance(digest, str) and digest:
+            return digest
+    return None
 
 
 def write_compare(runs_dir: Path, result: dict[str, Any]) -> Path:

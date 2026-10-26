@@ -8,10 +8,15 @@ from typing import Any, Callable
 
 from sma.config import Config
 from sma.errors import SmaError
-from sma.proc import run_command
+from sma.engines import image_ref
+from sma.logsetup import log_event
+from sma.proc import run_command, run_command_streaming
 from sma.quant import DetectedQuant
 
-# Used only when the container cannot be asked. Unknown architectures still fail.
+# Used only when the container cannot be asked. A miss here warns and continues,
+# except known-unsupported architectures such as Flint, which are always refused.
+# Names below are the public class names of common checkpoints. The container
+# registry, when it can be queried, is the authority.
 BUNDLED_VLLM_ARCHS = {
     "LlamaForCausalLM",
     "MistralForCausalLM",
@@ -45,8 +50,14 @@ BUNDLED_VLLM_ARCHS = {
     "GraniteMoeForCausalLM",
     "GlmForCausalLM",
     "Glm4ForCausalLM",
+    "Glm4MoeForCausalLM",
     "ChatGLMModel",
     "StableLmForCausalLM",
+    "NemotronHForCausalLM",
+    "Llama4ForCausalLM",
+    "Gemma3ForConditionalGeneration",
+    "Qwen2VLForConditionalGeneration",
+    "Qwen3VLForConditionalGeneration",
 }
 
 BUNDLED_SGLANG_ARCHS = {
@@ -64,6 +75,12 @@ BUNDLED_SGLANG_ARCHS = {
     "GptOssForCausalLM",
     "Phi3ForCausalLM",
     "InternLM2ForCausalLM",
+    "Qwen3NextForCausalLM",
+    "NemotronHForCausalLM",
+    "Llama4ForCausalLM",
+    "Gemma3ForConditionalGeneration",
+    "Glm4MoeForCausalLM",
+    "Qwen2VLForConditionalGeneration",
 }
 
 Registry = Callable[[str, str], set[str] | None]
@@ -82,8 +99,37 @@ def bundled_archs(engine: str) -> set[str]:
     return set(BUNDLED_VLLM_ARCHS)
 
 
-def query_container_archs(engine: str, image: str, *, timeout_s: float = 120) -> set[str] | None:
-    """Ask the engine image which architectures it registers. None if it cannot be asked."""
+def _digest_from_inspect(text: str) -> str | None:
+    stripped = text.strip()
+    if not stripped or stripped == "null":
+        return None
+    try:
+        parsed = json.loads(stripped)
+    except json.JSONDecodeError:
+        parsed = None
+    if isinstance(parsed, list):
+        for item in parsed:
+            if isinstance(item, str) and "@sha256:" in item:
+                return item.split("@", 1)[1]
+        return None
+    if "sha256:" in stripped:
+        token = stripped.split("sha256:", 1)[1].strip().strip('"')
+        return "sha256:" + token.split()[0].strip('"')
+    return None
+
+
+def query_container_archs(
+    engine: str,
+    image: str,
+    *,
+    pull_timeout_s: float = 3600,
+    run_timeout_s: float = 120,
+) -> tuple[set[str] | None, str | None]:
+    """Pull the image, then ask the recorded digest which architectures it registers.
+
+    Returns (architectures, digest). Architectures is None when the image could
+    not be pulled or asked. The docker run uses image@digest, not the moving tag.
+    """
     if engine == "vllm":
         code = (
             "import json\n"
@@ -97,26 +143,55 @@ def query_container_archs(engine: str, image: str, *, timeout_s: float = 120) ->
             "models = getattr(ModelRegistry, 'models', {})\n"
             "print(json.dumps(sorted(models)))\n"
         )
+    log_event("image_pull_start", engine=engine, image=image)
+    try:
+        pull = run_command_streaming(
+            ["docker", "pull", image],
+            timeout_s=pull_timeout_s,
+            what=f"docker pull {engine} image",
+        )
+    except SmaError as exc:
+        log_event("image_pull_failed", engine=engine, image=image, error=str(exc))
+        return None, None
+    if not pull.ok:
+        log_event("image_pull_failed", engine=engine, image=image, error=(pull.stderr or pull.stdout)[-400:])
+        return None, None
+    try:
+        inspect = run_command(
+            ["docker", "image", "inspect", image, "--format", "{{json .RepoDigests}}"],
+            timeout_s=run_timeout_s,
+            what=f"{engine} image digest",
+        )
+    except SmaError as exc:
+        log_event("image_inspect_failed", engine=engine, error=str(exc))
+        return None, None
+    digest = _digest_from_inspect(inspect.stdout) if inspect.ok else None
+    if not digest:
+        log_event("image_digest_missing", engine=engine, image=image)
+        return None, None
+    run_image = image_ref(image, digest)
     try:
         result = run_command(
-            ["docker", "run", "--rm", "--network", "none", "--entrypoint", "python3", image, "-c", code],
-            timeout_s=timeout_s,
+            ["docker", "run", "--rm", "--network", "none", "--entrypoint", "python3", run_image, "-c", code],
+            timeout_s=run_timeout_s,
             what=f"{engine} architecture registry",
         )
-    except SmaError:
-        return None
+    except SmaError as exc:
+        log_event("registry_query_failed", engine=engine, image=run_image, error=str(exc))
+        return None, digest
     if not result.ok:
-        return None
+        log_event("registry_query_failed", engine=engine, image=run_image, error=(result.stderr or "")[-400:])
+        return None, digest
     for line in reversed(result.stdout.splitlines()):
         line = line.strip()
         if line.startswith("["):
             try:
                 parsed = json.loads(line)
             except json.JSONDecodeError:
-                return None
+                return None, digest
             if isinstance(parsed, list):
-                return {str(item) for item in parsed}
-    return None
+                return {str(item) for item in parsed}, digest
+    return None, digest
 
 
 def _has_remote_code(config: dict[str, Any], trust_remote_code: bool) -> bool:
@@ -134,6 +209,30 @@ def _sglang_wheel(files: list[str]) -> str | None:
     return None
 
 
+def _is_flint(detected: DetectedQuant, repo_files: list[str]) -> bool:
+    if detected.model_type == "flint" or any("Flint" in arch for arch in detected.architectures):
+        return True
+    return _sglang_wheel(repo_files) is not None and (
+        detected.model_type == "flint" or any("Flint" in arch for arch in detected.architectures)
+    )
+
+
+def _flint_message(engine: str, detected: DetectedQuant, repo_files: list[str]) -> str:
+    wheel = _sglang_wheel(repo_files)
+    names = ", ".join(detected.architectures) or (detected.model_type or "FlintForCausalLM")
+    extra = ""
+    if engine == "vllm":
+        extra = " Re-run with --engine sglang only if that image's own registry lists it."
+    wheel_bit = f" The repo contains {wheel}." if wheel else ""
+    return (
+        f"{engine} cannot load {names}. FlintForCausalLM is not a stock model. "
+        "SMA does not install a checkpoint wheel and does not add a Flint plugin."
+        + wheel_bit
+        + extra
+        + " A stock SGLang image still does not register FlintForCausalLM."
+    )
+
+
 def check_architecture(
     *,
     engine: str,
@@ -145,6 +244,9 @@ def check_architecture(
     image: str,
 ) -> ArchCheck:
     architectures = list(detected.architectures)
+    names = ", ".join(architectures) or (detected.model_type or "unknown")
+    if _is_flint(detected, repo_files):
+        return ArchCheck(False, "unsupported", _flint_message(engine, detected, repo_files))
     if _has_remote_code(config, trust_remote_code):
         return ArchCheck(
             True,
@@ -153,59 +255,72 @@ def check_architecture(
             "The engine will be asked to load that remote code.",
         )
     looked_up: set[str] | None = None
-    source = "bundled"
     if registry is not None:
         try:
             looked_up = registry(engine, image)
         except Exception:
             looked_up = None
     if looked_up is not None:
-        supported = looked_up
-        source = "container"
-    else:
-        supported = bundled_archs(engine)
-        source = "bundled"
-    if any(arch in supported for arch in architectures):
-        return ArchCheck(True, source, f"{architectures[0] if architectures else detected.model_type} is registered")
-    wheel = _sglang_wheel(repo_files)
-    extra = ""
-    if engine == "vllm":
-        extra = (
-            " vLLM's registry does not include this architecture, and the checkpoint "
-            "has no auto_map. Re-run with --engine sglang only if that image actually "
-            "registers it."
-        )
-        if detected.model_type == "flint" or any("Flint" in arch for arch in architectures) or wheel:
-            extra += (
-                " RecursiveSI/flint ships an SGLang wheel"
-                + (f" ({wheel})" if wheel else "")
-                + " and is not a vLLM model. A stock SGLang image still does not "
-                "register FlintForCausalLM; SMA will not pretend that it does."
+        if any(arch in looked_up for arch in architectures):
+            return ArchCheck(True, "container", f"{architectures[0] if architectures else names} is registered")
+        extra = ""
+        if engine == "vllm":
+            extra = (
+                " vLLM's registry does not include this architecture, and the checkpoint "
+                "has no auto_map. Re-run with --engine sglang only if that image actually "
+                "registers it."
             )
-    else:
-        extra = (
-            " This SGLang image's registry does not include the architecture. "
-            "SMA does not install a checkpoint wheel into the image."
+        else:
+            extra = (
+                " This SGLang image's registry does not include the architecture. "
+                "SMA does not install a checkpoint wheel into the image."
+            )
+        return ArchCheck(
+            False,
+            "container",
+            f"{engine} cannot load {names}. Checked the container registry.{extra}",
         )
-        if wheel:
-            extra += f" The repo contains {wheel}, which the pinned image does not load by itself."
-    where = "the container registry" if source == "container" else "SMA's bundled registry (the image could not be queried)"
-    names = ", ".join(architectures) or (detected.model_type or "unknown")
+    bundled = bundled_archs(engine)
+    if any(arch in bundled for arch in architectures):
+        return ArchCheck(
+            True,
+            "bundled",
+            "WARNING: the image registry could not be queried. "
+            f"{architectures[0] if architectures else names} is on SMA's built-in list, "
+            "so the run continues. This is not a check of the container.",
+        )
     return ArchCheck(
-        False,
-        source,
-        f"{engine} cannot load {names}. Checked {where}.{extra}",
+        True,
+        "bundled",
+        "WARNING: the image registry could not be queried and "
+        f"{names} is not on SMA's built-in list. The run continues. "
+        "This is not proof the engine can load it.",
     )
 
 
-def default_registry(cfg: Config) -> Registry:
-    cache: dict[tuple[str, str], set[str] | None] = {}
+class ContainerRegistry:
+    """Pulls an image once, records its digest, and caches the architecture set."""
 
-    def _lookup(engine: str, image: str) -> set[str] | None:
+    def __init__(self, cfg: Config) -> None:
+        self.cfg = cfg
+        self.last_digest: str | None = None
+        self._cache: dict[tuple[str, str], set[str] | None] = {}
+
+    def __call__(self, engine: str, image: str) -> set[str] | None:
         key = (engine, image)
-        if key not in cache:
-            cache[key] = query_container_archs(engine, image, timeout_s=cfg.timeouts.docker_s)
-        return cache[key]
+        if key not in self._cache:
+            archs, digest = query_container_archs(
+                engine,
+                image,
+                pull_timeout_s=float(self.cfg.timeouts.image_pull_s),
+                run_timeout_s=float(self.cfg.timeouts.docker_s),
+            )
+            self._cache[key] = archs
+            if digest:
+                self.last_digest = digest
+        return self._cache[key]
 
-    return _lookup
+
+def default_registry(cfg: Config) -> ContainerRegistry:
+    return ContainerRegistry(cfg)
 

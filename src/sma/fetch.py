@@ -127,10 +127,6 @@ def inspect_snapshot(
     quant_label = assert_flag_matches(quant_flag, detected)
 
     warnings: list[str] = []
-    if quant_label == "nvfp4_w4a16":
-        warnings.append(
-            "Checkpoint is W4A16 NVFP4 (weight-only), labeled nvfp4_w4a16, not W4A4 NVFP4."
-        )
     if not detected.batch_invariant_supported and detected.batch_invariant_reason:
         warnings.append(detected.batch_invariant_reason)
 

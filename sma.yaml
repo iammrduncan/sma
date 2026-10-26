@@ -62,6 +62,8 @@ timeouts:
   bench_s: 7200
   eval_s: 14400
   docker_s: 300
+  # Cold pulls of the arm64 CUDA images are large. This is not the short inspect timeout.
+  image_pull_s: 3600
   metrics_s: 10
   logprob_request_s: 600
 
@@ -82,8 +84,9 @@ determinism:
 logprobs:
   top_k: 64
   window_tokens: 2048
-  num_windows: 4
-  corpus_version: sma-corpus-v2
+  # 48 x 2048 = 98304 scored tokens when the tokenizer yields that many.
+  num_windows: 48
+  corpus_version: sma-corpus-v3
 
 quality:
   enabled: true
@@ -145,6 +148,8 @@ telemetry:
   sw_power_cap_invalidates: false
   # Do not trapezoid across holes longer than this. Windows are integrated separately.
   max_sample_gap_s: 2.5
+  # A speed cell is unverified unless it has about this fraction of duration/interval samples.
+  min_sample_ratio: 0.8
 
 queue:
   # One directory shared by up to three Sparks, or a private directory per Spark.
@@ -156,6 +161,9 @@ queue:
   claim_grace_s: 30
   # A failed job is marked failed and the worker continues. Raise this to retry.
   max_attempts: 1
+  # Retries wait, then sort behind jobs that have not failed.
+  retry_backoff_s: 30
+  retry_backoff_factor: 2
 
 doctor:
   min_free_gb: 20

@@ -39,12 +39,28 @@ def test_epsilon_floor_keeps_a_zero_tail_in_the_mean() -> None:
     candidate = [_entry(1, 1.0)]
     term = kl_position(reference, candidate)
     assert term["floored"] is True
+    assert term["infinite"] is True
     assert term["kl"] == pytest.approx(0.5 * math.log(0.5 / 1.0) + 0.5 * math.log(0.5 / 1e-12))
     dumped_ref = _dump([10, 1], [reference], ppl=2.0)
     dumped_cand = _dump([10, 1], [candidate], ppl=2.0)
     compared = compare_dumps(dumped_ref, dumped_cand)
     assert compared["kl_floored_positions"] == 1
+    assert compared["kl_infinite_positions"] == 1
     assert compared["kl_mean"] == pytest.approx(term["kl"])
+
+
+def test_tiny_positive_mass_is_floored_but_not_infinite() -> None:
+    reference = [_entry(1, 0.5)]
+    candidate = [_entry(1, 1.0 - 1e-15)]
+    term = kl_position(reference, candidate)
+    assert term["floored"] is True
+    assert term["infinite"] is False
+    compared = compare_dumps(
+        _dump([10, 1], [reference], ppl=2.0),
+        _dump([10, 1], [candidate], ppl=2.0),
+    )
+    assert compared["kl_floored_positions"] == 1
+    assert compared["kl_infinite_positions"] == 0
 
 
 def test_perplexity_and_top1() -> None:

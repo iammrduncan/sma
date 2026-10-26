@@ -70,6 +70,9 @@ class TimeoutConfig:
     bench_s: int = 7200
     eval_s: int = 14400
     docker_s: int = 300
+    # Image pulls are separate from short docker inspect calls. A cold
+    # arm64 CUDA image is large, so this timeout is intentionally long.
+    image_pull_s: int = 3600
     metrics_s: float = 10
     logprob_request_s: float = 600
 
@@ -93,8 +96,8 @@ class DeterminismConfig:
 class LogprobConfig:
     top_k: int = 64
     window_tokens: int = 2048
-    num_windows: int = 4
-    corpus_version: str = "sma-corpus-v2"
+    num_windows: int = 48
+    corpus_version: str = "sma-corpus-v3"
 
 
 @dataclass
@@ -167,6 +170,9 @@ class TelemetryConfig:
     # The raw flag is always stored. It invalidates a speed cell only when this is true.
     sw_power_cap_invalidates: bool = False
     max_sample_gap_s: float = 2.5
+    # A speed cell needs about this fraction of duration/interval samples,
+    # and no gap larger than max_sample_gap_s, or it is unverified.
+    min_sample_ratio: float = 0.8
 
 
 @dataclass
@@ -177,6 +183,9 @@ class QueueConfig:
     heartbeat_s: float = 30.0
     claim_grace_s: float = 30.0
     max_attempts: int = 1
+    # After a failure the job waits, then sorts behind jobs that have not failed.
+    retry_backoff_s: float = 30.0
+    retry_backoff_factor: float = 2.0
 
 
 @dataclass
@@ -383,6 +392,14 @@ def validate_config(cfg: Config) -> None:
         pass
     if cfg.telemetry.interval_s <= 0:
         raise SmaError("telemetry.interval_s must be > 0")
+    if cfg.telemetry.max_sample_gap_s <= 0:
+        raise SmaError("telemetry.max_sample_gap_s must be > 0")
+    if not 0 < cfg.telemetry.min_sample_ratio <= 1:
+        raise SmaError("telemetry.min_sample_ratio must be in (0, 1]")
+    if cfg.timeouts.image_pull_s < 1:
+        raise SmaError("timeouts.image_pull_s must be >= 1")
+    if cfg.queue.retry_backoff_s < 0:
+        raise SmaError("queue.retry_backoff_s must be >= 0")
 
 
 def _reject_forbidden_args(extra: list[str]) -> None:

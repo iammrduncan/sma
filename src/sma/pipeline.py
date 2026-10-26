@@ -56,7 +56,7 @@ from sma.speedmath import (
 )
 from sma.telemetry import TelemetryRecorder, throttled_between
 from sma.httpapi import scrape_metrics, wait_until_healthy
-from sma.engines import compatibility_error, engine_name, image_for, image_ref as digest_ref
+from sma.engines import compatibility_error, configured_digest, engine_name, image_for, image_ref
 from sma.preflight import check_architecture
 
 PERCENTILES = (50, 90, 99)
@@ -163,7 +163,7 @@ class HubFetcher:
             repo_files=files,
             trust_remote_code=self.cfg.engine.trust_remote_code,
             registry=self.registry,
-            image=image_for(self.cfg, self.engine),
+            image=image_ref(image_for(self.cfg, self.engine), configured_digest(self.cfg, self.engine)),
         )
         if not verdict.ok:
             raise SmaError(verdict.message)
@@ -195,11 +195,11 @@ class CommandEvaluator:
 class CommandBencher:
     def run(self, argv: list[str], result_path: Path, timeout_s: float, log_path: Path) -> None:
         result_path.parent.mkdir(parents=True, exist_ok=True)
-        result = run_command(argv, timeout_s=timeout_s, what="vllm bench serve")
+        result = run_command(argv, timeout_s=timeout_s, what="bench")
         _write_log(log_path, result.stdout + "\n" + result.stderr)
-        require_ok(result, what="vllm bench serve")
+        require_ok(result, what="bench")
         if not result_path.is_file():
-            raise SmaError(f"vllm bench serve finished without writing {result_path.name}")
+            raise SmaError(f"bench finished without writing {result_path.name}")
 
 
 def production_services(cfg: Config) -> Services:
@@ -469,13 +469,16 @@ def _step_fetch(ctx: Ctx) -> None:
         repo_files=repo_files,
         trust_remote_code=ctx.cfg.engine.trust_remote_code,
         registry=getattr(ctx.services, "registry", None),
-        image=ctx.manifest["engine"]["image"],
+        image=_preflight_image(ctx),
     )
     ctx.manifest["architecture_check"] = {
         "ok": verdict.ok,
         "source": verdict.source,
         "message": verdict.message,
     }
+    _remember_registry_digest(ctx)
+    if verdict.ok and verdict.source == "bundled":
+        _warn(ctx, verdict.message)
     if not verdict.ok:
         raise SmaError(verdict.message)
     ctx.manifest["params"] = {
@@ -663,6 +666,7 @@ def _step_serve_speed(ctx: Ctx) -> None:
 
 def _step_speed(ctx: Ctx) -> None:
     _ensure_server(ctx, "speed")
+    _install_sglang_dataset(ctx)
     _warmup(ctx)
     cells_out: list[dict[str, Any]] = []
     windows: list[dict[str, Any]] = []
@@ -703,14 +707,16 @@ def _run_cell(ctx: Ctx, cell: Any) -> tuple[dict[str, Any], dict[str, Any] | Non
         started = time.time()
         if ctx.services.hooks.before_speed_cell is not None:
             ctx.services.hooks.before_speed_cell(ctx)
-        before = _scrape(ctx)
+        before, before_err = _scrape(ctx)
         container = container_name(ctx.cfg, ctx.run_id, "speed")
+        result_dir = f"/sma-run/speed/cells/{cell.name}/attempt-{attempt}"
         argv = bench_argv(
             ctx.cfg,
             container=container,
             served_name=ctx.served_name,
             cell=cell,
             engine=ctx.manifest["engine"]["name"],
+            result_dir=result_dir,
         )
         atomic_write_json(cell_dir / "command.json", {"argv": argv})
         ctx.services.bencher.run(
@@ -719,23 +725,39 @@ def _run_cell(ctx: Ctx, cell: Any) -> tuple[dict[str, Any], dict[str, Any] | Non
             float(ctx.cfg.timeouts.bench_s),
             ctx.run_dir / "logs" / f"speed-{cell.name}-a{attempt}.log",
         )
-        after = _scrape(ctx)
+        after, after_err = _scrape(ctx)
         ended = time.time()
         from sma.backends import get_backend
 
         backend = get_backend(ctx.manifest["engine"]["name"])
-        diff = diff_samples(
-            parse_prometheus(before),
-            parse_prometheus(after),
-            watched=backend.watched_metrics(),
-        )
+        scrape_error = "; ".join(item for item in (before_err, after_err) if item)
+        if scrape_error:
+            diff = {
+                "watched": {name: None for name in backend.watched_metrics()},
+                "counters": {},
+                "missing_reason": scrape_error,
+            }
+            metrics_note = (
+                "The /metrics scrape failed. Watched counters are null. "
+                f"{scrape_error}"
+            )
+        else:
+            diff = diff_samples(
+                parse_prometheus(before),
+                parse_prometheus(after),
+                watched=backend.watched_metrics(),
+            )
+            metrics_note = backend.metrics_note()
+            if diff.get("missing_reason"):
+                metrics_note = f"{metrics_note} {diff['missing_reason']}"
         atomic_write_json(
             cell_dir / "metrics.json",
             {
-                "before": before,
-                "after": after,
+                "before": before or None,
+                "after": after or None,
                 "diff": diff,
-                "metrics_note": backend.metrics_note(),
+                "metrics_note": metrics_note,
+                "scrape_error": scrape_error or None,
             },
         )
         phase = f"speed:{cell.name}:a{attempt}"
@@ -748,7 +770,9 @@ def _run_cell(ctx: Ctx, cell: Any) -> tuple[dict[str, Any], dict[str, Any] | Non
                 for sample in read_samples(ctx.telemetry.path)
                 if sample.phase == phase and (started - 0.05) <= sample.ts_unix <= (ended + 0.05)
             ]
-        record = _cell_record(ctx, cell, attempt, cell_dir / "bench.json", window_samples)
+        record = _cell_record(
+            ctx, cell, attempt, cell_dir / "bench.json", window_samples, started, ended
+        )
         last = record
         last_window = {
             "name": cell.name,
@@ -779,8 +803,10 @@ def _cell_record(
     attempt: int,
     bench_path: Path,
     samples: list[Any],
+    started: float,
+    ended: float,
 ) -> dict[str, Any]:
-    from sma.telemetry import invalidating_throttle
+    from sma.telemetry import coverage_problem, invalidating_throttle
 
     payload = load_bench(bench_path) or {}
     stat = _derive_percentile(ctx.cfg.speed.derive_stat)
@@ -788,8 +814,6 @@ def _cell_record(
     tpot = {p: percentile_ms(payload, "tpot", p) for p in PERCENTILES}
     itl = {p: percentile_ms(payload, "itl", p) for p in PERCENTILES}
     e2el = {p: percentile_ms(payload, "e2el", p) for p in PERCENTILES}
-    telemetry_missing = ctx.telemetry is None
-    telemetry_failed = ctx.telemetry is not None and ctx.telemetry.failures > 0
     unverified = [sample for sample in samples if getattr(sample, "flags_unverified", False)]
     throttled = [
         sample
@@ -797,24 +821,33 @@ def _cell_record(
         if invalidating_throttle(sample, sw_power_cap_invalidates=ctx.cfg.telemetry.sw_power_cap_invalidates)
     ]
     measurement_note = None
-    if telemetry_missing or (telemetry_failed and not samples):
+    if ctx.telemetry is None:
         validity = "unverified"
-        reason = "telemetry is missing or failed, and this speed cell has no samples"
+        reason = "telemetry was not recorded for this speed cell"
     elif not samples:
         validity = "unverified"
         reason = "no telemetry samples in this speed cell"
-    elif telemetry_failed:
-        validity = "unverified"
-        reason = "telemetry queries failed during the run, so this cell is unverified"
-    elif unverified:
-        validity = "unverified"
-        reason = "nvidia-smi throttle flags were N/A or unreadable"
-    elif throttled:
-        validity = "invalid"
-        reason = f"thermal or power throttle on {len(throttled)} telemetry sample(s)"
     else:
-        validity = "valid"
-        reason = None
+        gap = coverage_problem(
+            samples,
+            start=started,
+            end=ended,
+            interval_s=ctx.cfg.telemetry.interval_s,
+            min_ratio=ctx.cfg.telemetry.min_sample_ratio,
+            max_gap_s=ctx.cfg.telemetry.max_sample_gap_s,
+        )
+        if gap:
+            validity = "unverified"
+            reason = gap
+        elif unverified:
+            validity = "unverified"
+            reason = "nvidia-smi throttle flags were N/A or unreadable"
+        elif throttled:
+            validity = "invalid"
+            reason = f"thermal or power throttle on {len(throttled)} telemetry sample(s)"
+        else:
+            validity = "valid"
+            reason = None
     if ttft.get(stat) is None or tpot.get(stat) is None:
         measurement_note = (
             f"Bench JSON has no {ctx.cfg.speed.derive_stat} TTFT/TPOT. "
@@ -887,6 +920,46 @@ def _warmup(ctx: Ctx) -> None:
     atomic_write_json(done, {"finished": utc_now()})
 
 
+def _preflight_image(ctx: Ctx) -> str:
+    from sma.engines import image_ref
+
+    return image_ref(ctx.manifest["engine"]["image"], ctx.manifest["engine"].get("image_digest"))
+
+
+def _remember_registry_digest(ctx: Ctx) -> None:
+    registry = getattr(ctx.services, "registry", None)
+    digest = getattr(registry, "last_digest", None)
+    if digest and not ctx.manifest["engine"].get("image_digest"):
+        ctx.manifest["engine"]["image_digest"] = digest
+
+
+def _install_sglang_dataset(ctx: Ctx) -> None:
+    if ctx.manifest["engine"]["name"] != "sglang":
+        return
+    import hashlib
+    import json
+
+    from sma.backends import SGLANG_DATASET_NAME
+
+    source = Path(__file__).resolve().parent / "data" / SGLANG_DATASET_NAME
+    meta_path = source.with_name(source.name.replace(".json", ".meta.json"))
+    if not source.is_file():
+        raise SmaError(f"Pinned SGLang dataset is missing: {source.name}")
+    raw = source.read_bytes()
+    digest = hashlib.sha256(raw).hexdigest()
+    if meta_path.is_file():
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        if meta.get("sha256") and meta.get("sha256") != digest:
+            raise SmaError("Pinned SGLang dataset hash does not match its metadata.")
+    dest = ctx.run_dir / "speed" / SGLANG_DATASET_NAME
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(raw)
+    atomic_write_json(
+        ctx.run_dir / "speed" / "sglang-random-dataset.meta.json",
+        {"sha256": digest, "rows": 256, "container_path": "/sma-run/speed/" + SGLANG_DATASET_NAME},
+    )
+
+
 def _health_kwargs(ctx: Ctx) -> dict[str, Any]:
     from sma.backends import get_backend
 
@@ -894,15 +967,21 @@ def _health_kwargs(ctx: Ctx) -> dict[str, Any]:
     return {"engine_label": backend.name, "health_paths": backend.health_paths()}
 
 
-def _scrape(ctx: Ctx) -> str:
+def _scrape(ctx: Ctx) -> tuple[str, str | None]:
     from sma.backends import get_backend
 
     backend = get_backend(ctx.manifest["engine"]["name"])
-    return scrape_metrics(
-        ctx.base_url,
-        ctx.cfg.timeouts.metrics_s,
-        path=backend.metrics_path(),
-    )
+    try:
+        return (
+            scrape_metrics(
+                ctx.base_url,
+                ctx.cfg.timeouts.metrics_s,
+                path=backend.metrics_path(),
+            ),
+            None,
+        )
+    except SmaError as exc:
+        return "", scrub_text(str(exc))
 
 
 def _remember_digest(ctx: Ctx) -> None:
@@ -1018,7 +1097,7 @@ def _record_start(ctx: Ctx, mode: str, spec: StartSpec, backend: str | None, fal
 
 def _resolved_image(ctx: Ctx) -> str:
     name = ctx.manifest["engine"]["name"]
-    return digest_ref(image_for(ctx.cfg, name), ctx.manifest["engine"].get("image_digest"))
+    return image_ref(image_for(ctx.cfg, name), ctx.manifest["engine"].get("image_digest"))
 
 
 def _start_spec(ctx: Ctx, mode: str, backend: str | None, batch_invariant: bool) -> StartSpec:

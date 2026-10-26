@@ -43,7 +43,9 @@ def test_mxfp4_and_nvfp4_are_not_interchangeable() -> None:
 
 def test_w4a16_is_labeled_and_not_called_w4a4() -> None:
     detected = detect_quant({}, {"quantization": {"quant_algo": "W4A16_NVFP4"}})
-    assert assert_flag_matches("nvfp4", detected) == "nvfp4_w4a16"
+    assert detected.format == "nvfp4_w4a16"
+    with pytest.raises(QuantMismatch, match="W4A16"):
+        assert_flag_matches("nvfp4", detected)
 
 
 def test_fp16_is_not_bf16() -> None:

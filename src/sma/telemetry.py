@@ -192,6 +192,44 @@ def integrate_joules(samples: list[Sample], *, max_gap_s: float = 2.5) -> float 
     return joules if used else None
 
 
+def coverage_problem(
+    samples: list[Sample],
+    *,
+    start: float,
+    end: float,
+    interval_s: float,
+    min_ratio: float,
+    max_gap_s: float,
+) -> str | None:
+    """Unverified unless the window has about duration/interval samples and no large gap.
+
+    The recorder's failure counter is not an input. A later successful sample
+    resets that counter, so it cannot prove the window was covered.
+    """
+    duration = max(0.0, end - start)
+    if interval_s <= 0:
+        return "telemetry interval is not positive"
+    expected = duration / interval_s
+    needed = expected * min_ratio
+    if len(samples) < needed and not (expected < 1.0 and len(samples) >= 1 and duration <= max_gap_s):
+        return (
+            f"telemetry covered {len(samples)} sample(s); "
+            f"this window needs about {expected:.2f} ({min_ratio:g} of duration/interval)"
+        )
+    times = sorted(sample.ts_unix for sample in samples)
+    gaps: list[float] = []
+    if not times:
+        gaps.append(duration)
+    else:
+        gaps.append(max(0.0, times[0] - start))
+        gaps.extend(times[index + 1] - times[index] for index in range(len(times) - 1))
+        gaps.append(max(0.0, end - times[-1]))
+    largest = max(gaps) if gaps else duration
+    if largest > max_gap_s:
+        return f"telemetry gap of {largest:.3f}s is larger than max_sample_gap_s ({max_gap_s:g})"
+    return None
+
+
 def invalidating_throttle(sample: Sample, *, sw_power_cap_invalidates: bool) -> bool:
     if sample.hw_thermal == 1 or sample.sw_thermal == 1 or sample.hw_power == 1:
         return True
