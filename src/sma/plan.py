@@ -21,8 +21,11 @@ from sma.commands import (
     serve_argv,
     serve_env,
 )
+from sma.backends import BenchMounts, get_backend
+from sma.commands import perplexity_argv
 from sma.config import Config
-from sma.engines import configured_digest
+from sma.engines import configured_digest, image_for
+from sma.runplan import describe, serve_plan
 
 
 def render_plan(
@@ -34,8 +37,15 @@ def render_plan(
     assume_moe: bool,
     engine: str = "vllm",
     tool_parser: str | None = None,
+    gguf: str | None = None,
+    selected: str = "default",
+    memory_plan: dict | None = None,
+    memory_note: str | None = None,
+    model_file: str | None = None,
 ) -> str:
     run_id = "<run-id>"
+    plan = serve_plan(cfg, memory_plan, model_file=model_file)
+    backend_info = get_backend(engine)
     run_dir = Path("<run-dir>")
     model_dir = Path("<snapshot>")
     served = repo
@@ -54,6 +64,7 @@ def render_plan(
         quant_flag=quant_flag,
         moe_backend=backend,
         batch_invariant=batch_invariant,
+        plan=plan,
         engine=engine,
         tool_parser=tool_parser or cfg.engine.tool_call_parser,
     )
@@ -65,27 +76,51 @@ def render_plan(
         quant_flag=quant_flag,
         moe_backend=backend,
         batch_invariant=False,
+        plan=plan,
         engine=engine,
     )
-    quality_env = serve_env(cfg, mode="quality", batch_invariant=batch_invariant, engine=engine)
-    speed_env = serve_env(cfg, mode="speed", batch_invariant=False, engine=engine)
+    quality_env = serve_env(cfg, mode="quality", batch_invariant=batch_invariant, engine=engine, is_moe=is_moe, quant_flag=quant_flag)
+    speed_env = serve_env(cfg, mode="speed", batch_invariant=False, engine=engine, is_moe=is_moe, quant_flag=quant_flag)
     lines = [
         "SMA dry-run",
         f"model: {repo}",
         f"quant: {quant_flag}",
         f"revision: {revision or '<default branch, pinned to the resolved commit SHA>'}",
         f"host_alias: {cfg.host_alias}",
-        f"engine: {engine}",
-        f"image: {cfg.engine.sglang_image if engine == 'sglang' else cfg.engine.image}",
+        f"engine: {engine} ({_why(engine, selected)})",
+        f"image: {image_for(cfg, engine)}",
         f"image_digest: {configured_digest(cfg, engine) or '<recorded at docker inspect; not invented>'}",
         "tensor_parallel_size: 1",
         "quantize: no",
+        f"kv cache: {backend_info.kv_cache_type} (always 8-bit)",
+    ]
+    if gguf:
+        lines.insert(3, f"gguf: {gguf} (the file's own metadata names its quant type)")
+    if memory_plan:
+        lines.extend("memory plan: " + line for line in describe(memory_plan))
+    else:
+        lines.append(f"memory plan: computed at fetch from the checkpoint's config and file sizes. {memory_note or ''}".rstrip())
+    lines.append(
+        f"  Budget {cfg.memory.budget_gb:g} GB. Context starts at {cfg.memory.start_context:,} tokens, or the "
+        "native maximum if smaller, never RoPE-stretched, and halves until one stream fits. "
+        "A run that cannot fit is refused before the weight download."
+    )
+    lines.extend(
+        [
         "",
         "1 fetch",
         "  Resolve the repo to a commit SHA with huggingface_hub, then snapshot_download that SHA (resumable) into <hf.cache_dir>/<model>/<sha>.",
-        "  Hash weight files, read safetensors shapes for total and active params, and read config.json / hf_quant_config.json.",
-        f"  Refuse unless the checkpoint matches --{quant_flag}. SMA does not quantize.",
+        (
+            f"  GGUF: pick the {gguf} file (or split set), read its header with ranged requests, plan memory, "
+            "then download only those files. Hash them and read the quant type, tensor types, and KV layout from the metadata."
+            if gguf
+            else "  Hash weight files, read safetensors shapes for total and active params, and read config.json / hf_quant_config.json."
+        ),
+        f"  Refuse unless the checkpoint matches --{quant_flag}. SMA does not quantize or convert.",
         "",
+        ]
+    )
+    lines.extend([
         "2 image",
         "  " + shlex.join(docker_pull_argv(cfg, engine=engine)),
         "  " + shlex.join(docker_inspect_argv(cfg, engine=engine)),
@@ -101,6 +136,7 @@ def render_plan(
                 serve=quality_serve,
                 env=quality_env,
                 image=image_ref(cfg, engine=engine),
+                entrypoint=backend_info.entrypoint,
             )
         ),
         f"  env: {quality_env or '{}'}",
@@ -112,16 +148,7 @@ def render_plan(
         + ". One completions request per batch, temperature 0. Record pass or fail. Do not abort.",
         "",
         "5 logprobs",
-        f"  Corpus {cfg.logprobs.corpus_version}, {cfg.logprobs.num_windows} windows of "
-        f"{cfg.logprobs.window_tokens} token ids, no chat template.",
-        (
-            "  POST /generate input_ids=<token ids> return_logprob top_logprobs_num="
-            f"{cfg.logprobs.top_k}. Input-token top-k. A missing field stays null."
-            if engine == "sglang"
-            else f"  POST /v1/completions prompt=<token ids> prompt_logprobs={cfg.logprobs.top_k} "
-            "max_tokens=1 temperature=0."
-        ),
-        "  Store top-k, a tail bucket, and the true next-token logprob. Perplexity = exp(-mean logprob).",
+        *_logprob_lines(cfg, engine, run_dir, model_dir, plan),
         "",
         "6 quality",
         f"  NeMo Evaluator against http://{cfg.engine.bind_host}:{cfg.engine.port}/v1/chat/completions, "
@@ -130,7 +157,8 @@ def render_plan(
         f"chat_template_kwargs {cfg.quality.chat_template_kwargs}. Not an arena pinned scorer.",
         f"  Each suite writes <run-dir>/quality/<suite>/{NEL_CONFIG} and runs there: "
         + shlex.join(nel_argv(cfg, output_name="attempt-1")),
-    ]
+        ]
+    )
     for suite in cfg.quality.suites:
         if suite.image is not None:
             tools = ", calls tools (needs --tool-parser)" if suite.tools else ""
@@ -155,6 +183,7 @@ def render_plan(
                     serve=speed_serve,
                     env=speed_env,
                     image=image_ref(cfg, engine=engine),
+                    entrypoint=backend_info.entrypoint,
                 )
             ),
             f"  env: {speed_env or '{}'}",
@@ -174,6 +203,11 @@ def render_plan(
                     cell=cell,
                     engine=engine,
                     result_dir=f"/sma-run/speed/cells/{cell.name}/attempt-1",
+                    mounts=(
+                        BenchMounts(image_ref(cfg, engine="vllm"), str(model_dir), str(run_dir), f"/model/{plan.model_file}", 0, 0)
+                        if engine == "llamacpp"
+                        else None
+                    ),
                 )
             )
         )
@@ -203,12 +237,60 @@ def render_plan(
             "10 teardown (always: success, failure, SIGINT, SIGTERM)",
             "  " + shlex.join(docker_rm_argv(quality_name)),
             "  " + shlex.join(docker_rm_argv(speed_name)),
+            *(
+                ["  " + shlex.join(docker_rm_argv(container_name(cfg, run_id, name))) for name in ("logprobs", "bench")]
+                if engine == "llamacpp"
+                else []
+            ),
             "  Drop the page cache if /proc/sys/vm/drop_caches is writable, then idle until cool.",
             "",
             _moe_note(cfg, quant_flag, assume_moe, engine),
         ]
     )
     return "\n".join(lines) + "\n"
+
+
+def _why(engine: str, selected: str) -> str:
+    return {
+        "format": "GGUF runs on llama.cpp",
+        "flag": "chosen with --engine",
+        "preflight": "preflight found vLLM cannot serve this architecture",
+    }.get(selected, "the default for safetensors; preflight may pick SGLang if vLLM cannot serve the architecture" if engine == "vllm" else "configured default")
+
+
+def _logprob_lines(cfg: Config, engine: str, run_dir: Path, model_dir: Path, plan) -> list[str]:
+    if engine == "llamacpp":
+        argv = perplexity_argv(
+            cfg,
+            name=container_name(cfg, "<run-id>", "logprobs"),
+            image=image_ref(cfg, engine=engine),
+            model_dir=model_dir,
+            run_dir=run_dir,
+            model_file=str(plan.model_file),
+            uid=0,
+            gid=0,
+            reference_base=None,
+            write_base=True,
+        )
+        return [
+            "  llama-server returns no prompt logprobs. The quality server stops and llama.cpp's llama-perplexity "
+            f"scores {cfg.logprobs.llamacpp_chunks} chunks of {cfg.logprobs.window_tokens} tokens of {cfg.logprobs.corpus_version}:",
+            "  " + shlex.join(argv),
+            "  A full-precision GGUF writes its logits (--kl-divergence-base). With --reference, a quant reads the "
+            "reference's logits and reports KL over the full vocabulary (--kl-divergence).",
+        ]
+    return [
+        f"  Corpus {cfg.logprobs.corpus_version}, {cfg.logprobs.num_windows} windows of "
+        f"{cfg.logprobs.window_tokens} token ids, no chat template.",
+        (
+            "  POST /generate input_ids=<token ids> return_logprob top_logprobs_num="
+            f"{cfg.logprobs.top_k}. Input-token top-k. A missing field stays null."
+            if engine == "sglang"
+            else f"  POST /v1/completions prompt=<token ids> prompt_logprobs={cfg.logprobs.top_k} "
+            "max_tokens=1 temperature=0."
+        ),
+        "  Store top-k, a tail bucket, and the true next-token logprob. Perplexity = exp(-mean logprob).",
+    ]
 
 
 def _moe_note(cfg: Config, quant_flag: str, assume_moe: bool, engine: str) -> str:
@@ -234,6 +316,6 @@ def _moe_note(cfg: Config, quant_flag: str, assume_moe: bool, engine: str) -> st
         )
     return (
         f"moe: not known until fetch. If the checkpoint is MoE, --moe-backend is set from [{chain}] "
-        "and the choice is recorded. Dense NVFP4 also passes --linear-backend "
-        f"{cfg.engine.linear_backend}. Re-run with --assume-moe to print the MoE command."
+        "and the choice is recorded. Dense NVFP4 sets VLLM_NVFP4_GEMM_BACKEND="
+        f"{cfg.engine.linear_backend.replace('_', '-')} instead. Re-run with --assume-moe to print the MoE command."
     )

@@ -8,7 +8,6 @@ from sma.errors import SmaError
 from sma.httpapi import wait_until_healthy
 from sma.pipeline import RunSpec, execute
 from sma.proc import follow_to_file
-from sma.serverwatch import needed_kv_tokens
 from tests.harness import free_port, make_config, make_services
 
 
@@ -81,21 +80,35 @@ def test_a_step_that_fails_while_the_server_runs_gets_no_server_note(tmp_path: P
     assert manifest["steps"]["determinism"]["error"] == "the server answered with something unexpected"
 
 
-def _kv_warnings(tmp_path: Path, capacity: int) -> list[str]:
+def _kv_manifest(tmp_path: Path, log_text: str) -> dict:
     cfg = make_config(tmp_path)
     services, _fetcher, runtime = make_services(tmp_path, cfg)
-    runtime.logs = lambda _name: f"INFO [kv_cache_utils.py:1731] GPU KV cache size: {capacity:,} tokens\n"
+    runtime.logs = lambda _name: log_text
     execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
-    manifest = json.loads(next((tmp_path / "runs").glob("*/*/*/*/manifest.json")).read_text())
-    return [warning for warning in manifest["warnings"] if "KV cache holds" in warning]
+    return json.loads(next((tmp_path / "runs").glob("*/*/*/*/manifest.json")).read_text())
 
 
-def test_a_kv_cache_one_token_short_of_the_widest_load_is_a_run_warning(tmp_path: Path) -> None:
-    needed = needed_kv_tokens(make_config(tmp_path))
-    warnings = _kv_warnings(tmp_path, needed - 1)
-    assert len(warnings) == 1
-    assert f"holds {needed - 1:,} tokens. SMA's widest load can need {needed:,}" in warnings[0]
+def test_the_engine_log_confirms_the_fp8_kv_cache_and_its_pool(tmp_path: Path) -> None:
+    manifest = _kv_manifest(
+        tmp_path,
+        "INFO [cache.py:280] Using fp8 data type to store kv cache. It reduces the GPU memory footprint\n"
+        "INFO [kv_cache_utils.py:1731] GPU KV cache size: 348,768 tokens\n",
+    )
+    reported = manifest["engine"]["kv_cache_reported"]["quality"]
+    assert (reported["kv_type"], reported["pool_tokens"]) == ("fp8", 348768)
+    assert not [warning for warning in manifest["warnings"] if "KV cache" in warning]
 
 
-def test_a_kv_cache_that_holds_the_widest_load_adds_no_warning(tmp_path: Path) -> None:
-    assert _kv_warnings(tmp_path, needed_kv_tokens(make_config(tmp_path))) == []
+def test_a_pool_smaller_than_one_stream_is_a_run_warning(tmp_path: Path) -> None:
+    manifest = _kv_manifest(tmp_path, "Using fp8 data type to store kv cache\nGPU KV cache size: 100 tokens\n")
+    assert any("holds 100 tokens, less than one" in warning for warning in manifest["warnings"])
+
+
+def test_a_log_that_names_no_kv_type_warns_that_it_is_unconfirmed(tmp_path: Path) -> None:
+    manifest = _kv_manifest(tmp_path, "no kv line here\n")
+    assert any("the type is unconfirmed" in warning for warning in manifest["warnings"])
+
+
+def test_a_16_bit_kv_cache_in_the_engine_log_stops_the_run(tmp_path: Path) -> None:
+    with pytest.raises(SmaError, match="SMA always runs an 8-bit KV cache"):
+        _kv_manifest(tmp_path, "Using bfloat16 data type to store kv cache\n")

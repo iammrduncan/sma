@@ -8,7 +8,7 @@ from sma.errors import SmaError
 from sma.qualityout import normalize_suite, scrub_output
 
 
-def _bundle(path: Path, *, value: float, stamp: str = "20261027T045340Z") -> Path:
+def _bundle(path: Path, *, value: float, stamp: str = "20261027T045340Z", failures: int = 1) -> Path:
     # The shape nemo-evaluator 0.3.0 wrote for gpqa on a Spark.
     path.mkdir(parents=True, exist_ok=True)
     bundle = path / f"eval-{stamp}-gpqa.json"
@@ -23,7 +23,7 @@ def _bundle(path: Path, *, value: float, stamp: str = "20261027T045340Z") -> Pat
                     "repeats": 1,
                     "scores": {
                         "pass@1": {"value": value, "bootstrap_ci_lower": 0.0, "bootstrap_ci_upper": 0.25},
-                        "failures": {"total_steps": 20, "total_failures": 1},
+                        "failures": {"total_steps": 20, "total_failures": failures},
                     },
                     "categories": {"Physics": {"mean_reward": 0.0, "n": 7}},
                 },
@@ -45,8 +45,10 @@ def test_a_bundle_becomes_scores_with_its_interval_and_rows_without_trajectories
     scores = normalize_suite(tmp_path, tmp_path / "attempt-1", "gpqa_diamond", bench="gpqa", limit=20)
 
     assert scores["scorer"] == "nemo-evaluator 0.3.0"
-    assert (scores["primary_metric"], scores["primary_score"]) == ("pass@1", 0.1)
-    assert (scores["ci_lower"], scores["ci_upper"], scores["n"], scores["failures"]) == (0.0, 0.25, 20, 1)
+    # One of 20 requests got no answer. nel scores it as wrong; SMA does not fill a missing score with zero.
+    assert (scores["primary_metric"], scores["primary_score"], scores["ci_lower"]) == ("pass@1", None, None)
+    assert (scores["pass_at_1_failures_as_wrong"], scores["n"], scores["failures"]) == (0.1, 20, 1)
+    assert scores["error"].startswith("1 of 20 requests got no answer")
     assert (scores["shuffle_seed"], scores["dataset_size"], scores["limit"]) == (0, 198, 20)
     assert scores["bundle"] == "attempt-1/gpqa/eval-20261027T045340Z-gpqa.json"
     assert json.loads((tmp_path / "scores.json").read_text(encoding="utf-8")) == scores
@@ -55,8 +57,8 @@ def test_a_bundle_becomes_scores_with_its_interval_and_rows_without_trajectories
 
 
 def test_only_the_named_attempt_is_read(tmp_path: Path) -> None:
-    _bundle(tmp_path / "attempt-1" / "gpqa", value=0.9)
-    _bundle(tmp_path / "attempt-2" / "gpqa", value=0.2)
+    _bundle(tmp_path / "attempt-1" / "gpqa", value=0.9, failures=0)
+    _bundle(tmp_path / "attempt-2" / "gpqa", value=0.2, failures=0)
 
     assert normalize_suite(tmp_path, tmp_path / "attempt-2", "gpqa_diamond", bench="gpqa", limit=20)["primary_score"] == 0.2
 
@@ -81,3 +83,10 @@ def test_scrubbing_removes_the_hostname_from_every_text_file_nel_wrote(tmp_path:
     assert (tmp_path / "nel_run.json").read_text(encoding="utf-8") == '{"output_dir": "/home/<host>/runs/x"}'
     assert "secret-host" not in (tmp_path / "gpqa" / "model_traffic.jsonl").read_text(encoding="utf-8")
     assert (tmp_path / "gpqa" / "clean.json").read_text(encoding="utf-8") == '{"ok": true}'
+
+
+def test_a_suite_where_every_request_was_answered_keeps_its_score_and_interval(tmp_path: Path) -> None:
+    _bundle(tmp_path / "attempt-1" / "gpqa", value=0.3, failures=0)
+    scores = normalize_suite(tmp_path, tmp_path / "attempt-1", "gpqa_diamond", bench="gpqa", limit=20)
+    assert (scores["primary_score"], scores["ci_lower"], scores["ci_upper"]) == (0.3, 0.0, 0.25)
+    assert (scores["error"], scores["pass_at_1_failures_as_wrong"]) == (None, None)

@@ -1,4 +1,4 @@
-"""Watch an engine server: follow its log, report startup, check KV capacity, explain a mid-step stop."""
+"""Watch an engine server: follow its log, report startup, explain a mid-step stop."""
 
 from __future__ import annotations
 
@@ -14,8 +14,6 @@ STEP_SERVER = {"determinism": "quality", "logprobs": "quality", "quality": "qual
 
 # vLLM tags each line with its process, for example "(EngineCore pid=308) ".
 _PROCESS_TAG = re.compile(r"^\([A-Za-z_]+ pid=\d+\)\s*")
-# vLLM's startup line, for example "GPU KV cache size: 886,656 tokens".
-_KV_TOKENS = re.compile(r"GPU KV cache size: ([\d,]+) tokens")
 
 
 def server_log_path(run_dir: Path, mode: str) -> Path:
@@ -77,25 +75,4 @@ def stopped_server_note(runtime: Any, *, name: str, mode: str, log_path: Path, p
         f"{tail}\n"
         "If the log shows a clean shutdown and no error, something on the host stopped the server. "
         "An out-of-memory guard such as earlyoom does that; check `journalctl -u earlyoom`."
-    )
-
-
-def needed_kv_tokens(cfg: Any) -> int:
-    """The most tokens SMA can have in flight at once: its highest concurrency at full context."""
-    widest = max([cfg.quality.concurrency, *cfg.speed.sweep_concurrency, 1])
-    return int(widest * cfg.engine.max_model_len)
-
-
-def kv_capacity_warning(log_text: str, needed_tokens: int) -> str | None:
-    """A warning when the KV cache vLLM reported cannot hold SMA's widest load. None when it can."""
-    found = _KV_TOKENS.findall(log_text)
-    if not found:
-        return None
-    tokens = int(found[-1].replace(",", ""))
-    if tokens >= needed_tokens:
-        return None
-    return (
-        f"The KV cache holds {tokens:,} tokens. SMA's widest load can need {needed_tokens:,} "
-        "(highest concurrency times engine.max_model_len). Requests past that wait or are preempted, "
-        "which changes speed numbers. Raise engine.kv_cache_gib."
     )

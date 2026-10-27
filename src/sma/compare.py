@@ -39,6 +39,12 @@ def compare_run_dirs(
 ) -> dict[str, Any]:
     reference = load_manifest(reference_dir)
     candidate = load_manifest(candidate_dir)
+    if "llamacpp" in (_engine_name(reference), _engine_name(candidate)):
+        raise CompareRefused(
+            "A llama.cpp run has no per-position logprob dump: llama-server returns no prompt logprobs. "
+            "Its KL comes from llama-perplexity during the run. Start the quant with --reference <full-precision "
+            "GGUF run id> and read logprobs/kl_vs_reference.json."
+        )
     ref_fp = reference.get("tokenizer_fingerprint")
     cand_fp = candidate.get("tokenizer_fingerprint")
     if not ref_fp or not cand_fp or ref_fp != cand_fp:

@@ -124,6 +124,7 @@ def query_container_archs(
     *,
     pull_timeout_s: float = 3600,
     run_timeout_s: float = 120,
+    gpus: str | None = None,
 ) -> tuple[set[str] | None, str | None]:
     """Pull the image, then ask the recorded digest which architectures it registers.
 
@@ -170,9 +171,13 @@ def query_container_archs(
         log_event("image_digest_missing", engine=engine, image=image)
         return None, None
     run_image = image_ref(image, digest)
+    # SGLang's registry silently drops every model whose module fails to import, and without a GPU
+    # they fail on libcuda.so.1: on 2026-10-27 the pinned image listed 59 architectures and not
+    # Qwen3ForCausalLM without --gpus, 193 with it. vLLM's registry lists its models either way.
+    gpu_flags = ["--gpus", gpus] if engine == "sglang" and gpus else []
     try:
         result = run_command(
-            ["docker", "run", "--rm", "--network", "none", "--entrypoint", "python3", run_image, "-c", code],
+            ["docker", "run", "--rm", "--network", "none", *gpu_flags, "--entrypoint", "python3", run_image, "-c", code],
             timeout_s=run_timeout_s,
             what=f"{engine} architecture registry",
         )
@@ -314,6 +319,7 @@ class ContainerRegistry:
                 image,
                 pull_timeout_s=float(self.cfg.timeouts.image_pull_s),
                 run_timeout_s=float(self.cfg.timeouts.docker_s),
+                gpus=self.cfg.engine.gpus,
             )
             self._cache[key] = archs
             if digest:

@@ -20,7 +20,7 @@ from sma.queue import JobQueue
 from sma.speedmath import load_bench, percentile_ms
 from sma.telemetry import Sample, coverage_problem
 from tests.fakes import FakeBencher, bench_output_host_path, write_snapshot
-from tests.harness import make_config, make_services
+from tests.harness import SERVE_PLAN, make_config, make_services
 
 
 def test_bench_command_writes_the_attempt_directory_sma_reads(tmp_path: Path) -> None:
@@ -68,6 +68,7 @@ def test_sglang_serve_enables_metrics_and_caps_running_requests() -> None:
         quant_flag="bf16",
         moe_backend=None,
         batch_invariant=False,
+        plan=SERVE_PLAN,
     )
     assert "--enable-metrics" in argv
     assert argv[argv.index("--max-running-requests") + 1] == str(cfg.engine.max_num_seqs)
@@ -238,7 +239,7 @@ def test_sglang_dgpp_is_refused_before_the_snapshot_download(tmp_path: Path, mon
         def __init__(self, token: str | None = None) -> None:
             del token
 
-        def model_info(self, repo_id: str, revision: str | None = None) -> _Info:
+        def model_info(self, repo_id: str, revision: str | None = None, files_metadata: bool = False) -> _Info:
             del repo_id, revision
             return _Info()
 
@@ -279,6 +280,25 @@ def test_registry_query_pulls_before_it_runs_the_digest(monkeypatch: pytest.Monk
     assert calls[0][:2] == ["docker", "pull"]
     assert calls[1][:3] == ["docker", "image", "inspect"]
     assert calls[2][1] == "run"
+    assert "--gpus" not in calls[2]
+
+
+def test_the_sglang_registry_query_runs_with_the_gpu(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Without a GPU, SGLang's registry drops every model whose import needs libcuda (Qwen3 among them).
+    calls: list[list[str]] = []
+
+    def _ok(argv: list[str], **_kwargs: object) -> CommandResult:
+        calls.append(list(argv))
+        if argv[:3] == ["docker", "image", "inspect"]:
+            return CommandResult(argv, 0, '["example@sha256:abc"]', "")
+        return CommandResult(argv, 0, '["Qwen3ForCausalLM"]\n', "")
+
+    monkeypatch.setattr("sma.preflight.run_command", _ok)
+    monkeypatch.setattr("sma.preflight.run_command_streaming", _ok)
+    archs, _digest = query_container_archs("sglang", "example:tag", pull_timeout_s=10, run_timeout_s=10, gpus="all")
+    assert archs == {"Qwen3ForCausalLM"}
+    run = calls[2]
+    assert run[run.index("--gpus") + 1] == "all"
 
 
 def test_bundled_fallback_warns_and_continues_but_flint_is_refused(tmp_path: Path) -> None:

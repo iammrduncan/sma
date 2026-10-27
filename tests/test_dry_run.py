@@ -10,6 +10,8 @@ def test_dry_run_prints_the_plan_without_a_gpu() -> None:
     env = os.environ.copy()
     env["PYTHONPATH"] = str(root / "src")
     env.pop("HF_TOKEN", None)
+    # The dry run looks up the repo's config and file sizes; offline, it says why it has no numbers.
+    env["HF_HUB_OFFLINE"] = "1"
     completed = subprocess.run(
         [sys.executable, "-m", "sma", "run", "tiny-model", "--bf16", "--dry-run"],
         cwd=root,
@@ -35,6 +37,9 @@ def test_dry_run_prints_the_plan_without_a_gpu() -> None:
     assert "nel eval run nel.yaml -o attempt-1" in stdout
     assert "host_alias: gpu-host-1" in stdout
     assert "quantize: no" in stdout
+    assert "kv cache: fp8 (always 8-bit)" in stdout
+    assert "--kv-cache-dtype fp8" in quality and "--kv-cache-dtype fp8" in speed
+    assert "memory plan: computed at fetch" in stdout and "Not looked up here" in stdout
     assert socket.gethostname() not in stdout
     assert "runs" not in completed.stderr or "error" not in completed.stderr.lower()
 
@@ -43,6 +48,7 @@ def test_assume_moe_dry_run_includes_the_backend() -> None:
     root = Path(__file__).resolve().parents[1]
     env = os.environ.copy()
     env["PYTHONPATH"] = str(root / "src")
+    env["HF_HUB_OFFLINE"] = "1"
     completed = subprocess.run(
         [
             sys.executable,

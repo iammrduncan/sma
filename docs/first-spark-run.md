@@ -10,6 +10,13 @@ export HF_TOKEN=hf_...
 
 The smoke model is `Qwen/Qwen3-0.6B`. It is small, ungated, and already BF16. It is a wiring check, not an arena score. A larger ungated BF16 such as `Qwen/Qwen3-8B` is the same command with a longer load.
 
+## Host memory
+
+A GB10's GPU and CPU share one pool. On our Spark `/proc/meminfo` MemTotal is 130.7 GB, and SMA plans each run under `memory.budget_gb` (100 GB) of it. Check two things on the host before a run:
+
+- **earlyoom.** `systemctl status earlyoom` shows its arguments. Ours stops processes at 8% free (about 10.5 GB) and prefers `python3`, `vllm`, and `llama-*`. A server stopped by it exits with no error of its own; `journalctl -u earlyoom` names what it stopped.
+- **Display reserved memory (headless Sparks).** In UEFI, Display Reserved Memory set to Auto keeps about 0.5 GB for the display instead of 2 GB (a community tip, not checked here). The 1.5 GB it frees raises MemTotal; with the budget fixed at 100 GB it becomes headroom above earlyoom's floor, not a larger KV pool. Raise `memory.budget_gb` yourself if you want the pool to grow.
+
 ## vLLM
 
 ### 1. Doctor
@@ -80,6 +87,34 @@ On the quality server, `engine.batch_invariant_quality` is true for this archite
 
 For a later MoE NVFP4 or MXFP4 run, `engine.moe_backend_quality` and `engine.moe_backend_speed` are each either `flashinfer_b12x` or `marlin`. `moe_backend_*_fallback` is true only when the server that became healthy was not the first backend. A failed start is a failed step, not a skipped cell.
 
+### 8. Memory plan, 8-bit KV cache, and deployment notes
+
+`manifest.json` `memory_plan` has the context per stream and why (`context_reason`), the weights, the engine overhead (`memory.overhead_gb`), the KV pool, and each benchmark's context. For `Qwen/Qwen3-0.6B` the context is its native 40,960 tokens.
+
+- `engine.kv_cache_type` is `fp8`, and `engine.flags_quality` and `engine.flags_speed` contain `--kv-cache-dtype fp8`, `--kv-cache-memory-bytes` equal to `memory_plan.pool_bytes`, and `--max-model-len` equal to `memory_plan.context`.
+- `engine.kv_cache_reported.quality.kv_type_line` is vLLM's own line, "Using fp8 data type to store kv cache", and `pool_tokens` is within a few tokens of `memory_plan.pool_tokens`.
+- `engine.kv_cache_scales` is `engine default (scale 1.0, not calibrated)` for a BF16 checkpoint. For a checkpoint that declares FP8 KV scales it starts with `checkpoint (FP8)`, and adds "the engine log says it used a KV scale of 1.0" when vLLM logs `Using KV cache scaling factor 1.0`. `nvidia/Qwen3-8B-NVFP4` declares them, and all 72 are 1.0.
+- An NVFP4 quality server with batch invariance on logs `VLLM_BATCH_INVARIANT forces NVFP4 linear to use the emulation backend` and `Using EmulationNvFp4LinearKernel for NVFP4 GEMM`. On 2026-10-27 it generated about 3.5 tokens per second for `nvidia/Qwen3-8B-NVFP4`. The speed server uses the real kernel (`VLLM_NVFP4_GEMM_BACKEND=flashinfer-b12x`).
+- `summary.json` `deployment.measured.peak_memory_gb` is under `memory.budget_gb` (100). If it is over, see where in `memory.csv` (the `phase` column) and raise `memory.overhead_gb` for that engine to the measured overhead: peak, minus weights, minus the pool.
+
+Measured on a Spark on 2026-10-27, vLLM with Qwen3-0.6B: with the server up, memory sat 5 GB above weights plus pool; during quality (nel beside the server) 8.9 GB; during speed (the bench client in the container) 6.9 GB. `memory.overhead_gb.vllm` is 10 for that reason. The logprob step peaked at 13.4 GB until SMA streamed its dump to disk one window at a time.
+
+## llama.cpp and GGUF
+
+```bash
+sma run unsloth/Qwen3-0.6B-GGUF --gguf BF16
+sma run unsloth/Qwen3-0.6B-GGUF --gguf UD-Q4_K_XL --reference <the BF16 run id>
+```
+
+The image is `ghcr.io/ggml-org/llama.cpp:full-cuda13-b11913` (arm64, CUDA 13). Its log line `system_info: ... CUDA : ARCHS = ...,1200,1210 | ... | BLACKWELL_NATIVE_FP4 = 1` shows kernels built for the GB10.
+
+- `engine.selected_by` is `format`, `engine.build_info` is llama.cpp's own build (`b11913-7aca0d2ea`), and the run folder is `runs/<slug>/llamacpp/gguf-<QUANT>/<run-id>`.
+- `engine.kv_cache_reported.quality.kv_type_line` is llama.cpp's `llama_kv_cache: size = ... K (q8_0): ... V (q8_0): ...`, and its cell count equals `memory_plan.pool_tokens`.
+- `manifest.json` `gguf` names the file llama-server loaded, `general.file_type` from its metadata (`MOSTLY_Q4_K_M` for Unsloth's `UD-Q4_K_XL`), and the tensor types.
+- `logprobs/command.json` is the `llama-perplexity` command. The BF16 run writes `logprobs/kld-base.bin` (about 2.5 GB for 8 chunks of Qwen3's 152K vocabulary). The quant run's `logprobs/kl_vs_reference.json` has `method` `llama-perplexity-kld`, `kl_mean`, and `top1_agreement`.
+- `speed/cells/<cell>/attempt-1/command.json` is a `docker run ... --network host` of the vLLM image with `vllm bench serve` and `--tokenizer /model/<file>.gguf`. `engine.bench_image` is that image at its digest.
+- Memory: `logs/server-quality.log` has llama.cpp's own breakdown (`common_memory_breakdown_print`): model, context (the KV pool), and compute. On 2026-10-27, with a 90.8 GB pool, compute was 7,357 MiB, sized by the whole `-c`; at idle the server sat 11.5 GB above weights plus pool, and 3.6 GB with a quarter of the pool, so about 0.9 GB plus 11.7% of the pool. During speed, its host prompt cache (`--cache-ram`, 8 GiB by default) grew it by another 6.8 GB, and that run peaked at 110.6 GB before the plan counted them. `memory.pool_overhead_fraction.llamacpp` (0.12) and `engine.llamacpp_cache_ram_mib` are why.
+
 ## SGLang, after the vLLM checks pass
 
 This is a separate subject. Do not compare it with the vLLM run unless you pass `--allow-cross-engine`, and then the compare file is labeled `CROSS-ENGINE`.
@@ -88,9 +123,9 @@ This is a separate subject. Do not compare it with the vLLM run unless you pass 
 sma run Qwen/Qwen3-0.6B --bf16 --engine sglang
 ```
 
-The image is `lmsysorg/sglang:v0.5.10.post1-cu130`. The same pull, digest, and `architecture_check.source: container` rules apply. `FlintForCausalLM` is still refused. This command does not install a wheel.
+The image is `lmsysorg/sglang:v0.5.10.post1-cu130`. The same pull, digest, and `architecture_check.source: container` rules apply. The registry query runs with `--gpus`: without a GPU, SGLang's registry drops every model whose import needs `libcuda.so.1`, and on 2026-10-27 it listed 59 architectures without Qwen3, so preflight refused Qwen3-0.6B. With the GPU it lists 193. `FlintForCausalLM` is still refused. This command does not install a wheel.
 
-Quality flags include `--attention-backend flashinfer`, `--enable-deterministic-inference`, `--disable-radix-cache`, `--enable-metrics`, `--max-running-requests 64`, and `--random-seed`. `engine.env_quality` is `SGLANG_ENABLE_DETERMINISTIC_INFERENCE=1`.
+Quality flags include `--attention-backend flashinfer`, `--enable-deterministic-inference`, `--disable-radix-cache`, `--enable-metrics`, `--max-running-requests 64`, `--random-seed`, `--kv-cache-dtype fp8_e4m3`, `--max-total-tokens`, and `--context-length`. Both servers run with `SGLANG_ENABLE_JIT_DEEPGEMM=0`: on 2026-10-27 the pinned image's deterministic mode crashed at CUDA-graph capture on the GB10 ("DeepGEMM failed ... Unsupported architecture") with DeepGEMM on, with a 16-bit or an FP8 KV cache. `engine.kv_cache_reported.quality.kv_type_line` is SGLang's "Using KV cache dtype: torch.float8_e4m3fn". `engine.env_quality` is `SGLANG_ENABLE_DETERMINISTIC_INFERENCE=1`.
 
 ### Metrics
 

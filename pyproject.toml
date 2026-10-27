@@ -40,4 +40,5 @@ packages = ["src/sma"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
-pythonpath = ["src"]
+# "." lets tests import the tests package (tests.harness) under a bare `uv run pytest`.
+pythonpath = ["src", "."]

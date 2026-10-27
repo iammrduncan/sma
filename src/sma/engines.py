@@ -1,4 +1,8 @@
-"""vLLM is the default engine. SGLang is opt-in and labeled as a different subject."""
+"""Which engine serves a checkpoint. The format decides, before launch, and the run records why.
+
+Safetensors go to vLLM, or to SGLang with --engine sglang or when preflight shows vLLM cannot serve the
+architecture. GGUF goes to llama.cpp. A failed start is never retried on another engine.
+"""
 
 from __future__ import annotations
 
@@ -6,27 +10,53 @@ from sma.config import Config
 from sma.errors import SmaError
 from sma.quant import DetectedQuant
 
-ENGINES = ("vllm", "sglang")
+ENGINES = ("vllm", "sglang", "llamacpp")
 # Versioned multi-arch CUDA 13 tag used for DGX Spark (arm64). `latest-cu130` moves.
 DEFAULT_SGLANG_IMAGE = "lmsysorg/sglang:v0.5.10.post1-cu130"
 
 
-def engine_name(value: str | None, cfg: Config) -> str:
-    name = (value or cfg.engine.name or "vllm").strip().lower()
-    if name not in ENGINES:
-        raise SmaError(f"Unknown engine {name!r}. SMA supports vllm (default) and sglang.")
+def engine_name(value: str | None, cfg: Config, quant_flag: str | None = None) -> str:
+    """The engine for this checkpoint format. --engine may pick SGLang for safetensors, nothing else."""
+    requested = (value or "").strip().lower() or None
+    if requested is not None and requested not in ENGINES:
+        raise SmaError(f"Unknown engine {requested!r}. SMA supports vllm (default), sglang, and llamacpp.")
+    if quant_flag == "gguf":
+        if requested not in (None, "llamacpp"):
+            raise SmaError(
+                f"GGUF files run on llama.cpp, not {requested}. Drop --engine, or pass --engine llamacpp."
+            )
+        return "llamacpp"
+    if requested == "llamacpp":
+        raise SmaError(
+            "llama.cpp runs GGUF files only, and SMA never converts a checkpoint. "
+            "Pass --gguf <quant> with a GGUF repo, or drop --engine llamacpp."
+        )
+    name = requested or (cfg.engine.name or "vllm").strip().lower()
+    if name not in ("vllm", "sglang"):
+        raise SmaError(f"Unknown engine {name!r}. SMA supports vllm (default) and sglang for safetensors.")
     return name
+
+
+def selected_by(value: str | None, quant_flag: str | None) -> str:
+    """Why this engine: the checkpoint format, the --engine flag, or the configured default."""
+    if quant_flag == "gguf":
+        return "format"
+    return "flag" if value else "default"
 
 
 def image_for(cfg: Config, engine: str) -> str:
     if engine == "sglang":
         return cfg.engine.sglang_image
+    if engine == "llamacpp":
+        return cfg.engine.llamacpp_image
     return cfg.engine.image
 
 
 def configured_digest(cfg: Config, engine: str) -> str | None:
     if engine == "sglang":
         return cfg.engine.sglang_image_digest
+    if engine == "llamacpp":
+        return cfg.engine.llamacpp_image_digest
     return cfg.engine.image_digest
 
 
@@ -56,6 +86,13 @@ def compatibility_error(engine: str, detected: DetectedQuant) -> str | None:
     """
     fmt = detected.format
     method = _method_token(detected)
+    if engine == "llamacpp" or fmt == "gguf":
+        if engine == "llamacpp" and fmt == "gguf":
+            return None
+        return (
+            f"{engine} cannot serve a {fmt} checkpoint: GGUF runs on llama.cpp, safetensors on vLLM or SGLang. "
+            "SMA never converts one into the other."
+        )
     if fmt == "nvfp4_w4a16":
         return (
             "This checkpoint is weight-only NVFP4 (W4A16), not W4A4 NVFP4 "

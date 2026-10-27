@@ -49,14 +49,25 @@ def normalize_suite(suite_dir: Path, attempt_dir: Path, suite_name: str, *, benc
     pass_at_1 = scores.get("pass@1") if isinstance(scores.get("pass@1"), dict) else {}
     failures = scores.get("failures") if isinstance(scores.get("failures"), dict) else {}
     shuffle = (bundle.get("config") or {}).get("shuffle") or {}
+    failed = failures.get("total_failures")
+    # nel counts a request that never got an answer (a timeout, a server error) as a wrong answer.
+    # SMA never fills a missing score with zero, so a suite with failed requests has no score.
+    incomplete = isinstance(failed, int) and not isinstance(failed, bool) and failed > 0
     payload = {
         "scorer": f"nemo-evaluator {bundle.get('sdk_version') or 'unknown'}",
         "suite": suite_name,
         "bench": bench,
         "primary_metric": "pass@1" if pass_at_1 else None,
-        "primary_score": pass_at_1.get("value"),
-        "ci_lower": pass_at_1.get("bootstrap_ci_lower"),
-        "ci_upper": pass_at_1.get("bootstrap_ci_upper"),
+        "primary_score": None if incomplete else pass_at_1.get("value"),
+        "ci_lower": None if incomplete else pass_at_1.get("bootstrap_ci_lower"),
+        "ci_upper": None if incomplete else pass_at_1.get("bootstrap_ci_upper"),
+        "pass_at_1_failures_as_wrong": pass_at_1.get("value") if incomplete else None,
+        "error": (
+            f"{failed} of {benchmark.get('samples')} requests got no answer (nel's failure count), and nel scores "
+            "those as wrong. The score is null. See the trajectories for each failure's category."
+            if incomplete
+            else None
+        ),
         "n": benchmark.get("samples"),
         "repeats": benchmark.get("repeats"),
         "failures": failures.get("total_failures"),

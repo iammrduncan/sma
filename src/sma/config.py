@@ -40,15 +40,23 @@ class EngineConfig:
     # SM12x requires FlashInfer attention. Deterministic quality mode disables the radix cache.
     sglang_attention_backend: str = "flashinfer"
     sglang_determinism_backend: str = "flashinfer"
+    # DeepGEMM in the pinned SGLang image does not support the GB10 (SM121): deterministic serving
+    # crashes at CUDA-graph capture with "Unsupported architecture". SMA turns it off.
+    sglang_disable_deep_gemm: bool = True
+    # llama.cpp runs GGUF files. The "full" image has llama-server and llama-perplexity, arm64 + CUDA 13,
+    # built for SM 12.1. Versioned tag, digest recorded at pull.
+    llamacpp_image: str = "ghcr.io/ggml-org/llama.cpp:full-cuda13-b11913"
+    llamacpp_image_digest: str | None = None
+    # llama-server's host-RAM prompt cache, in MiB (--cache-ram). 8192 is llama.cpp's own default; SMA
+    # passes it explicitly and counts it in the memory plan. 0 turns it off.
+    llamacpp_cache_ram_mib: int = 8192
     port: int = 8000
     bind_host: str = "127.0.0.1"
     gpus: str = "all"
     shm_size: str = "16g"
+    # vLLM's startup free-memory check and SGLang's static memory share. The memory plan sizes the KV
+    # pool itself (see memory below), so this no longer decides how much KV cache the engine takes.
     gpu_memory_utilization: float = 0.90
-    # vLLM only. A fixed KV-cache size in GiB (--kv-cache-memory-bytes). When set, vLLM does not
-    # fill gpu_memory_utilization with KV cache; that share is then only its startup free-memory check.
-    kv_cache_gib: float | None = None
-    max_model_len: int = 8192
     max_num_seqs: int = 64
     moe_backend: str = "flashinfer_b12x"
     moe_backend_fallbacks: list[str] = field(default_factory=lambda: ["marlin"])
@@ -65,6 +73,26 @@ class EngineConfig:
     clock_cap_mhz: int | None = None
     apply_clock_cap: bool = False
     container_prefix: str = "sma"
+
+
+@dataclass
+class MemoryConfig:
+    """The memory plan. See docs/serving-design.md."""
+
+    # A run's planned footprint (weights, KV pool, engine overhead) stays under this many GB (1e9).
+    # The Spark has 130.7 GB; the margin keeps earlyoom's 8% floor away.
+    budget_gb: float = 100.0
+    # Context per stream starts here, or at the model's native maximum if smaller, and halves to fit.
+    start_context: int = 262_144
+    # Run memory beyond weights and KV pool, in GB: the engine's activations, CUDA graphs, and server
+    # processes, plus SMA's tools beside it (nel, the bench client). Measured per engine on the Spark
+    # (docs/first-spark-run.md).
+    overhead_gb: dict[str, float] = field(default_factory=lambda: {"vllm": 10.0, "sglang": 10.0, "llamacpp": 3.0})
+    # Engine memory that grows with the KV pool, as a share of it. llama.cpp's buffers sized by its
+    # context measured 0.9 GB plus 11.7% of the pool on a Spark (Qwen3-0.6B, -c 372,578 and 1,490,313).
+    pool_overhead_fraction: dict[str, float] = field(default_factory=lambda: {"vllm": 0.0, "sglang": 0.0, "llamacpp": 0.12})
+    # The least context per stream a quality request needs: prompt plus quality.max_tokens.
+    quality_min_context: int = 8192
 
 
 @dataclass
@@ -104,6 +132,10 @@ class LogprobConfig:
     window_tokens: int = 2048
     num_windows: int = 48
     corpus_version: str = "sma-corpus-v3"
+    # llama.cpp only. llama-server returns no prompt logprobs, so llama-perplexity scores this many
+    # chunks of window_tokens and writes the reference's full-vocabulary logits for KL. That file is
+    # about chunks * window_tokens / 2 * vocab * 2 bytes (2.5 GB for 8 chunks of a 152K vocabulary).
+    llamacpp_chunks: int = 8
 
 
 @dataclass
@@ -228,6 +260,7 @@ class Config:
     lock_path: str = "~/.local/share/sma/locks/gpu.lock"
     hf: HfConfig = field(default_factory=HfConfig)
     engine: EngineConfig = field(default_factory=EngineConfig)
+    memory: MemoryConfig = field(default_factory=MemoryConfig)
     timeouts: TimeoutConfig = field(default_factory=TimeoutConfig)
     retries: RetryConfig = field(default_factory=RetryConfig)
     determinism: DeterminismConfig = field(default_factory=DeterminismConfig)
@@ -261,6 +294,7 @@ def default_config() -> Config:
 _NESTED = {
     "hf": HfConfig,
     "engine": EngineConfig,
+    "memory": MemoryConfig,
     "timeouts": TimeoutConfig,
     "retries": RetryConfig,
     "determinism": DeterminismConfig,
@@ -273,6 +307,16 @@ _NESTED = {
 }
 
 
+# Keys an older sma.yaml may still carry, and what replaced them.
+_REPLACED = {
+    "EngineConfig": {
+        "max_model_len": "The memory plan sets the context per stream (memory.start_context, stepped down to fit). "
+        "Remove it from sma.yaml.",
+        "kv_cache_gib": "The memory plan sizes the KV pool from memory.budget_gb. Remove it from sma.yaml.",
+    }
+}
+
+
 def _build(cls: type, raw: dict[str, Any] | None, path: str) -> Any:
     if raw is None:
         raw = {}
@@ -280,6 +324,9 @@ def _build(cls: type, raw: dict[str, Any] | None, path: str) -> Any:
         raise SmaError(f"{path} must be a mapping")
     known = {item.name for item in fields(cls)}
     unknown = sorted(set(raw) - known)
+    replaced = [key for key in unknown if key in _REPLACED.get(cls.__name__, {})]
+    if replaced:
+        raise SmaError(f"{path}.{replaced[0]} is gone. {_REPLACED[cls.__name__][replaced[0]]}")
     if unknown:
         raise SmaError(f"Unknown config keys at {path}: {', '.join(unknown)}")
     kwargs: dict[str, Any] = {}
@@ -388,19 +435,34 @@ def validate_config(cfg: Config) -> None:
         raise SmaError("logprobs.top_k must be >= 1")
     if cfg.logprobs.window_tokens < 2:
         raise SmaError("logprobs.window_tokens must be >= 2")
-    if cfg.engine.max_model_len < cfg.logprobs.window_tokens:
+    if cfg.memory.quality_min_context < cfg.logprobs.window_tokens:
         raise SmaError(
-            "engine.max_model_len must be at least logprobs.window_tokens "
-            "so a full window fits"
+            "memory.quality_min_context must be at least logprobs.window_tokens so a full window fits"
         )
+    if cfg.memory.budget_gb <= 0:
+        raise SmaError("memory.budget_gb must be a positive number of GB")
+    if cfg.memory.start_context < 1024:
+        raise SmaError("memory.start_context must be at least 1024 tokens")
+    for name in ("vllm", "sglang", "llamacpp"):
+        overhead = cfg.memory.overhead_gb.get(name) if isinstance(cfg.memory.overhead_gb, dict) else None
+        if not isinstance(overhead, (int, float)) or isinstance(overhead, bool) or overhead < 0:
+            raise SmaError(f"memory.overhead_gb.{name} must be a number of GB, 0 or more")
+    for name in ("vllm", "sglang", "llamacpp"):
+        share = cfg.memory.pool_overhead_fraction.get(name) if isinstance(cfg.memory.pool_overhead_fraction, dict) else None
+        if not isinstance(share, (int, float)) or isinstance(share, bool) or not 0 <= share < 1:
+            raise SmaError(f"memory.pool_overhead_fraction.{name} must be a share from 0 to below 1")
+    if cfg.engine.llamacpp_cache_ram_mib < 0:
+        raise SmaError("engine.llamacpp_cache_ram_mib must be 0 (off) or more")
+    if cfg.logprobs.llamacpp_chunks < 1:
+        raise SmaError("logprobs.llamacpp_chunks must be >= 1")
     if cfg.engine.gpu_memory_utilization <= 0 or cfg.engine.gpu_memory_utilization > 1:
         raise SmaError("engine.gpu_memory_utilization must be in (0, 1]")
     if not isinstance(cfg.quality.chat_template_kwargs, dict) or not all(
         isinstance(key, str) for key in cfg.quality.chat_template_kwargs
     ):
         raise SmaError("quality.chat_template_kwargs must be a mapping with string keys")
-    if not 0 < cfg.quality.max_tokens < cfg.engine.max_model_len:
-        raise SmaError("quality.max_tokens must be positive and below engine.max_model_len, so the prompt fits")
+    if not 0 < cfg.quality.max_tokens < cfg.memory.quality_min_context:
+        raise SmaError("quality.max_tokens must be positive and below memory.quality_min_context, so the prompt fits")
     if cfg.quality.request_timeout_s <= 0:
         raise SmaError("quality.request_timeout_s must be positive")
     names = [suite.name for suite in cfg.quality.suites]
@@ -419,10 +481,11 @@ def validate_config(cfg: Config) -> None:
                 "Its limit keeps the first questions in file order, not a seeded sample, so SMA runs them all."
             )
         packaged_bench(suite.bench)  # an unknown sma:<name> fails here, before any download
-    if cfg.engine.kv_cache_gib is not None and cfg.engine.kv_cache_gib <= 0:
-        raise SmaError("engine.kv_cache_gib must be a positive number of GiB, or null")
     if cfg.engine.name not in {"vllm", "sglang"}:
-        raise SmaError("engine.name must be vllm or sglang")
+        raise SmaError(
+            "engine.name must be vllm or sglang: the default engine for safetensors checkpoints. "
+            "llama.cpp is chosen by --gguf, not by this setting."
+        )
     if cfg.engine.name == "sglang":
         # Before any pull or download. The speed step repeats this check.
         from sma.backends import assert_sglang_dataset_covers
@@ -465,6 +528,23 @@ def validate_config(cfg: Config) -> None:
         raise SmaError("queue.retry_backoff_s must be >= 0")
 
 
+# KV cache type, context, and KV pool flags of vLLM, SGLang, and llama-server.
+_PLAN_FLAGS = {
+    "--kv-cache-dtype",
+    "--max-model-len",
+    "--kv-cache-memory-bytes",
+    "--context-length",
+    "--max-total-tokens",
+    "-ctk",
+    "-ctv",
+    "--cache-type-k",
+    "--cache-type-v",
+    "-c",
+    "--ctx-size",
+    "--kv-unified-per-slot",
+}
+
+
 def _reject_forbidden_args(extra: list[str]) -> None:
     index = 0
     while index < len(extra):
@@ -488,6 +568,12 @@ def _reject_forbidden_args(extra: list[str]) -> None:
                 )
         if arg in {"--host", "--port"} or arg.startswith(("--host=", "--port=")):
             raise SmaError(f"SMA sets {arg.split('=')[0]} itself. Remove it from extra_args.")
+        flag = arg.split("=", 1)[0]
+        if flag in _PLAN_FLAGS:
+            raise SmaError(
+                f"SMA sets {flag} itself: the KV cache is always 8-bit, and the memory plan sizes the context "
+                "and the KV pool (docs/serving-design.md). Remove it from extra_args."
+            )
         index += 1
 
 

@@ -12,7 +12,7 @@ from typing import Any
 
 import yaml
 
-from sma.atomic import atomic_write_json, atomic_write_text
+from sma.atomic import atomic_write_json, atomic_write_json_stream, atomic_write_text
 from sma.cleanup import drop_page_cache, idle_until_cool
 from sma.commands import (
     EVAL_FACTORY_CONFIG,
@@ -27,16 +27,17 @@ from sma.commands import (
     nel_argv,
     nel_config,
     packaged_bench,
+    perplexity_argv,
     serve_argv,
     serve_env,
 )
 from sma.compare import compare_run_dirs
 from sma.config import Config, QualitySuite
-from sma.corpus import build_windows
+from sma.corpus import build_windows, load_corpus
 from sma.errors import CompareRefused, SmaError
 from sma.fetch import FetchResult, download_snapshot, inspect_snapshot
 from sma.identity import assert_alias_safe
-from sma.kl import perplexity
+from sma.kl import parse_perplexity_log, perplexity
 from sma.locks import GpuLock
 from sma.nvml import energy_counter_mj
 from sma.logsetup import add_run_log, log_event
@@ -58,8 +59,6 @@ from sma.runtime import DockerRuntime, StartSpec
 from sma.scrub import assert_text_clean, scrub_obj, scrub_text
 from sma.serverwatch import (
     STEP_SERVER,
-    kv_capacity_warning,
-    needed_kv_tokens,
     report_wait,
     server_log_path,
     start_following,
@@ -77,8 +76,10 @@ from sma.speedmath import (
 )
 from sma.telemetry import TelemetryRecorder, throttled_between
 from sma.httpapi import scrape_metrics, wait_until_healthy
-from sma.engines import compatibility_error, configured_digest, engine_name, image_for, image_ref
-from sma.preflight import check_architecture
+from sma.engines import compatibility_error, configured_digest, engine_name, image_for, image_ref, selected_by
+from sma.preflight import ArchCheck, check_architecture
+from sma.backends import BenchMounts, get_backend
+from sma.runplan import describe, plan_run, serve_plan
 
 PERCENTILES = (50, 90, 99)
 
@@ -115,6 +116,11 @@ class RunSpec:
     engine: str | None = None
     # The engine's tool-call parser for this model. None falls back to engine.tool_call_parser.
     tool_parser: str | None = None
+    # GGUF only: the quant file to run from the repo, for example UD-Q4_K_XL.
+    gguf: str | None = None
+    # Why this engine serves the run: "format", "flag", "default", or "preflight". Set by execute().
+    selected_by: str | None = None
+    selection_reason: str | None = None
 
 
 @dataclass
@@ -149,19 +155,22 @@ class HubFetcher:
         self.registry = registry
         self.engine = engine
 
-    def fetch(self, repo: str, revision: str | None, quant_flag: str) -> FetchResult:
-        from huggingface_hub import HfApi, hf_hub_download
+    def _metadata(self, repo: str, revision: str | None) -> tuple[Any, str, list[str], dict[str, int], str | None]:
+        from huggingface_hub import HfApi
 
-        from sma.fetch import _read_json
-
-        token = None
         from sma.config import hf_token
 
         token = hf_token(self.cfg)
-        api = HfApi(token=token)
-        info = api.model_info(repo_id=repo, revision=revision)
-        sha = info.sha
-        files = [item.rfilename for item in (info.siblings or [])]
+        info = HfApi(token=token).model_info(repo_id=repo, revision=revision, files_metadata=True)
+        siblings = info.siblings or []
+        sizes = {item.rfilename: int(item.size or 0) for item in siblings}
+        return info, str(info.sha), [item.rfilename for item in siblings], sizes, token
+
+    def _config(self, repo: str, sha: str, files: list[str], token: str | None) -> tuple[dict[str, Any], Any]:
+        from huggingface_hub import hf_hub_download
+
+        from sma.fetch import _read_json
+
         config_path = hf_hub_download(
             repo_id=repo, filename="config.json", revision=sha, cache_dir=str(self.cfg.cache_path()), token=token
         )
@@ -169,13 +178,45 @@ class HubFetcher:
         hf_quant = None
         if "hf_quant_config.json" in files:
             quant_path = hf_hub_download(
-                repo_id=repo,
-                filename="hf_quant_config.json",
-                revision=sha,
-                cache_dir=str(self.cfg.cache_path()),
-                token=token,
+                repo_id=repo, filename="hf_quant_config.json", revision=sha, cache_dir=str(self.cfg.cache_path()), token=token
             )
             hf_quant = _read_json(Path(quant_path))
+        return config, hf_quant
+
+    def choose_engine(self, repo: str, revision: str | None, quant_flag: str, default: str) -> tuple[str, str, str | None]:
+        """Before the run exists: SGLang only when vLLM's registry lacks the architecture and SGLang's has it."""
+        if quant_flag == "gguf" or default != "vllm":
+            return default, "default", None
+        from sma.quant import detect_quant
+
+        _info, sha, files, _sizes, token = self._metadata(repo, revision)
+        config, hf_quant = self._config(repo, sha, files, token)
+        detected = detect_quant(config, hf_quant)
+        checks = {}
+        for name in ("vllm", "sglang"):
+            checks[name] = check_architecture(
+                engine=name,
+                detected=detected,
+                config=config,
+                repo_files=files,
+                trust_remote_code=self.cfg.engine.trust_remote_code,
+                registry=self.registry,
+                image=image_ref(image_for(self.cfg, name), configured_digest(self.cfg, name)),
+            )
+            if name == "vllm" and checks[name].ok:
+                return default, "default", None
+        sglang = checks["sglang"]
+        if sglang.ok and sglang.source == "container" and compatibility_error("sglang", detected) is None:
+            return "sglang", "preflight", f"{checks['vllm'].message} SGLang's image registers it, so SGLang serves this run."
+        # vLLM's own refusal comes at fetch, with its message.
+        return default, "default", None
+
+    def fetch(self, repo: str, revision: str | None, quant_flag: str, gguf: str | None = None) -> FetchResult:
+        if quant_flag == "gguf":
+            return self._fetch_gguf(repo, revision, gguf or "")
+        info, sha, files, sizes, token = self._metadata(repo, revision)
+        config, hf_quant = self._config(repo, sha, files, token)
+        from sma.memplan import kv_layout_from_hf_config
         from sma.quant import assert_flag_matches, detect_quant
 
         detected = detect_quant(config, hf_quant)
@@ -194,6 +235,9 @@ class HubFetcher:
         )
         if not verdict.ok:
             raise SmaError(verdict.message)
+        # Refuse before the weight download when the model cannot fit the memory budget.
+        weights = sum(size for name, size in sizes.items() if name.endswith(".safetensors"))
+        plan_run(self.cfg, engine=self.engine, layout=kv_layout_from_hf_config(config), weights_bytes=weights)
         path, sha = download_snapshot(repo, sha, self.cfg)
         return inspect_snapshot(
             path,
@@ -202,6 +246,39 @@ class HubFetcher:
             quant_flag=quant_flag,
             revision_requested=revision,
         )
+
+    def plan_only(self, repo: str, revision: str | None, quant_flag: str, gguf: str | None) -> tuple[dict[str, Any], str | None]:
+        """The memory plan from metadata alone, for a dry run: config and file sizes, or the GGUF header."""
+        from sma.memplan import kv_layout_from_hf_config
+
+        _info, sha, files, sizes, token = self._metadata(repo, revision)
+        if quant_flag == "gguf":
+            from sma.fetch import read_remote_gguf_header
+            from sma.gguf import match_gguf_files, summarize
+
+            chosen = match_gguf_files(files, gguf or "")
+            headers = [read_remote_gguf_header(repo, sha, name, token) for name in chosen]
+            layout = summarize(headers[0], *headers[1:]).layout
+            weights = sum(sizes.get(name, 0) for name in chosen)
+            plan = plan_run(self.cfg, engine="llamacpp", layout=layout, weights_bytes=weights)
+            return plan.to_json(), chosen[0]
+        config, _hf_quant = self._config(repo, sha, files, token)
+        weights = sum(size for name, size in sizes.items() if name.endswith(".safetensors"))
+        plan = plan_run(self.cfg, engine=self.engine, layout=kv_layout_from_hf_config(config), weights_bytes=weights)
+        return plan.to_json(), None
+
+    def _fetch_gguf(self, repo: str, revision: str | None, selector: str) -> FetchResult:
+        from sma.fetch import inspect_gguf, read_remote_gguf_header
+        from sma.gguf import match_gguf_files, summarize
+
+        _info, sha, files, sizes, token = self._metadata(repo, revision)
+        chosen = match_gguf_files(files, selector)
+        # The header is read with ranged requests. A model that cannot fit is refused before the download.
+        headers = [read_remote_gguf_header(repo, sha, name, token) for name in chosen]
+        layout = summarize(headers[0], *headers[1:]).layout
+        plan_run(self.cfg, engine="llamacpp", layout=layout, weights_bytes=sum(sizes.get(name, 0) for name in chosen))
+        path, sha = download_snapshot(repo, sha, self.cfg, allow_patterns=chosen)
+        return inspect_gguf(path, repo=repo, revision_sha=sha, selector=selector, revision_requested=revision)
 
 
 class CommandEvaluator:
@@ -265,7 +342,21 @@ def execute(
     on_created: Callable[[str], None] | None = None,
 ) -> str:
     assert_alias_safe(cfg.host_alias)
-    chosen = engine_name(spec.engine, cfg)
+    if (spec.quant_flag == "gguf") != bool(spec.gguf):
+        raise SmaError("A GGUF run needs --gguf <quant>, and --gguf goes with a GGUF repo only.")
+    explicit = spec.engine
+    chosen = engine_name(spec.engine, cfg, spec.quant_flag)
+    spec.selected_by = spec.selected_by or selected_by(spec.engine, spec.quant_flag)
+    if (
+        spec.resume_run_id is None
+        and explicit is None
+        and spec.selected_by == "default"
+        and hasattr(services.fetcher, "choose_engine")
+    ):
+        # Before the run folder exists, because the engine is part of the run's identity.
+        chosen, spec.selected_by, spec.selection_reason = services.fetcher.choose_engine(
+            spec.repo, spec.revision, spec.quant_flag, chosen
+        )
     spec.engine = chosen
     ctx: Ctx | None = None
     lock = None if spec.lock_held else GpuLock(cfg.lock_file())
@@ -314,7 +405,7 @@ def execute(
 
 def _create(spec: RunSpec, cfg: Config, services: Services) -> Ctx:
     run_id = new_run_id()
-    run_dir = run_dir_for(cfg, spec.repo, spec.quant_flag, run_id, spec.engine or "vllm")
+    run_dir = run_dir_for(cfg, spec.repo, spec.quant_flag, run_id, spec.engine or "vllm", gguf=spec.gguf)
     run_dir.mkdir(parents=True, exist_ok=False)
     for name in ("fetch", "logprobs", "quality", "speed", "logs", "steps"):
         (run_dir / name).mkdir(parents=True, exist_ok=True)
@@ -328,6 +419,9 @@ def _create(spec: RunSpec, cfg: Config, services: Services) -> Ctx:
         pair_job_id=spec.pair_job_id,
         engine=spec.engine or "vllm",
         tool_call_parser=spec.tool_parser or cfg.engine.tool_call_parser,
+        gguf=spec.gguf,
+        selected_by=spec.selected_by,
+        selection_reason=spec.selection_reason,
     )
     add_run_log(run_dir / "logs" / "sma.log")
     publish(cfg, run_dir, manifest)
@@ -358,11 +452,14 @@ def _load(spec: RunSpec, cfg: Config, services: Services) -> Ctx:
             f"Run {spec.resume_run_id} was started with tool parser {recorded_parser or 'none'}, "
             f"not {spec.tool_parser}. A resumed run keeps its server flags."
         )
+    if spec.gguf and (manifest.get("gguf") or {}).get("selector") not in (None, spec.gguf):
+        raise SmaError(f"Run {spec.resume_run_id} is GGUF {manifest['gguf'].get('selector')}, not {spec.gguf}.")
     if manifest.get("model_repo") != spec.repo or manifest.get("quant_flag") != spec.quant_flag:
         raise SmaError(
             f"Run {spec.resume_run_id} is {manifest.get('model_repo')} "
             f"--{manifest.get('quant_flag')}, not {spec.repo} --{spec.quant_flag}."
         )
+    _backfill(manifest, found)
     add_run_log(found / "logs" / "sma.log")
     log_event("run_resume", run_id=manifest["run_id"])
     ctx = Ctx(cfg=cfg, services=services, run_dir=found, manifest=manifest)
@@ -373,6 +470,27 @@ def _load(spec: RunSpec, cfg: Config, services: Services) -> Ctx:
         manifest["engine"].get("batch_invariant_supported", True)
     )
     return ctx
+
+
+def _backfill(manifest: dict[str, Any], run_dir: Path) -> None:
+    """A run from before the memory plan: add the new fields, and plan again by re-running fetch."""
+    for key in ("memory_plan", "gguf", "logprobs_reference_file"):
+        manifest.setdefault(key, None)
+    engine = manifest.setdefault("engine", {})
+    defaults = {
+        "selected_by": "default",
+        "selection_reason": None,
+        "build_info": None,
+        "bench_image": None,
+        "kv_cache_type": get_backend(engine.get("name") or "vllm").kv_cache_type,
+        "kv_cache_scales": None,
+        "kv_cache_reported": {},
+        "context_per_stream": None,
+    }
+    for key, value in defaults.items():
+        engine.setdefault(key, value)
+    if manifest["memory_plan"] is None:
+        marker_path(run_dir, "fetch").unlink(missing_ok=True)
 
 
 def _finish(ctx: Ctx) -> None:
@@ -388,6 +506,7 @@ def _finish(ctx: Ctx) -> None:
             _mark_side(ctx, "telemetry", "failed", str(exc))
     else:
         _mark_side(ctx, "telemetry", "skipped", "telemetry never started")
+    _check_peak_memory(ctx)
     try:
         _teardown_containers(ctx)
         _mark_side(ctx, "teardown", "done", None)
@@ -402,6 +521,21 @@ def _finish(ctx: Ctx) -> None:
         publish(ctx.cfg, ctx.run_dir, ctx.manifest)
     except Exception as exc:
         log_event("final_publish_failed", error=str(exc))
+
+
+def _check_peak_memory(ctx: Ctx) -> None:
+    """Warn when the measured peak went past the budget: the plan's overhead was too small for this run."""
+    from sma.telemetry import peak_memory_bytes, read_memory
+
+    peak = peak_memory_bytes(read_memory(ctx.run_dir / "memory.csv"))
+    budget = ctx.cfg.memory.budget_gb * 1e9
+    if peak is not None and peak > budget:
+        engine = ctx.manifest["engine"]["name"]
+        _warn(
+            ctx,
+            f"Peak memory was {peak / 1e9:.1f} GB, over the {ctx.cfg.memory.budget_gb:g} GB budget. The plan's "
+            f"engine overhead was too small for this run: raise memory.overhead_gb.{engine} by the difference.",
+        )
 
 
 def _mark_side(ctx: Ctx, name: str, status: str, error: str | None) -> None:
@@ -499,10 +633,12 @@ def _step_fetch(ctx: Ctx) -> None:
         fetcher.engine = ctx.manifest["engine"]["name"]
     if hasattr(fetcher, "registry") and ctx.services.registry is not None:
         fetcher.registry = ctx.services.registry
+    selector = (ctx.manifest.get("gguf") or {}).get("selector")
     result = ctx.services.fetcher.fetch(
         ctx.manifest["model_repo"],
         ctx.manifest["revision_requested"],
         ctx.manifest["quant_flag"],
+        **({"gguf": selector} if selector else {}),
     )
     if not isinstance(result, FetchResult):
         raise SmaError("fetcher returned an unexpected result")
@@ -520,19 +656,24 @@ def _step_fetch(ctx: Ctx) -> None:
     ctx.manifest["file_hashes"] = dict(result.file_hashes)
     ctx.manifest["tokenizer_fingerprint"] = result.tokenizer_fingerprint
     ctx.manifest["quant_composition"] = result.detected.composition
-    blocked = compatibility_error(ctx.manifest["engine"]["name"], result.detected)
+    engine_now = ctx.manifest["engine"]["name"]
+    blocked = compatibility_error(engine_now, result.detected)
     if blocked:
         raise SmaError(blocked)
-    repo_files = [path.relative_to(ctx.snapshot).as_posix() for path in ctx.snapshot.rglob("*") if path.is_file()]
-    verdict = check_architecture(
-        engine=ctx.manifest["engine"]["name"],
-        detected=result.detected,
-        config=result.config,
-        repo_files=repo_files,
-        trust_remote_code=ctx.cfg.engine.trust_remote_code,
-        registry=getattr(ctx.services, "registry", None),
-        image=_preflight_image(ctx),
-    )
+    if engine_now == "llamacpp":
+        # llama.cpp has no architecture registry to ask. Its own load is the check, at serve.
+        verdict = ArchCheck(True, "llama.cpp", "llama.cpp has no architecture registry to query; the server start is the check.")
+    else:
+        repo_files = [path.relative_to(ctx.snapshot).as_posix() for path in ctx.snapshot.rglob("*") if path.is_file()]
+        verdict = check_architecture(
+            engine=engine_now,
+            detected=result.detected,
+            config=result.config,
+            repo_files=repo_files,
+            trust_remote_code=ctx.cfg.engine.trust_remote_code,
+            registry=getattr(ctx.services, "registry", None),
+            image=_preflight_image(ctx),
+        )
     ctx.manifest["architecture_check"] = {
         "ok": verdict.ok,
         "source": verdict.source,
@@ -554,6 +695,7 @@ def _step_fetch(ctx: Ctx) -> None:
     }
     ctx.manifest["subject"]["revision_sha"] = result.revision_sha
     ctx.manifest["subject"]["quant"] = result.quant_label or ctx.manifest["quant_flag"]
+    _record_memory_plan(ctx, result)
     ctx.manifest["engine"]["batch_invariant_supported"] = detected.batch_invariant_supported
     ctx.manifest["engine"]["batch_invariant_warning"] = detected.batch_invariant_reason
     ctx.batch_invariant = bool(ctx.cfg.engine.batch_invariant and detected.batch_invariant_supported)
@@ -567,6 +709,33 @@ def _step_fetch(ctx: Ctx) -> None:
             "The flag is set for NVFP4 and MXFP4 MoE only.",
         )
     atomic_write_json(ctx.run_dir / "fetch" / "result.json", result.to_json())
+
+
+def _record_memory_plan(ctx: Ctx, result: FetchResult) -> None:
+    """Plan weights, KV pool, and context before any server starts. Refuses a run that does not fit."""
+    engine = ctx.manifest["engine"]
+    if result.layout is None:
+        raise SmaError("SMA could not read the model's KV layout, so it cannot plan memory. Check the checkpoint.")
+    plan = plan_run(ctx.cfg, engine=engine["name"], layout=result.layout, weights_bytes=result.weights_bytes)
+    ctx.manifest["memory_plan"] = plan.to_json()
+    ctx.manifest["memory_plan"]["layout_notes"] = list(result.layout.notes)
+    engine["kv_cache_type"] = get_backend(engine["name"]).kv_cache_type
+    engine["kv_cache_scales"] = _kv_scales(engine["name"], result)
+    engine["context_per_stream"] = plan.context
+    if result.gguf is not None:
+        ctx.manifest["gguf"] = {**result.gguf, "selector": (ctx.manifest.get("gguf") or {}).get("selector")}
+    for line in describe(ctx.manifest["memory_plan"]):
+        log_event("memory_plan", line=line)
+
+
+def _kv_scales(engine: str, result: FetchResult) -> str:
+    """Where the 8-bit KV cache's scales come from."""
+    if engine == "llamacpp":
+        return "q8_0 per-block scales"
+    algo = (result.detected.sources or {}).get("kv_cache_quant_algo")
+    if algo:
+        return f"checkpoint ({algo})"
+    return "engine default (scale 1.0, not calibrated)"
 
 
 def _step_serve_quality(ctx: Ctx) -> None:
@@ -596,6 +765,9 @@ def _step_determinism(ctx: Ctx) -> None:
 
 
 def _step_logprobs(ctx: Ctx) -> None:
+    if ctx.manifest["engine"]["name"] == "llamacpp":
+        _llamacpp_logprobs(ctx)
+        return
     _ensure_server(ctx, "quality")
     encode = ctx.services.encode or _load_encoder(ctx)
     windows, _text, corpus_meta = build_windows(
@@ -604,19 +776,22 @@ def _step_logprobs(ctx: Ctx) -> None:
         window_tokens=ctx.cfg.logprobs.window_tokens,
         num_windows=ctx.cfg.logprobs.num_windows,
     )
-    stored_windows = []
     true_logprobs: list[float] = []
     missing = 0
-    for index, token_ids in enumerate(windows):
-        positions = _window_positions(ctx, token_ids)
-        for position in positions:
-            if position["true_logprob"] is None:
-                missing += 1
-            else:
-                true_logprobs.append(float(position["true_logprob"]))
-        stored_windows.append({"index": index, "token_ids": token_ids, "positions": positions})
-    ppl = perplexity(true_logprobs)
-    dump = {
+
+    def _scored_windows():
+        # One window's positions at a time: the whole dump does not fit next to the KV pool.
+        nonlocal missing
+        for index, token_ids in enumerate(windows):
+            positions = _window_positions(ctx, token_ids)
+            for position in positions:
+                if position["true_logprob"] is None:
+                    missing += 1
+                else:
+                    true_logprobs.append(float(position["true_logprob"]))
+            yield {"index": index, "token_ids": token_ids, "positions": positions}
+
+    head = {
         "schema_version": 1,
         "corpus_version": ctx.cfg.logprobs.corpus_version,
         "corpus_sha256": corpus_meta.get("sha256"),
@@ -627,12 +802,20 @@ def _step_logprobs(ctx: Ctx) -> None:
         "top_k": ctx.cfg.logprobs.top_k,
         "tokenizer_fingerprint": ctx.manifest.get("tokenizer_fingerprint"),
         "encode": "tokenizer.json with post-processor disabled; chat template not applied",
-        "windows": stored_windows,
-        "perplexity": ppl,
-        "token_count": len(true_logprobs),
-        "missing_true_logprob": missing,
     }
-    atomic_write_json(ctx.run_dir / "logprobs" / "dump.json", dump)
+    atomic_write_json_stream(
+        ctx.run_dir / "logprobs" / "dump.json",
+        head,
+        "windows",
+        _scored_windows(),
+        lambda: {
+            "perplexity": perplexity(true_logprobs),
+            "token_count": len(true_logprobs),
+            "missing_true_logprob": missing,
+        },
+    )
+    ppl = perplexity(true_logprobs)
+    stored_windows = [{"index": index, "token_ids": token_ids} for index, token_ids in enumerate(windows)]
     atomic_write_json(
         ctx.run_dir / "logprobs" / "corpus.json",
         {
@@ -644,7 +827,7 @@ def _step_logprobs(ctx: Ctx) -> None:
             "window_tokens": ctx.cfg.logprobs.window_tokens,
             "num_windows": len(stored_windows),
             "tokenizer_fingerprint": ctx.manifest.get("tokenizer_fingerprint"),
-            "windows": [{"index": item["index"], "token_ids": item["token_ids"]} for item in stored_windows],
+            "windows": stored_windows,
         },
     )
     atomic_write_json(
@@ -654,6 +837,109 @@ def _step_logprobs(ctx: Ctx) -> None:
     reference = ctx.manifest.get("reference_run_id")
     if reference:
         _write_reference_kl(ctx, reference)
+
+
+# GGUF file types that hold full-precision weights. Their runs write the logits a quant's KL reads.
+_REFERENCE_FILE_TYPES = {"ALL_F32", "MOSTLY_F16", "MOSTLY_BF16"}
+
+
+def _llamacpp_logprobs(ctx: Ctx) -> None:
+    """llama-server returns no prompt logprobs, so llama.cpp's own llama-perplexity scores the corpus.
+
+    The server stops first, so the model is in memory once. A full-precision GGUF writes its logits
+    for a later KL; a run with --reference reads the reference's logits and reports KL against it.
+    """
+    _stop_mode(ctx, "quality")
+    text, meta = load_corpus(ctx.cfg.logprobs.corpus_version)
+    logprobs_dir = ctx.run_dir / "logprobs"
+    atomic_write_text(logprobs_dir / "corpus.txt", text)
+    gguf = ctx.manifest.get("gguf") or {}
+    reference = _kld_reference(ctx)
+    write_base = reference is None and gguf.get("file_type") in _REFERENCE_FILE_TYPES
+    assert ctx.snapshot is not None
+    argv = perplexity_argv(
+        ctx.cfg,
+        name=container_name(ctx.cfg, ctx.run_id, "logprobs"),
+        image=_resolved_image(ctx),
+        model_dir=ctx.snapshot,
+        run_dir=ctx.run_dir,
+        model_file=str(gguf.get("model_file")),
+        uid=os.getuid(),
+        gid=os.getgid(),
+        reference_base=None if reference is None else str(reference[1]),
+        write_base=write_base,
+    )
+    atomic_write_json(logprobs_dir / "command.json", {"argv": scrub_obj(argv)})
+    log_path = ctx.run_dir / "logs" / "logprobs-llama-perplexity.log"
+    ctx.services.evaluator.run(argv, logprobs_dir, float(ctx.cfg.timeouts.eval_s), log_path)
+    parsed = parse_perplexity_log(log_path.read_text(encoding="utf-8", errors="replace"))
+    corpus = {
+        "corpus_version": ctx.cfg.logprobs.corpus_version,
+        "corpus_sha256": meta.get("sha256"),
+        "corpus_dataset": meta.get("dataset"),
+        "corpus_revision": meta.get("revision"),
+        "corpus_license": meta.get("license"),
+        "window_tokens": ctx.cfg.logprobs.window_tokens,
+        "chunks": parsed.get("chunks"),
+        "tokenizer_fingerprint": ctx.manifest.get("tokenizer_fingerprint"),
+        "method": "llama-perplexity: the text is tokenized by the GGUF's own tokenizer and cut into chunks of "
+        "window_tokens; the second half of each chunk is scored",
+    }
+    atomic_write_json(logprobs_dir / "corpus.json", corpus)
+    ppl = parsed.get("ppl_candidate") if reference is not None else parsed.get("ppl")
+    atomic_write_json(
+        logprobs_dir / "perplexity.json",
+        {"perplexity": ppl, "token_count": parsed.get("scored_tokens"), "missing_true_logprob": 0, "method": "llama-perplexity"},
+    )
+    if write_base:
+        ctx.manifest["logprobs_reference_file"] = "logprobs/kld-base.bin"
+    if reference is not None:
+        kl = {
+            "method": "llama-perplexity-kld",
+            "reference_run_id": reference[0],
+            "candidate_run_id": ctx.run_id,
+            "engine": "llamacpp",
+            "k": None,
+            "k_note": "llama.cpp compares the full vocabulary, not a top-k",
+            "kl_mean": parsed.get("kld_mean"),
+            "kl_median": parsed.get("kld_median"),
+            "kl_p99": parsed.get("kld_p99"),
+            "top1_agreement": parsed.get("same_top_p"),
+            "rms_delta_p": parsed.get("rms_delta_p"),
+            "delta_ppl": parsed.get("delta_ppl"),
+            "ppl_reference": parsed.get("ppl_base"),
+            "ppl_candidate": parsed.get("ppl_candidate"),
+            "scored_tokens": parsed.get("scored_tokens"),
+        }
+        atomic_write_json(logprobs_dir / "kl_vs_reference.json", kl)
+
+
+def _kld_reference(ctx: Ctx) -> tuple[str, Path] | None:
+    """The reference run's logits file, or None (with a warning) when it cannot serve as a KL reference."""
+    reference_id = ctx.manifest.get("reference_run_id")
+    if not reference_id:
+        return None
+    from sma.catalog import Catalog
+
+    ref_dir = Catalog(ctx.cfg.runs_path()).find(reference_id)
+    if ref_dir is None:
+        _warn(ctx, f"Reference run {reference_id} was not found. KL was not computed.")
+        return None
+    ref = load_manifest(ref_dir)
+    base = ref_dir / "logprobs" / "kld-base.bin"
+    problem = None
+    if (ref.get("engine") or {}).get("name") != "llamacpp":
+        problem = "is not a llama.cpp run, and KL stays on one engine"
+    elif not base.is_file():
+        problem = "has no logits file (only a full-precision GGUF run writes one)"
+    elif ref.get("tokenizer_fingerprint") != ctx.manifest.get("tokenizer_fingerprint"):
+        problem = "has a different tokenizer"
+    elif (ref.get("config_snapshot") or {}).get("logprobs", {}).get("llamacpp_chunks") != ctx.cfg.logprobs.llamacpp_chunks:
+        problem = "scored a different number of chunks (logprobs.llamacpp_chunks)"
+    if problem:
+        _warn(ctx, f"Reference run {reference_id} {problem}. KL was not computed.")
+        return None
+    return str(reference_id), base
 
 
 def _window_positions(ctx: Ctx, token_ids: list[int]) -> list[dict[str, Any]]:
@@ -714,7 +1000,20 @@ def _step_quality(ctx: Ctx) -> None:
             _run_eval_factory_suite(ctx, suite, suite_dir, attempt_dir)
         else:
             _run_nel_suite(ctx, suite, suite_dir, attempt_dir)
+        _record_suite_context(ctx, suite_dir)
         atomic_write_json(done, {"suite": suite.name, "finished": utc_now()})
+
+
+def _record_suite_context(ctx: Ctx, suite_dir: Path) -> None:
+    """Each suite records the context per stream it ran with: the plan's step for quality's streams."""
+    path = suite_dir / "scores.json"
+    scores = _optional(path)
+    if not isinstance(scores, dict):
+        return
+    plan = ctx.manifest.get("memory_plan") or {}
+    scores["context_per_stream"] = (plan.get("benchmarks") or {}).get("quality")
+    scores["concurrency"] = ctx.cfg.quality.concurrency
+    atomic_write_json(path, scores)
 
 
 def _run_nel_suite(ctx: Ctx, suite: QualitySuite, suite_dir: Path, attempt_dir: Path) -> None:
@@ -848,8 +1147,10 @@ def _run_cell(ctx: Ctx, cell: Any) -> tuple[dict[str, Any], dict[str, Any] | Non
             cell=cell,
             engine=ctx.manifest["engine"]["name"],
             result_dir=result_dir,
+            mounts=_bench_mounts(ctx),
         )
-        atomic_write_json(cell_dir / "command.json", {"argv": argv})
+        # A bench in its own container mounts absolute host paths, which can hold the hostname.
+        atomic_write_json(cell_dir / "command.json", {"argv": scrub_obj(argv)})
         energy_before = _read_energy(ctx)
         ctx.services.bencher.run(
             argv,
@@ -947,6 +1248,26 @@ def _run_cell(ctx: Ctx, cell: Any) -> tuple[dict[str, Any], dict[str, Any] | Non
         raise SmaError(f"speed cell {cell.name} produced no result")
     atomic_write_json(ctx.run_dir / "speed" / "cells" / cell.name / ".done", {"attempt": last["attempt"]})
     return last, last_window
+
+
+def _bench_mounts(ctx: Ctx) -> BenchMounts | None:
+    """llama.cpp's image has no bench client. vLLM's client runs from the pinned vLLM image instead."""
+    if ctx.manifest["engine"]["name"] != "llamacpp":
+        return None
+    engine = ctx.manifest["engine"]
+    if not engine.get("bench_image"):
+        digest = ctx.services.runtime.ensure_image(ctx.cfg.engine.image)
+        engine["bench_image"] = image_ref(ctx.cfg.engine.image, digest or ctx.cfg.engine.image_digest)
+    assert ctx.snapshot is not None
+    return BenchMounts(
+        image=str(engine["bench_image"]),
+        model_dir=str(ctx.snapshot),
+        run_dir=str(ctx.run_dir),
+        # vLLM's tokenizer loader reads a GGUF file's own tokenizer.
+        tokenizer=f"/model/{(ctx.manifest.get('gguf') or {}).get('model_file')}",
+        uid=os.getuid(),
+        gid=os.getgid(),
+    )
 
 
 def _derive_percentile(cfg_stat: str) -> int:
@@ -1272,10 +1593,46 @@ def _record_start(ctx: Ctx, mode: str, spec: StartSpec, backend: str | None, fal
     note = _backend_note(text)
     if note:
         engine["resolved_backend_note"] = note
-    short = kv_capacity_warning(text, needed_kv_tokens(ctx.cfg))
-    if short:
-        _warn(ctx, short)
+    _record_kv_report(ctx, mode, text)
     publish(ctx.cfg, ctx.run_dir, ctx.manifest)
+
+
+def _record_kv_report(ctx: Ctx, mode: str, log_text: str) -> None:
+    """What the engine's own log says about its KV cache: the type and the pool it allocated."""
+    engine = ctx.manifest["engine"]
+    report = get_backend(engine["name"]).kv_report(log_text)
+    if engine["name"] == "llamacpp":
+        report["build_info"] = _llamacpp_build(ctx)
+        engine["build_info"] = report["build_info"]
+    reported = dict(engine.get("kv_cache_reported") or {})
+    reported[mode] = report
+    engine["kv_cache_reported"] = reported
+    scales = str(engine.get("kv_cache_scales") or "")
+    note = "the engine log says it used a KV scale of 1.0"
+    if report.get("scale_1_0") and note not in scales and "scale 1.0" not in scales:
+        # The checkpoint's declared scales may themselves be 1.0. What the engine used is what counts.
+        engine["kv_cache_scales"] = f"{scales}; {note}" if scales else note
+    kv_type = str(report.get("kv_type") or "").lower()
+    if not kv_type:
+        _warn(ctx, f"The {mode} server's log does not say which KV cache type it uses. SMA asked for "
+                   f"{engine.get('kv_cache_type')}; the type is unconfirmed.")
+    elif not any(token in kv_type for token in ("fp8", "float8", "q8_0")):
+        raise SmaError(f"The {mode} server reports a {kv_type} KV cache. SMA always runs an 8-bit KV cache.")
+    plan = ctx.manifest.get("memory_plan") or {}
+    tokens = report.get("pool_tokens")
+    if isinstance(tokens, int) and isinstance(plan.get("context"), int) and tokens < plan["context"]:
+        _warn(ctx, f"The {mode} server's KV pool holds {tokens:,} tokens, less than one {plan['context']:,}-token stream.")
+
+
+def _llamacpp_build(ctx: Ctx) -> str | None:
+    from sma.httpapi import request_json
+
+    try:
+        props = request_json("GET", ctx.base_url.rstrip("/") + "/props", timeout_s=ctx.cfg.timeouts.health_request_s)
+    except SmaError:
+        return None
+    build = props.get("build_info") if isinstance(props, dict) else None
+    return str(build) if build else None
 
 
 def _resolved_image(ctx: Ctx) -> str:
@@ -1285,6 +1642,8 @@ def _resolved_image(ctx: Ctx) -> str:
 
 def _start_spec(ctx: Ctx, mode: str, backend: str | None, batch_invariant: bool) -> StartSpec:
     name_engine = ctx.manifest["engine"]["name"]
+    if not isinstance(ctx.manifest.get("memory_plan"), dict):
+        raise SmaError("This run has no memory plan, so SMA cannot size the server. Re-run from fetch.")
     serve = serve_argv(
         ctx.cfg,
         mode=mode,
@@ -1293,10 +1652,18 @@ def _start_spec(ctx: Ctx, mode: str, backend: str | None, batch_invariant: bool)
         quant_flag=str(ctx.manifest["quant_flag"]),
         moe_backend=backend,
         batch_invariant=batch_invariant,
+        plan=serve_plan(ctx.cfg, ctx.manifest["memory_plan"], model_file=(ctx.manifest.get("gguf") or {}).get("model_file")),
         engine=name_engine,
         tool_parser=ctx.manifest["engine"].get("tool_call_parser"),
     )
-    env = serve_env(ctx.cfg, mode=mode, batch_invariant=batch_invariant, engine=name_engine)
+    env = serve_env(
+        ctx.cfg,
+        mode=mode,
+        batch_invariant=batch_invariant,
+        engine=name_engine,
+        is_moe=bool(ctx.manifest.get("is_moe")),
+        quant_flag=str(ctx.manifest["quant_flag"]),
+    )
     name = container_name(ctx.cfg, ctx.run_id, mode)
     assert ctx.snapshot is not None
     command = docker_argv(
@@ -1307,6 +1674,7 @@ def _start_spec(ctx: Ctx, mode: str, backend: str | None, batch_invariant: bool)
         serve=serve,
         env=env,
         image=_resolved_image(ctx),
+        entrypoint=get_backend(name_engine).entrypoint,
     )
     return StartSpec(
         name=name,
@@ -1378,7 +1746,8 @@ def _unfollow(ctx: Ctx, mode: str) -> None:
 def _teardown_containers(ctx: Ctx) -> None:
     if ctx.telemetry is not None:
         ctx.telemetry.set_phase("teardown")
-    for mode in ("quality", "speed"):
+    # logprobs (llama-perplexity) and bench (llama.cpp speed) are one-shot containers with --rm.
+    for mode in ("quality", "speed", "logprobs", "bench"):
         _stop_mode(ctx, mode)
     leftover = [name for name in ctx.services.runtime.list_sma() if ctx.run_id in name]
     if leftover:

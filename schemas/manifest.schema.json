@@ -36,7 +36,10 @@
     "reference_run_id",
     "pair_job_id",
     "dispatch_concurrency",
-    "config_snapshot"
+    "config_snapshot",
+    "memory_plan",
+    "gguf",
+    "logprobs_reference_file"
   ],
   "properties": {
     "schema_version": { "const": 2 },
@@ -45,7 +48,7 @@
     "model_slug": { "type": "string", "minLength": 1 },
     "revision_requested": { "type": ["string", "null"] },
     "revision_sha": { "type": ["string", "null"] },
-    "quant_flag": { "enum": ["bf16", "nvfp4", "mxfp4", "mixed"] },
+    "quant_flag": { "enum": ["bf16", "nvfp4", "mxfp4", "mixed", "gguf"] },
     "quant_label": { "type": ["string", "null"] },
     "quant_detected": { "type": ["string", "null"] },
     "quant_detail": { "type": ["string", "null"] },
@@ -70,7 +73,10 @@
     "reference_run_id": { "type": ["string", "null"] },
     "pair_job_id": { "type": ["string", "null"] },
     "dispatch_concurrency": { "type": "integer", "minimum": 1 },
-    "config_snapshot": { "type": "object" }
+    "config_snapshot": { "type": "object" },
+    "memory_plan": { "type": ["object", "null"] },
+    "gguf": { "type": ["object", "null"] },
+    "logprobs_reference_file": { "type": ["string", "null"] }
   },
   "$defs": {
     "params": {
@@ -95,7 +101,7 @@
         "model_repo": { "type": "string" },
         "revision_sha": { "type": ["string", "null"] },
         "quant": { "type": "string" },
-        "engine": { "enum": ["vllm", "sglang"] },
+        "engine": { "enum": ["vllm", "sglang", "llamacpp"] },
         "hardware_alias": { "type": "string" }
       }
     },
@@ -104,6 +110,14 @@
       "additionalProperties": false,
       "required": [
         "name",
+        "selected_by",
+        "selection_reason",
+        "build_info",
+        "bench_image",
+        "kv_cache_type",
+        "kv_cache_scales",
+        "kv_cache_reported",
+        "context_per_stream",
         "image",
         "image_digest",
         "tensor_parallel_size",
@@ -134,7 +148,15 @@
         "tool_call_parser"
       ],
       "properties": {
-        "name": { "enum": ["vllm", "sglang"] },
+        "name": { "enum": ["vllm", "sglang", "llamacpp"] },
+        "selected_by": { "enum": ["format", "flag", "default", "preflight"] },
+        "selection_reason": { "type": ["string", "null"] },
+        "build_info": { "type": ["string", "null"] },
+        "bench_image": { "type": ["string", "null"] },
+        "kv_cache_type": { "enum": ["fp8", "q8_0"] },
+        "kv_cache_scales": { "type": ["string", "null"] },
+        "kv_cache_reported": { "type": "object" },
+        "context_per_stream": { "type": ["integer", "null"], "minimum": 1 },
         "tool_call_parser": { "type": ["string", "null"] },
         "image": { "type": "string" },
         "image_digest": { "type": ["string", "null"] },

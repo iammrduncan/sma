@@ -26,16 +26,20 @@ Each rule is one of three kinds:
 
 These make an SMA number trustworthy. Breaking one silently is worse than a crash. All are Review.
 
-- **INV-1. Refuse, never convert.** SMA does not quantize, relabel, or flatten a checkpoint. A
-  mismatch is an `SmaError` that names the right flag or engine (`quant.assert_flag_matches`,
-  `engines.compatibility_error`, `preflight.check_architecture`).
+- **INV-1. Refuse, never convert.** SMA does not quantize, relabel, or flatten a checkpoint, and does
+  not make or convert a GGUF. A mismatch is an `SmaError` that names the right flag or engine
+  (`quant.assert_flag_matches`, `engines.compatibility_error`, `preflight.check_architecture`). The KV
+  cache is always 8-bit (FP8, or Q8_0 on llama.cpp); no code path or `extra_args` starts a 16-bit one,
+  and an engine log that reports one stops the run.
 - **INV-2. Null with a reason, never a guess.** A missing measurement is `null`, and the record says
   why where it has a field for that (`measurement_note`, `missing_reason`, `invalidation_reason`,
   `scrape_error`). No zero fill. No value copied from the other engine.
 - **INV-3. The engine is part of the subject.** The run path, manifest, summary, and catalog all carry
-  the engine. `sma compare` refuses a cross-engine pair unless `--allow-cross-engine`. The vLLM MoE
-  backend chain (`flashinfer_b12x`, then `marlin`) is the only fallback, and the backend that
-  started is recorded.
+  the engine and why it was chosen (`engine.selected_by`: format, flag, default, or preflight), and
+  the choice is made before the run folder exists. `sma compare` refuses a cross-engine pair unless
+  `--allow-cross-engine`, and refuses llama.cpp runs, whose KL comes from llama-perplexity during the
+  run. The vLLM MoE backend chain (`flashinfer_b12x`, then `marlin`) is the only fallback, and the
+  backend that started is recorded.
 - **INV-4. Failures are kept.** A failed step stores its scrubbed error. Invalid and unverified speed
   cells stay on disk and are left out of the headline numbers. Do not delete or hide a failed
   measurement.
@@ -48,12 +52,15 @@ These make an SMA number trustworthy. Breaking one silently is worse than a cras
   inline in either.
 - **INV-7. One GPU, one model.** Take `GpuLock` before any server starts. `run-pair` holds one lock
   for both legs. A run resumes only on the host alias that started it.
+- **INV-8. Plan memory before launch.** `runplan.plan_run` sizes the context and the KV pool under
+  `memory.budget_gb` from the checkpoint's own metadata, and refuses before the weight download when
+  the model cannot fit. Serve commands take their context and pool from the recorded plan only.
 
 ## Records and state
 
 - **REC-1. Write records atomically.** JSON and text in a run folder go through `sma.atomic`
-  (temp file, fsync, rename; NaN and Infinity are rejected). The exception is `telemetry.csv`, an
-  append stream. *Why:* a crash must not leave a half-written manifest or summary.
+  (temp file, fsync, rename; NaN and Infinity are rejected). The exceptions are `telemetry.csv` and
+  `memory.csv`, append streams. *Why:* a crash must not leave a half-written manifest or summary.
 - **REC-2. Steps are idempotent.** A step writes `steps/<name>.done` only after it finishes, and
   resume skips steps with a marker. A new step needs an entry in `records.STEP_NAMES`, the manifest
   schema, the README "What a run does" list, and a test that resume skips it.

@@ -12,6 +12,7 @@ from sma.records import new_manifest, publish
 from sma.schemautil import validate_instance
 from sma.scrub import scrub_text
 from sma.speedmath import decode_tok_s, prefill_tok_s
+from tests.harness import SERVE_PLAN
 
 
 def test_serve_command_pins_the_contract() -> None:
@@ -24,6 +25,7 @@ def test_serve_command_pins_the_contract() -> None:
         quant_flag="bf16",
         moe_backend=None,
         batch_invariant=True,
+        plan=SERVE_PLAN,
     )
     assert bf16[0:2] == ["vllm", "serve"]
     assert "--tensor-parallel-size" in bf16
@@ -40,6 +42,7 @@ def test_serve_command_pins_the_contract() -> None:
         quant_flag="bf16",
         moe_backend="flashinfer_b12x",
         batch_invariant=False,
+        plan=SERVE_PLAN,
     )
     assert "--no-enable-flashinfer-autotune" not in speed
     assert "--moe-backend" not in speed
@@ -51,6 +54,7 @@ def test_serve_command_pins_the_contract() -> None:
         quant_flag="nvfp4",
         moe_backend="flashinfer_b12x",
         batch_invariant=True,
+        plan=SERVE_PLAN,
     )
     assert nvfp4[nvfp4.index("--moe-backend") + 1] == "flashinfer_b12x"
     dense = serve_argv(
@@ -61,30 +65,67 @@ def test_serve_command_pins_the_contract() -> None:
         quant_flag="nvfp4",
         moe_backend=None,
         batch_invariant=True,
+        plan=SERVE_PLAN,
     )
-    assert dense[dense.index("--linear-backend") + 1] == "flashinfer_b12x"
+    # vLLM 0.21 has no --linear-backend flag: it refused it on a Spark. The GEMM is an env var.
+    assert "--linear-backend" not in dense
+    from sma.commands import serve_env
+
+    env = serve_env(cfg, mode="quality", batch_invariant=True, is_moe=False, quant_flag="nvfp4")
+    assert env["VLLM_NVFP4_GEMM_BACKEND"] == "flashinfer-b12x"
+    assert "VLLM_NVFP4_GEMM_BACKEND" not in serve_env(cfg, mode="quality", batch_invariant=True, is_moe=True, quant_flag="nvfp4")
+    assert "VLLM_NVFP4_GEMM_BACKEND" not in serve_env(cfg, mode="quality", batch_invariant=True, quant_flag="bf16")
 
 
-def test_kv_cache_gib_sets_an_explicit_vllm_kv_cache_size() -> None:
+def _serve(engine: str, mode: str = "quality") -> list[str]:
+    return serve_argv(
+        default_config(),
+        mode=mode,
+        served_name="org/model",
+        is_moe=False,
+        quant_flag="gguf" if engine == "llamacpp" else "bf16",
+        moe_backend=None,
+        batch_invariant=False,
+        plan=SERVE_PLAN,
+        engine=engine,
+    )
+
+
+@pytest.mark.parametrize("mode", ["quality", "speed"])
+def test_every_engine_runs_an_8_bit_kv_cache_sized_by_the_memory_plan(mode: str) -> None:
+    vllm = _serve("vllm", mode)
+    assert vllm[vllm.index("--kv-cache-dtype") + 1] == "fp8"
+    assert vllm[vllm.index("--kv-cache-memory-bytes") + 1] == "20000000000"
+    assert vllm[vllm.index("--max-model-len") + 1] == "8192"
+    sglang = _serve("sglang", mode)
+    assert sglang[sglang.index("--kv-cache-dtype") + 1] == "fp8_e4m3"
+    assert sglang[sglang.index("--max-total-tokens") + 1] == "348768"
+    assert sglang[sglang.index("--context-length") + 1] == "8192"
+    llama = _serve("llamacpp", mode)
+    assert (llama[llama.index("-ctk") + 1], llama[llama.index("-ctv") + 1]) == ("q8_0", "q8_0")
+    assert llama[llama.index("-fa") + 1] == "on"
+    assert llama[llama.index("-c") + 1] == "348768"
+    assert llama[llama.index("--kv-unified-per-slot") + 1] == "8192"
+    assert llama[llama.index("-m") + 1] == "/model/Tiny-UD-Q4_K_XL.gguf"
+    for argv in (vllm, sglang, llama):
+        joined = " ".join(argv)
+        assert "f16" not in joined.replace("--no-enable-flashinfer-autotune", "") and "bfloat16" not in joined
+
+
+def test_sglang_turns_deep_gemm_off_on_the_gb10() -> None:
+    from sma.commands import serve_env
+
     cfg = default_config()
-
-    def argv() -> list[str]:
-        return serve_argv(
-            cfg, mode="quality", served_name="m", is_moe=False, quant_flag="bf16", moe_backend=None, batch_invariant=True
-        )
-
-    assert "--kv-cache-memory-bytes" not in argv()
-    cfg.engine.kv_cache_gib = 16
-    flags = argv()
-    assert flags[flags.index("--kv-cache-memory-bytes") + 1] == str(16 * 2**30)
-    assert "--gpu-memory-utilization" in flags
+    for mode in ("quality", "speed"):
+        assert serve_env(cfg, mode=mode, batch_invariant=False, engine="sglang")["SGLANG_ENABLE_JIT_DEEPGEMM"] == "0"
 
 
-def test_kv_cache_gib_must_be_positive() -> None:
-    from sma.config import config_from_mapping, validate_config
+@pytest.mark.parametrize("key", ["max_model_len", "kv_cache_gib"])
+def test_removed_context_keys_say_what_replaced_them(key: str) -> None:
+    from sma.config import config_from_mapping
 
-    with pytest.raises(SmaError, match="kv_cache_gib"):
-        validate_config(config_from_mapping({"engine": {"kv_cache_gib": 0}}))
+    with pytest.raises(SmaError, match=f"config.engine.{key} is gone. The memory plan"):
+        config_from_mapping({"engine": {key: 8}})
 
 
 def test_bench_command_and_derived_rates() -> None:
@@ -248,3 +289,10 @@ def test_quality_max_tokens_must_leave_room_for_the_prompt() -> None:
 
     with pytest.raises(SmaError, match="quality.max_tokens"):
         validate_config(config_from_mapping({"quality": {"max_tokens": 8192}}))
+
+
+def test_scrub_keeps_a_per_token_count_and_still_redacts_token_fields() -> None:
+    from sma.scrub import scrub_obj
+
+    cleaned = scrub_obj({"kv_bytes_per_token": 57344, "auth_token": "x", "token": "y", "hf_token": "z"})
+    assert cleaned == {"kv_bytes_per_token": 57344, "auth_token": "<redacted>", "token": "<redacted>", "hf_token": "<redacted>"}

@@ -1,13 +1,16 @@
 # AGENTS.md
 
 SMA (Small Model Arena launcher) is a standalone Python CLI. It fetches one pinned Hugging Face
-checkpoint, serves it in a pinned vLLM container (SGLang is opt-in) on one DGX Spark, measures it,
-and writes a resumable run folder.
+checkpoint, serves it on one DGX Spark in a pinned engine container, measures it, and writes a
+resumable run folder. The format picks the engine: safetensors on vLLM (SGLang by flag or preflight),
+GGUF on llama.cpp.
 
 - [README.md](README.md) is the product contract: commands, run steps, run-record layout, caveats.
 - [docs/arena-plan-alignment.md](docs/arena-plan-alignment.md) maps the arena plan onto SMA. It
   lists the owner-approved extensions and the deliberate deviations.
 - [docs/first-spark-run.md](docs/first-spark-run.md) is the hardware checklist.
+- [docs/serving-design.md](docs/serving-design.md) is the owner's engine, KV cache, context, and
+  memory design: three engines by format, an 8-bit KV cache, the memory plan, deployment notes.
 - [CONVENTIONS.md](CONVENTIONS.md) holds the detailed rules and their reasons. Read it before you
   change code.
 
@@ -15,11 +18,16 @@ and writes a resumable run folder.
 
 These are owner decisions. Do not change them without an explicit owner decision.
 
-- SMA never quantizes. A checkpoint that does not match the quant flag is refused. It is never
-  converted or relabeled.
+- SMA never quantizes or converts weights. It downloads GGUF files as published. A checkpoint that
+  does not match the quant flag is refused. It is never converted or relabeled. The KV cache is
+  always 8-bit: FP8 on vLLM and SGLang, Q8_0 on llama.cpp.
 - Tensor parallelism is always 1. One Spark runs one model at a time, under `gpu.lock`.
-- The engine is part of the subject. Never switch engines as a fallback. Never copy a measurement
-  from one engine into the other engine's record. The only fallback is the vLLM MoE backend chain.
+- The engine is part of the subject. Never switch engines as a fallback. The engine is chosen before
+  launch, by checkpoint format, by `--engine`, or because preflight shows that vLLM cannot serve the
+  model. Never copy a measurement from one engine into another engine's record. The only fallback is
+  the vLLM MoE backend chain.
+- A run's planned memory stays under `memory.budget_gb`. Context per stream starts at 256K or the
+  native maximum, never RoPE-stretched, and steps down to fit (docs/serving-design.md).
 - `null` means not measured. Never invent a number, digest, backend, or percentile. Never fill a
   missing score with zero.
 - No hostname and no Hugging Face token in a run record, log, or stored error. The token comes from
@@ -54,7 +62,8 @@ uv run sma run Qwen/Qwen3-8B --bf16 --dry-run         # prints the plan; no GPU,
 | Entry points | `cli.py` (argparse; `SmaError` exits 2), `plan.py` (dry-run), `doctor.py` |
 | Orchestration | `pipeline.py` (steps, markers, teardown), `queue.py` (filesystem queue, worker), `locks.py` |
 | Commands | `commands.py`, `backends.py` (`EngineBackend` for vLLM and SGLang), `engines.py`, `runtime.py` (Docker) |
-| Checkpoint | `fetch.py`, `quant.py`, `preflight.py`, `params.py`, `safetensors.py`, `hashing.py` |
+| Checkpoint | `fetch.py`, `quant.py`, `gguf.py` (GGUF header reader), `preflight.py`, `params.py`, `safetensors.py`, `hashing.py` |
+| Memory plan | `memplan.py` (KV layout, context ladder, budget; pure), `runplan.py` (SMA's benchmarks as needs, serve plan) |
 | Measurement | `probe.py`, `kl.py`, `corpus.py`, `speedmath.py`, `prom.py`, `telemetry.py`, `qualityout.py`, `compare.py`, `cleanup.py` |
 | Records | `records.py`, `catalog.py`, `atomic.py`, `schemautil.py`, and `schemas/*.json` at the root |
 | Shared helpers | `config.py`, `errors.py`, `proc.py`, `httpapi.py`, `retry.py`, `scrub.py`, `identity.py`, `logsetup.py` |
@@ -63,8 +72,10 @@ uv run sma run Qwen/Qwen3-8B --bf16 --dry-run         # prints the plan; no GPU,
   corpus hash. Do not edit these files.
 - `src/sma/nel_benchmarks/` holds graders that NeMo Evaluator loads by path (`sma:<name>` in a
   quality suite). They import `nemo_evaluator`, so SMA's own code never imports them.
-- `tests/` uses in-process fakes: `fakes.py` (Docker, Hugging Face, NeMo Evaluator, bench),
-  `fake_vllm.py` (an HTTP server), and `harness.py` (`make_config`, `make_services`).
+- `tests/` uses in-process fakes: `fakes.py` (Docker, Hugging Face, NeMo Evaluator, llama-perplexity,
+  bench, a GGUF repo), `fake_vllm.py` (an HTTP server), `gguf_writer.py` (small GGUF files), and
+  `harness.py` (`make_config`, `make_services`). `tests/data/configs` holds real config.json files and
+  `tests/data/llamacpp` real llama-perplexity output.
 - `runs/`, `queue/`, and `.sma/` are output. They are git-ignored. Do not commit them.
 
 ## How to work
