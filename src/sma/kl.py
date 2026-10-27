@@ -113,6 +113,31 @@ def kl_position(
     }
 
 
+def _quantile(ordered: list[float], q: float) -> float:
+    """Linear interpolation between the two nearest ranks, as numpy's default."""
+    position = q * (len(ordered) - 1)
+    low = int(position)
+    high = min(low + 1, len(ordered) - 1)
+    return ordered[low] + (ordered[high] - ordered[low]) * (position - low)
+
+
+def clustered_mean(groups: list[list[float]]) -> tuple[float | None, float | None]:
+    """Mean of all values and its cluster-robust standard error, one cluster per group.
+
+    Positions in one window share context, so they are not independent. Treating each window
+    as a cluster keeps the error bar honest. The SE is None with fewer than two clusters.
+    """
+    filled = [group for group in groups if group]
+    count = sum(len(group) for group in filled)
+    if not count:
+        return None, None
+    mean = sum(sum(group) for group in filled) / count
+    if len(filled) < 2:
+        return mean, None
+    spread = sum((sum(group) - len(group) * mean) ** 2 for group in filled)
+    return mean, math.sqrt(len(filled) / (len(filled) - 1) * spread) / count
+
+
 def _windows(dump: dict[str, Any]) -> list[dict[str, Any]]:
     windows = dump.get("windows")
     if not isinstance(windows, list):
@@ -135,6 +160,11 @@ def compare_dumps(reference: dict[str, Any], candidate: dict[str, Any]) -> dict[
     positions = 0
     per_window: list[dict[str, Any]] = []
     token_mismatches = 0
+    # Per window, for clustered standard errors.
+    kl_groups: list[list[float]] = []
+    top1_groups: list[list[float]] = []
+    log_ratio_groups: list[list[float]] = []
+    delta_p_squares: list[float] = []
 
     for ref_window in ref_windows:
         index = int(ref_window["index"])
@@ -149,6 +179,8 @@ def compare_dumps(reference: dict[str, Any], candidate: dict[str, Any]) -> dict[
         ref_positions = list(ref_window.get("positions") or [])
         other_positions = {int(item["index"]): item for item in other.get("positions") or []}
         window_kl: list[float] = []
+        window_top1: list[float] = []
+        window_log_ratio: list[float] = []
         for ref_pos in ref_positions:
             pos_index = int(ref_pos["index"])
             cand_pos = other_positions.get(pos_index)
@@ -167,6 +199,12 @@ def compare_dumps(reference: dict[str, Any], candidate: dict[str, Any]) -> dict[
                 floored_positions += 1
             if term.get("infinite"):
                 infinite_positions += 1
+            ref_true = ref_pos.get("true_logprob")
+            cand_true = cand_pos.get("true_logprob")
+            if isinstance(ref_true, (int, float)) and isinstance(cand_true, (int, float)):
+                # ln(PPL_candidate / PPL_reference) is the mean of this. Delta p is on the true token.
+                window_log_ratio.append(float(ref_true) - float(cand_true))
+                delta_p_squares.append((math.exp(float(cand_true)) - math.exp(float(ref_true))) ** 2)
             if term["kl"] is None:
                 continue
             finite.append(float(term["kl"]))
@@ -177,6 +215,7 @@ def compare_dumps(reference: dict[str, Any], candidate: dict[str, Any]) -> dict[
                 top1_total += 1
                 if ref_top1 == cand_top1:
                     top1_hit += 1
+                window_top1.append(1.0 if ref_top1 == cand_top1 else 0.0)
         per_window.append(
             {
                 "index": index,
@@ -184,6 +223,9 @@ def compare_dumps(reference: dict[str, Any], candidate: dict[str, Any]) -> dict[
                 "positions": len(window_kl),
             }
         )
+        kl_groups.append(window_kl)
+        top1_groups.append(window_top1)
+        log_ratio_groups.append(window_log_ratio)
 
     ref_ppl = reference.get("perplexity")
     cand_ppl = candidate.get("perplexity")
@@ -197,6 +239,22 @@ def compare_dumps(reference: dict[str, Any], candidate: dict[str, Any]) -> dict[
     else:
         method = "page_topk_tail_mixed"
     k_recorded = next(iter(k_values)) if len(k_values) == 1 else None
+    kl_mean, kl_se = clustered_mean(kl_groups)
+    _, top1_se = clustered_mean(top1_groups)
+    log_ratio, log_ratio_se = clustered_mean(log_ratio_groups)
+    ordered = sorted(finite)
+    quantiles = (
+        {
+            "p50": _quantile(ordered, 0.50),
+            "p90": _quantile(ordered, 0.90),
+            "p95": _quantile(ordered, 0.95),
+            "p99": _quantile(ordered, 0.99),
+            "p99_9": _quantile(ordered, 0.999),
+            "max": ordered[-1],
+        }
+        if ordered
+        else None
+    )
     return {
         "schema_version": 1,
         "method": method,
@@ -210,8 +268,24 @@ def compare_dumps(reference: dict[str, Any], candidate: dict[str, Any]) -> dict[
             f"{KL_EPSILON} are floored so those positions stay in the mean. "
             "This is not full-vocabulary KL."
         ),
+        "bound": (
+            "Coarse-grained KL: the reference top-k ids plus one tail bucket. Merging tokens into a "
+            "bucket can only lower KL (log-sum inequality), and flooring q upward only lowers a term, "
+            "so kl_mean is a lower bound on full-vocabulary KL."
+        ),
+        "uncertainty": (
+            "Standard errors (*_se) are cluster-robust with one cluster per window, because positions "
+            "in a window share context. Statistics follow llama.cpp's --kl-divergence report. SMA scores "
+            "every position after the first in a window; llama.cpp scores only the second half of each chunk."
+        ),
         "kl_epsilon": KL_EPSILON,
-        "kl_mean": (sum(finite) / len(finite)) if finite else None,
+        "kl_mean": kl_mean,
+        "kl_mean_se": kl_se,
+        "kl_quantiles": quantiles,
+        "top1_agreement_se": top1_se,
+        "ln_ppl_ratio": log_ratio,
+        "ln_ppl_ratio_se": log_ratio_se,
+        "rms_delta_p": math.sqrt(sum(delta_p_squares) / len(delta_p_squares)) if delta_p_squares else None,
         "kl_positions": positions,
         "kl_finite_positions": len(finite),
         "kl_floored_positions": floored_positions,

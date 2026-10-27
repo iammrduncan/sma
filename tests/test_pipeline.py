@@ -48,8 +48,9 @@ def test_full_run_writes_a_valid_record_and_stops_the_server(tmp_path: Path) -> 
     assert summary["speed"]["prefill_tok_s"] == pytest.approx(2048 / 0.1)
     assert summary["speed"]["decode_tok_s"] == pytest.approx(50.0)
     assert summary["speed"]["output_tok_s_c4"] == pytest.approx(12.5)
-    assert summary["quality"]["ifeval"]["scorer"] == "lm-eval-harness"
+    assert summary["quality"]["ifeval"]["scorer"] == "nemo-evaluator 0.3.0"
     assert summary["quality"]["ifeval"]["score"] == 0.5
+    assert (summary["quality"]["ifeval"]["ci_lower"], summary["quality"]["ifeval"]["n"]) == (0.25, 2)
     assert runtime.running == set()
     assert runtime.stop_count >= 1
     text = (run_dir / "manifest.json").read_text()
@@ -103,10 +104,10 @@ def test_quality_failure_still_tears_the_server_down(tmp_path: Path) -> None:
     services, _fetcher, runtime = make_services(tmp_path, cfg)
 
     def explode(*_args, **_kwargs):
-        raise SmaError("lm-eval exploded")
+        raise SmaError("nemo-evaluator exploded")
 
     services.evaluator.run = explode
-    with pytest.raises(SmaError, match="lm-eval exploded"):
+    with pytest.raises(SmaError, match="nemo-evaluator exploded"):
         execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
     assert runtime.running == set()
     assert runtime.stop_count >= 1

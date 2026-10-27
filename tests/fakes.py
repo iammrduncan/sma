@@ -1,11 +1,14 @@
-"""In-process stand-ins for Docker, Hugging Face, lm-eval, and vLLM bench."""
+"""In-process stand-ins for Docker, Hugging Face, NeMo Evaluator, and vLLM bench."""
 
 from __future__ import annotations
 
 import json
+import socket
 import struct
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 from sma.fetch import FetchResult, inspect_snapshot
 from sma.runtime import StartSpec
@@ -131,6 +134,8 @@ class FakeRuntime:
         self.specs: list[StartSpec] = []
         self.running: set[str] = set()
         self.stop_count = 0
+        self.followed: list[str] = []
+        self.exited: set[str] = set()
         self.digest = "sha256:" + "ab" * 32
         self.server: FakeVLLM | None = None
 
@@ -149,9 +154,18 @@ class FakeRuntime:
         self.server.start()
         self.running.add(spec.name)
 
+    def kill(self, name: str) -> None:
+        """The server stops on its own, as when the host stops it. The container still exists."""
+        self.running.discard(name)
+        self.exited.add(name)
+        if self.server is not None:
+            self.server.stop()
+            self.server = None
+
     def stop(self, name: str) -> None:
         self.stop_count += 1
         self.running.discard(name)
+        self.exited.discard(name)
         if self.server is not None and not self.running:
             self.server.stop()
             self.server = None
@@ -159,11 +173,26 @@ class FakeRuntime:
     def logs(self, name: str) -> str:
         return "Using moe backend from the explicit flag\n"
 
+    def follow_logs(self, name: str, path: Path) -> "FakeFollowing":
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # Marked, so a test can tell the followed log from a dump that replaced it.
+        path.write_text("(followed live)\n" + self.logs(name), encoding="utf-8")
+        self.followed.append(name)
+        return FakeFollowing()
+
+    def exit_code(self, name: str) -> int | None:
+        return None if name in self.running else 0
+
     def is_running(self, name: str) -> bool:
         return name in self.running
 
     def list_sma(self) -> list[str]:
-        return sorted(self.running)
+        return sorted(self.running | self.exited)
+
+
+class FakeFollowing:
+    def stop(self, timeout_s: float = 10.0) -> None:
+        del timeout_s
 
 
 def _backend(spec: StartSpec) -> str | None:
@@ -174,29 +203,83 @@ def _backend(spec: StartSpec) -> str | None:
 
 
 class FakeEvaluator:
+    """Writes the layout nemo-evaluator 0.3.0 writes, so SMA's own parsing runs in every pipeline test."""
+
     def __init__(self) -> None:
         self.calls: list[list[str]] = []
+        self.configs: list[dict[str, Any]] = []
 
     def run(self, argv: list[str], output_dir: Path, timeout_s: float, log_path: Path) -> None:
         self.calls.append(list(argv))
-        output_dir.mkdir(parents=True, exist_ok=True)
-        suite = output_dir.name
-        (output_dir / "scores.json").write_text(
-            json.dumps(
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        if argv[0] == "docker":
+            self._eval_factory(argv)
+            log_path.write_text("fake eval-factory\n", encoding="utf-8")
+            return
+        # nel runs in the suite folder: `nel eval run nel.yaml -o attempt-<n>`.
+        config = yaml.safe_load((output_dir / argv[argv.index("run") + 1]).read_text(encoding="utf-8"))
+        self.configs.append(config)
+        bench = config["benchmarks"][0]
+        out = output_dir / argv[argv.index("-o") + 1]
+        bench_dir = out / bench["name"].replace("://", "___")
+        bench_dir.mkdir(parents=True, exist_ok=True)
+        count = bench["max_problems"] or 2
+        # Real nel writes its absolute output path here, which can hold the hostname.
+        (out / "nel_run.json").write_text(
+            json.dumps({"output_dir": str(out.resolve()), "host": socket.gethostname()}), encoding="utf-8"
+        )
+        bundle = {
+            "sdk_version": "0.3.0",
+            "config": {"benchmark": bench["name"], "shuffle": {"seed": bench["shuffle_seed"], "ds_full_size": 541}},
+            "benchmark": {
+                "name": bench["name"],
+                "samples": count,
+                "repeats": 1,
+                "scores": {
+                    "pass@1": {"value": 0.5, "bootstrap_ci_lower": 0.25, "bootstrap_ci_upper": 0.75},
+                    "failures": {"total_steps": count, "total_failures": 0},
+                },
+            },
+        }
+        (bench_dir / f"eval-20261027T045605Z-{bench_dir.name}.json").write_text(json.dumps(bundle), encoding="utf-8")
+        rows = [
+            {"problem_idx": index, "repeat": 0, "reward": float(index % 2 == 0), "trajectory": [{"source": "user"}]}
+            for index in range(count)
+        ]
+        (bench_dir / "results.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+        log_path.write_text("fake nemo-evaluator\n", encoding="utf-8")
+
+    @staticmethod
+    def _eval_factory(argv: list[str]) -> None:
+        """The layout the eval-factory BFCL container (26.03) writes into its /results mount."""
+        mounts = [argv[index + 1] for index, arg in enumerate(argv) if arg == "-v"]
+        results = Path(next(mount for mount in mounts if mount.endswith(":/results")).rsplit(":", 1)[0])
+        model = "org_model"
+        (results / "result" / model).mkdir(parents=True, exist_ok=True)
+        (results / "score" / model).mkdir(parents=True, exist_ok=True)
+        categories = {"simple": (["simple_0", "simple_1", "simple_2"], ["simple_1"]), "multi_turn_base": (["base_0", "base_1"], [])}
+        for category, (ids, failed) in categories.items():
+            name = f"BFCL_v3_{category}"
+            (results / "result" / model / f"{name}_result.json").write_text(
+                "".join(json.dumps({"id": item, "result": []}) + "\n" for item in ids), encoding="utf-8"
+            )
+            summary = {"accuracy": 1 - len(failed) / len(ids), "correct_count": len(ids) - len(failed), "total_count": len(ids)}
+            lines = [summary, *({"id": item, "valid": False} for item in failed)]
+            (results / "score" / model / f"{name}_score.json").write_text(
+                "".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8"
+            )
+        (results / "results.yml").write_text(
+            yaml.safe_dump(
                 {
-                    "scorer": "lm-eval-harness",
-                    "suite": suite,
-                    "primary_metric": "acc,none",
-                    "primary_score": 0.5,
-                    "limit": 2,
-                    "results": {suite: {"acc,none": 0.5}},
+                    "results": {
+                        "groups": {
+                            "bfcl": {"metrics": {"multi_turn_overall_acc": {"scores": {"multi_turn_overall_acc": {"value": 100.0}}}}}
+                        }
+                    }
                 }
             ),
             encoding="utf-8",
         )
-        (output_dir / "samples.jsonl").write_text('{"doc_id": 0, "exact": true}\n', encoding="utf-8")
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        log_path.write_text("fake lm-eval\n", encoding="utf-8")
 
 
 class FakeBencher:

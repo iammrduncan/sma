@@ -203,6 +203,13 @@ def inspect_snapshot(
     )
 
 
+def snapshot_dir(cfg: Config, repo: str, sha: str) -> Path:
+    """Where one commit of a repo is downloaded: <hf.cache_dir>/<model slug>/<sha>."""
+    from sma.records import model_slug
+
+    return cfg.cache_path() / model_slug(repo) / sha
+
+
 def download_snapshot(repo: str, revision: str | None, cfg: Config) -> tuple[Path, str]:
     """Resolve a revision to a commit SHA and download that snapshot."""
     token = hf_token(cfg)
@@ -219,10 +226,12 @@ def download_snapshot(repo: str, revision: str | None, cfg: Config) -> tuple[Pat
             sha = info.sha
             if not sha:
                 raise SmaError(f"Hugging Face did not return a commit SHA for {repo}")
+            # A plain folder of real files per commit. The engine container mounts only this
+            # folder at /model. A cache snapshot is links into blobs outside it, which break there.
             path = snapshot_download(
                 repo_id=repo,
                 revision=sha,
-                cache_dir=str(cfg.cache_path()),
+                local_dir=str(snapshot_dir(cfg, repo, sha)),
                 token=token,
             )
         finally:

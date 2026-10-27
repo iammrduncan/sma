@@ -11,6 +11,7 @@ from sma.config import Config, hf_token
 from sma.errors import SmaError
 from sma.identity import assert_alias_safe
 from sma.proc import CommandResult, run_command
+from sma.scrub import assert_text_clean
 
 
 @dataclass
@@ -115,6 +116,15 @@ def default_checks(cfg: Config) -> list[Check]:
     except OSError as exc:
         checks.append(Check("disk", "fail", str(exc)))
 
+    # Fetch refuses a snapshot path that contains the hostname, for example /home/<user> when the
+    # user name is the hostname. Same rule, checked before a run.
+    cache = str(cfg.cache_path())
+    try:
+        assert_text_clean(cache, "Hugging Face cache path")
+        checks.append(Check("hf_cache", "ok", cache))
+    except SmaError as exc:
+        checks.append(Check("hf_cache", "fail", str(exc)))
+
     checks.append(
         Check(
             "hf_token",
@@ -123,13 +133,14 @@ def default_checks(cfg: Config) -> list[Check]:
         )
     )
     if shutil.which(cfg.quality.executable):
-        checks.append(Check("lm_eval", "ok", cfg.quality.executable))
+        checks.append(Check("quality_evaluator", "ok", cfg.quality.executable))
     else:
         checks.append(
             Check(
-                "lm_eval",
+                "quality_evaluator",
                 "warn",
-                f"{cfg.quality.executable} is not on PATH. Quality suites will fail until it is installed.",
+                f"{cfg.quality.executable} is not on PATH. Quality suites will fail until it is installed "
+                "(`uv sync --extra quality`).",
             )
         )
     return checks

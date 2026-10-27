@@ -28,6 +28,7 @@ class EngineBackend(Protocol):
         quant_flag: str,
         moe_backend: str | None,
         batch_invariant: bool,
+        tool_parser: str | None = None,
     ) -> list[str]: ...
 
     def serve_env(self, cfg: Config, *, mode: str, batch_invariant: bool) -> dict[str, str]: ...
@@ -145,6 +146,7 @@ class VllmBackend:
         quant_flag: str,
         moe_backend: str | None,
         batch_invariant: bool,
+        tool_parser: str | None = None,
     ) -> list[str]:
         quality = mode == "quality"
         flags = [
@@ -163,6 +165,11 @@ class VllmBackend:
             "1",
             "--gpu-memory-utilization",
             f"{cfg.engine.gpu_memory_utilization:.4g}",
+            *(
+                ["--kv-cache-memory-bytes", str(int(cfg.engine.kv_cache_gib * 2**30))]
+                if cfg.engine.kv_cache_gib is not None
+                else []
+            ),
             "--max-model-len",
             str(cfg.engine.max_model_len),
             "--max-num-seqs",
@@ -184,6 +191,14 @@ class VllmBackend:
             flags.extend(["--moe-backend", moe_backend])
         if (not is_moe) and quant_flag == "nvfp4" and cfg.engine.linear_backend:
             flags.extend(["--linear-backend", cfg.engine.linear_backend])
+        if quality and cfg.quality.chat_template_kwargs:
+            # The default for every quality client, including harnesses that cannot add it to a
+            # request (BFCL). A request's own chat_template_kwargs still wins.
+            flags.extend(
+                ["--default-chat-template-kwargs", json.dumps(cfg.quality.chat_template_kwargs, sort_keys=True)]
+            )
+        if quality and tool_parser:
+            flags.extend(["--enable-auto-tool-choice", "--tool-call-parser", tool_parser])
         if cfg.engine.trust_remote_code:
             flags.append("--trust-remote-code")
         flags.extend(cfg.engine.extra_args)
@@ -300,6 +315,7 @@ class SglangBackend:
         quant_flag: str,
         moe_backend: str | None,
         batch_invariant: bool,
+        tool_parser: str | None = None,
     ) -> list[str]:
         del is_moe, quant_flag, moe_backend, batch_invariant
         backend = cfg.engine.sglang_attention_backend
@@ -334,6 +350,8 @@ class SglangBackend:
             if backend == "flashinfer" or cfg.engine.sglang_determinism_backend == "flashinfer":
                 flags.append("--disable-radix-cache")
             flags.append("--enable-deterministic-inference")
+            if tool_parser:
+                flags.extend(["--tool-call-parser", tool_parser])
         if cfg.engine.trust_remote_code:
             flags.append("--trust-remote-code")
         flags.extend(cfg.engine.extra_args)

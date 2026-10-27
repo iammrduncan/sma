@@ -18,7 +18,7 @@ The smoke model is `Qwen/Qwen3-0.6B`. It is small, ungated, and already BF16. It
 sma doctor
 ```
 
-Doctor does not pull an image and does not start a model. Expect `host_alias`, `docker`, `gpu`, and `gpu_idle` to be ok before you continue. `ngc_image` fails until the image is local. That is expected on a first boot. `hf_token` must be ok. `lm_eval` may warn. Quality will fail later if `lm_eval` is not installed (`uv sync --extra quality`).
+Doctor does not pull an image and does not start a model. Expect `host_alias`, `docker`, `gpu`, `gpu_idle`, and `hf_cache` to be ok before you continue. `hf_cache` fails when the cache path contains the hostname, for example when the user name is also the hostname. Fetch would refuse that snapshot after the download. Set `hf.cache_dir` to a path outside your home directory. `ngc_image` fails until the image is local. That is expected on a first boot. `hf_token` must be ok. `quality_evaluator` may warn. Quality will fail later if `nel` is not installed (`uv sync --extra quality`).
 
 ### 2. Pull, digest, and the registry query
 
@@ -26,7 +26,7 @@ Doctor does not pull an image and does not start a model. Expect `host_alias`, `
 sma run Qwen/Qwen3-0.6B --bf16
 ```
 
-Fetch pulls `nvcr.io/nvidia/vllm:26.05.post1-py3` before the weight snapshot. Progress is one JSON log line per pull update, event `image_pull_progress`, on stderr and in `runs/<slug>/vllm/bf16/<run-id>/logs/sma.log`.
+Fetch pulls `nvcr.io/nvidia/vllm:26.05.post1-py3` before the weight snapshot. Progress is one line per pull update on the terminal. `runs/<slug>/vllm/bf16/<run-id>/logs/sma.log` has the same updates as JSON, event `image_pull_progress`. While the server starts, `logs/server-quality.log` fills live with the engine's output.
 
 After fetch, open `manifest.json`:
 

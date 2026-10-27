@@ -33,7 +33,14 @@ engine:
   gpus: all
   shm_size: 16g
   # A fraction of the Spark's unified memory. An OOM hits the whole box.
+  # Without kv_cache_gib, vLLM fills this whole share with KV cache, whatever the model size.
   gpu_memory_utilization: 0.90
+  # vLLM only. A fixed KV-cache size in GiB, passed as --kv-cache-memory-bytes. vLLM then reserves
+  # weights + this, not the share above, which becomes only its startup free-memory check.
+  # SMA's widest load is the highest concurrency (quality 8, speed 8) times max_model_len (8192):
+  # 65,536 tokens. Per-token KV size depends on the model; vLLM logs "GPU KV cache size: N tokens"
+  # and SMA warns if N is below that load. null keeps the share-based sizing.
+  kv_cache_gib: null
   max_model_len: 8192
   # At least the largest determinism batch (64).
   max_num_seqs: 64
@@ -48,6 +55,10 @@ engine:
   # Batch invariance does not hold while async scheduling composes the next batch.
   no_async_scheduling_with_batch_invariant: true
   trust_remote_code: false
+  # The engine's parser for the model's tool calls (vLLM --tool-call-parser), for example hermes for
+  # Qwen3, llama3_json for Llama 3. It depends on the model, so pass --tool-parser per run. null
+  # serves no tools, and quality suites with tools: true record a null score with the reason.
+  tool_call_parser: null
   extra_args: []
   server_stop_timeout_s: 30
   clock_cap_mhz: null
@@ -90,22 +101,46 @@ logprobs:
 
 quality:
   enabled: true
+  # NVIDIA NeMo Evaluator (nel, from the quality extra) runs each suite against the quality server's
+  # chat API. Requests in flight per suite. Recorded.
   concurrency: 8
-  model_backend: local-chat-completions
-  executable: lm_eval
-  # v0 default is a small lm-eval list with limits. Scores are labeled
-  # lm-eval-harness. They are not the arena's pinned bench scorers.
-  # The arena plan's full item counts (IFEval 541, GPQA Diamond 198, and the
-  # rest) are not the default. Clear a limit to run the whole task.
+  executable: nel
+  max_tokens: 4096
+  # One request to the model server. Failed requests are retried retries.attempts times in all.
+  request_timeout_s: 900
+  # Quality is scored with thinking off. SMA decodes greedily (temperature 0) with an 8192-token
+  # context. Qwen3's model card says not to decode thinking mode greedily and to allow 32,768
+  # output tokens, so thinking-mode scores would be cut off or degraded. Templates that do not
+  # read enable_thinking ignore it. Merged into every request body.
+  chat_template_kwargs:
+    enable_thinking: false
+  # bench is a nel benchmark: a built-in name, lm-eval://<task> (generative tasks only), or
+  # sma:<name> for a file in src/sma/nel_benchmarks/. It defaults to the suite name. limit picks
+  # that many questions by a seeded shuffle of the whole dataset, the same ones for every model.
+  # Clear a limit to run the whole dataset. These are not the arena's pinned bench scorers.
   suites:
     - name: ifeval
+      bench: lm-eval://ifeval
       limit: 50
+    # Both GSM8K graders in nemo-evaluator 0.3.0 mark answers wrongly. SMA ships nel's prompt with a
+    # numeric answer check.
     - name: gsm8k
+      bench: sma:gsm8k
       limit: 50
     - name: mmlu_pro
-      limit: 50
+      limit: 700
+    # GPQA Diamond. The dataset (Idavidrein/gpqa) is gated: accept its terms with the HF account.
     - name: gpqa_diamond
+      bench: gpqa
       limit: 20
+    # BFCL v3 (Berkeley Function Calling Leaderboard): single-turn, live, and multi-turn tool calls
+    # through the chat API with native tool calling. NVIDIA's container runs it directly, not through
+    # nel, so SMA keeps one row per question. All 4,441 questions run; the container cannot sample.
+    # Needs the server's tool-call parser: pass --tool-parser (hermes for Qwen3 on vLLM).
+    - name: bfcl_v3
+      image: nvcr.io/nvidia/eval-factory/bfcl:26.03
+      task: bfclv3_ast
+      tools: true
 
 speed:
   warmup_requests: 4

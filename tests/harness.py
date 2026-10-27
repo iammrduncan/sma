@@ -42,8 +42,9 @@ def make_config(tmp_path: Path, *, port: int | None = None):
     cfg.logprobs.top_k = 4
     cfg.determinism.prompts = ["hello"]
     cfg.determinism.batch_sizes = [1, 8]
-    cfg.quality.suites = [QualitySuite("ifeval", 2)]
+    cfg.quality.suites = [QualitySuite("ifeval", 2, bench="lm-eval://ifeval")]
     cfg.quality.concurrency = 2
+    cfg.quality.max_tokens = 16
     cfg.engine.max_model_len = 64
     validate_config(cfg)
     return cfg
