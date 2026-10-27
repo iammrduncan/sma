@@ -15,7 +15,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-quality = ["lm-eval>=0.4.4"]
+# NeMo Evaluator runs the quality suites. It needs Python 3.12 or later. lm-eval's ifeval extra
+# brings langdetect, immutabledict, and nltk for lm-eval://ifeval.
+quality = ["nemo-evaluator[lm-eval]==0.3.0; python_version >= '3.12'", "lm-eval[ifeval]>=0.4.4"]
 dev = ["pytest>=8.0"]
 
 [project.scripts]

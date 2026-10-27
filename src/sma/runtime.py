@@ -16,7 +16,7 @@ from sma.commands import (
 from sma.config import Config
 from sma.errors import SmaError
 from sma.logsetup import log_event
-from sma.proc import require_ok, run_command
+from sma.proc import Following, follow_to_file, require_ok, run_command
 from sma.retry import call_with_retry
 from sma.scrub import scrub_text
 
@@ -48,8 +48,9 @@ class DockerRuntime:
 
             def _pull() -> None:
                 self.commands.append(pull)
+                # A cold pull of a multi-GB image outlasts the short docker command timeout.
                 require_ok(
-                    run_command(pull, timeout_s=self.cfg.timeouts.docker_s, what="docker pull"),
+                    run_command(pull, timeout_s=self.cfg.timeouts.image_pull_s, what="docker pull"),
                     what="docker pull",
                 )
 
@@ -99,6 +100,23 @@ class DockerRuntime:
         if len(text) > 2_000_000:
             return text[-2_000_000:]
         return text
+
+    def follow_logs(self, name: str, path: Path) -> Following:
+        """Copy the container's output into path while it runs. Ends when the container stops."""
+        argv = docker_logs_argv(name, follow=True)
+        self.commands.append(argv)
+        return follow_to_file(argv, path, what="docker logs --follow")
+
+    def exit_code(self, name: str) -> int | None:
+        result = run_command(
+            ["docker", "inspect", "-f", "{{.State.ExitCode}}", name],
+            timeout_s=self.cfg.timeouts.command_s,
+            what="docker inspect",
+        )
+        try:
+            return int(result.stdout.strip()) if result.ok else None
+        except ValueError:
+            return None
 
     def is_running(self, name: str) -> bool:
         result = run_command(

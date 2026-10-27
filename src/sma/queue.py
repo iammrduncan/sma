@@ -32,7 +32,7 @@ class JobQueue:
         for name in ("pending", "claimed", "done", "failed"):
             (self.path / name).mkdir(parents=True, exist_ok=True)
 
-    def add(self, legs: list[dict[str, Any]], *, kind: str) -> dict[str, Any]:
+    def add(self, legs: list[dict[str, Any]], *, kind: str, tool_parser: str | None = None) -> dict[str, Any]:
         if not legs:
             raise SmaError("A queue job needs at least one checkpoint")
         engines = {item.get("engine") or "vllm" for item in legs}
@@ -51,6 +51,8 @@ class JobQueue:
             "attempts": 0,
             "pinned_host_alias": None,
             "engine": legs[0].get("engine") or "vllm",
+            # Both legs of a pair are the same model, so they share the parser.
+            "tool_parser": tool_parser,
         }
         atomic_write_json(self.path / "pending" / f"{job_id}.json", job)
         return job
@@ -392,6 +394,7 @@ def _run_job(cfg: Config, services_factory: Any, queue: JobQueue, path: Path, jo
                     resume_run_id=resume,
                     lock_held=True,
                     engine=job.get("engine") or cfg.engine.name,
+                    tool_parser=job.get("tool_parser"),
                 ),
                 cfg,
                 services,

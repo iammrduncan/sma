@@ -45,6 +45,9 @@ class EngineConfig:
     gpus: str = "all"
     shm_size: str = "16g"
     gpu_memory_utilization: float = 0.90
+    # vLLM only. A fixed KV-cache size in GiB (--kv-cache-memory-bytes). When set, vLLM does not
+    # fill gpu_memory_utilization with KV cache; that share is then only its startup free-memory check.
+    kv_cache_gib: float | None = None
     max_model_len: int = 8192
     max_num_seqs: int = 64
     moe_backend: str = "flashinfer_b12x"
@@ -54,6 +57,9 @@ class EngineConfig:
     no_flashinfer_autotune_quality: bool = True
     no_async_scheduling_with_batch_invariant: bool = True
     trust_remote_code: bool = False
+    # The engine's parser for the model's tool calls, for example hermes for Qwen3. It depends on
+    # the model, so `--tool-parser` on the command line sets it per run. null serves no tools.
+    tool_call_parser: str | None = None
     extra_args: list[str] = field(default_factory=list)
     server_stop_timeout_s: int = 30
     clock_cap_mhz: int | None = None
@@ -103,22 +109,41 @@ class LogprobConfig:
 @dataclass
 class QualitySuite:
     name: str
+    # Questions to run, picked by a seeded shuffle of the whole dataset. None runs all of them.
     limit: int | None = None
-    tasks: str | None = None
+    # The NeMo Evaluator benchmark: a built-in name, lm-eval://<task>, or sma:<name> for a file in
+    # src/sma/nel_benchmarks/. None means the suite name.
+    bench: str | None = None
+    # An NVIDIA eval-factory container and its task, run directly instead of through nel, for
+    # harnesses nel only runs in a temporary folder (BFCL). Both or neither.
+    image: str | None = None
+    task: str | None = None
+    # The suite calls tools through the chat API, so the server needs a tool-call parser.
+    tools: bool = False
 
 
 @dataclass
 class QualityConfig:
     enabled: bool = True
+    # Requests in flight per suite (nel max_concurrent).
     concurrency: int = 8
-    model_backend: str = "local-chat-completions"
-    executable: str = "lm_eval"
+    executable: str = "nel"
+    max_tokens: int = 4096
+    # One request to the model server. A retry follows retries.attempts.
+    request_timeout_s: float = 900.0
+    # Sent with every chat request. enable_thinking=False turns off the reasoning block in chat
+    # templates that read it (Qwen3 and others). SMA scores greedily with an 8192-token context;
+    # Qwen says not to decode thinking mode greedily and to allow 32,768 output tokens.
+    chat_template_kwargs: dict[str, Any] = field(default_factory=lambda: {"enable_thinking": False})
     suites: list[QualitySuite] = field(
         default_factory=lambda: [
-            QualitySuite("ifeval", 50),
-            QualitySuite("gsm8k", 50),
-            QualitySuite("mmlu_pro", 50),
-            QualitySuite("gpqa_diamond", 20),
+            QualitySuite("ifeval", 50, bench="lm-eval://ifeval"),
+            # Both of nel 0.3.0's GSM8K graders mark answers wrongly. See nel_benchmarks/gsm8k.py.
+            QualitySuite("gsm8k", 50, bench="sma:gsm8k"),
+            QualitySuite("mmlu_pro", 700),
+            QualitySuite("gpqa_diamond", 20, bench="gpqa"),
+            # Native tool calls through the chat API: needs --tool-parser.
+            QualitySuite("bfcl_v3", image="nvcr.io/nvidia/eval-factory/bfcl:26.03", task="bfclv3_ast", tools=True),
         ]
     )
 
@@ -276,6 +301,10 @@ def _build(cls: type, raw: dict[str, Any] | None, path: str) -> Any:
         raise SmaError(f"Invalid config at {path}: {exc}") from exc
 
 
+def _optional_str(value: Any) -> str | None:
+    return None if value is None else str(value)
+
+
 def _suites(value: Any, path: str) -> list[QualitySuite]:
     if not isinstance(value, list) or not value:
         raise SmaError(f"{path} must be a non-empty list")
@@ -283,7 +312,7 @@ def _suites(value: Any, path: str) -> list[QualitySuite]:
     for index, item in enumerate(value):
         if not isinstance(item, dict) or "name" not in item:
             raise SmaError(f"{path}[{index}] needs a name")
-        unknown = set(item) - {"name", "limit", "tasks"}
+        unknown = set(item) - {"name", "limit", "bench", "image", "task", "tools"}
         if unknown:
             raise SmaError(f"{path}[{index}] has unknown keys: {sorted(unknown)}")
         limit = item.get("limit")
@@ -291,7 +320,10 @@ def _suites(value: Any, path: str) -> list[QualitySuite]:
             QualitySuite(
                 name=str(item["name"]),
                 limit=None if limit is None else int(limit),
-                tasks=item.get("tasks"),
+                bench=_optional_str(item.get("bench")),
+                image=_optional_str(item.get("image")),
+                task=_optional_str(item.get("task")),
+                tools=bool(item.get("tools", False)),
             )
         )
     return suites
@@ -363,6 +395,32 @@ def validate_config(cfg: Config) -> None:
         )
     if cfg.engine.gpu_memory_utilization <= 0 or cfg.engine.gpu_memory_utilization > 1:
         raise SmaError("engine.gpu_memory_utilization must be in (0, 1]")
+    if not isinstance(cfg.quality.chat_template_kwargs, dict) or not all(
+        isinstance(key, str) for key in cfg.quality.chat_template_kwargs
+    ):
+        raise SmaError("quality.chat_template_kwargs must be a mapping with string keys")
+    if not 0 < cfg.quality.max_tokens < cfg.engine.max_model_len:
+        raise SmaError("quality.max_tokens must be positive and below engine.max_model_len, so the prompt fits")
+    if cfg.quality.request_timeout_s <= 0:
+        raise SmaError("quality.request_timeout_s must be positive")
+    names = [suite.name for suite in cfg.quality.suites]
+    if len(set(names)) != len(names):
+        raise SmaError("quality.suites names must be unique; each one is a folder under quality/")
+    from sma.commands import packaged_bench
+
+    for suite in cfg.quality.suites:
+        if suite.limit is not None and suite.limit < 1:
+            raise SmaError(f"quality suite {suite.name}: limit must be >= 1, or null for the whole dataset")
+        if (suite.image is None) != (suite.task is None):
+            raise SmaError(f"quality suite {suite.name}: image and task go together")
+        if suite.image is not None and (suite.bench is not None or suite.limit is not None):
+            raise SmaError(
+                f"quality suite {suite.name}: an eval-factory container takes no bench or limit. "
+                "Its limit keeps the first questions in file order, not a seeded sample, so SMA runs them all."
+            )
+        packaged_bench(suite.bench)  # an unknown sma:<name> fails here, before any download
+    if cfg.engine.kv_cache_gib is not None and cfg.engine.kv_cache_gib <= 0:
+        raise SmaError("engine.kv_cache_gib must be a positive number of GiB, or null")
     if cfg.engine.name not in {"vllm", "sglang"}:
         raise SmaError("engine.name must be vllm or sglang")
     if cfg.engine.name == "sglang":

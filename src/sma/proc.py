@@ -7,6 +7,7 @@ import signal
 import subprocess
 import threading
 from dataclasses import dataclass
+from pathlib import Path
 from typing import IO
 
 from sma.errors import SmaError
@@ -26,7 +27,14 @@ class CommandResult:
         return self.returncode == 0
 
 
-def run_command(argv: list[str], *, timeout_s: float, what: str) -> CommandResult:
+def run_command(
+    argv: list[str],
+    *,
+    timeout_s: float,
+    what: str,
+    cwd: Path | None = None,
+    extra_env: dict[str, str] | None = None,
+) -> CommandResult:
     try:
         completed = subprocess.run(
             argv,
@@ -35,6 +43,8 @@ def run_command(argv: list[str], *, timeout_s: float, what: str) -> CommandResul
             timeout=timeout_s,
             start_new_session=True,
             check=False,
+            cwd=cwd,
+            env={**os.environ, **extra_env} if extra_env else None,
         )
     except subprocess.TimeoutExpired as exc:
         _kill_group(exc)
@@ -116,6 +126,60 @@ def run_command_streaming(argv: list[str], *, timeout_s: float, what: str) -> Co
         stdout=scrub_text("".join(stdout_parts)),
         stderr=scrub_text("".join(stderr_parts)),
     )
+
+
+@dataclass
+class Following:
+    """A long-running command whose output is being copied into a file."""
+
+    process: subprocess.Popen[str]
+    thread: threading.Thread
+    path: Path
+
+    def stop(self, timeout_s: float = 10.0) -> None:
+        """Let the command end on its own for up to timeout_s, then end it. Joins the copier."""
+        try:
+            self.process.wait(timeout=timeout_s)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(self.process.pid, signal.SIGTERM)
+            except (ProcessLookupError, PermissionError, OSError):
+                self.process.terminate()
+            try:
+                self.process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+        self.thread.join(timeout=5)
+
+
+def follow_to_file(argv: list[str], path: Path, *, what: str) -> Following:
+    """Start a command and copy its stdout and stderr, interleaved as they arrive and scrubbed, into path."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        process = subprocess.Popen(
+            argv,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            errors="replace",
+            start_new_session=True,
+        )
+    except FileNotFoundError as exc:
+        raise SmaError(f"{what} could not start; {argv[0]} is not installed") from exc
+
+    def _copy() -> None:
+        pipe = process.stdout
+        if pipe is None:
+            return
+        with path.open("w", encoding="utf-8") as sink:
+            for line in iter(pipe.readline, ""):
+                sink.write(scrub_text(line))
+                sink.flush()
+        pipe.close()
+
+    thread = threading.Thread(target=_copy, name=f"follow {what}", daemon=True)
+    thread.start()
+    return Following(process=process, thread=thread, path=path)
 
 
 def require_ok(result: CommandResult, *, what: str) -> CommandResult:

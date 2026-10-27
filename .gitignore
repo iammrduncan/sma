@@ -12,3 +12,7 @@ queue/
 *.tmp
 .coverage
 htmlcov/
+# uv sync creates it. It is not committed unless the owner asks (AGENTS.md).
+uv.lock
+# Claude Code's per-user settings, which can hold local paths.
+.claude/settings.local.json

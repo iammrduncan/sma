@@ -97,6 +97,7 @@ def new_manifest(
     reference_run_id: str | None,
     pair_job_id: str | None,
     engine: str = "vllm",
+    tool_call_parser: str | None = None,
 ) -> dict[str, Any]:
     commit, dirty = git_identity()
     now = utc_now()
@@ -166,6 +167,7 @@ def new_manifest(
             "clock_cap_mhz": cfg.engine.clock_cap_mhz,
             "resolved_backend_note": None,
             "deterministic_quality": _deterministic_quality(cfg, engine),
+            "tool_call_parser": tool_call_parser,
         },
         "sma_version": __version__,
         "sma_git_commit": commit,
@@ -263,7 +265,7 @@ def build_summary(run_dir: Path, manifest: dict[str, Any], cfg: Config) -> dict[
         manifest.get("quant_label") or manifest.get("quant_flag") or "",
         cfg.telemetry.spec_bandwidth_gbps,
     )
-    energy_joules = _energy(samples, windows, max_gap_s=cfg.telemetry.max_sample_gap_s)
+    energy_joules, energy_method = _energy(samples, windows, max_gap_s=cfg.telemetry.max_sample_gap_s)
     bench_requests = _bench_requests(windows, cfg)
     per_request = None
     if energy_joules is not None and bench_requests:
@@ -278,8 +280,12 @@ def build_summary(run_dir: Path, manifest: dict[str, Any], cfg: Config) -> dict[
             quality[suite_dir.name] = {
                 "score": scores.get("primary_score"),
                 "metric": scores.get("primary_metric"),
+                # Runs from before NeMo Evaluator have no scorer field and were scored by lm-eval.
                 "scorer": scores.get("scorer") or "lm-eval-harness",
                 "limit": scores.get("limit"),
+                "n": scores.get("n"),
+                "ci_lower": scores.get("ci_lower"),
+                "ci_upper": scores.get("ci_upper"),
                 "error": scores.get("error"),
             }
     speed_block = {
@@ -333,14 +339,16 @@ def build_summary(run_dir: Path, manifest: dict[str, Any], cfg: Config) -> dict[
         "energy": {
             "joules": energy_joules,
             "joules_per_bench_request": per_request,
-            "method": "nvidia-smi-1hz-trapezoid-per-window",
+            "method": energy_method,
             "sample_hz": cfg.telemetry.interval_s,
             "scope": "gpu",
             "note": (
-                "Each valid speed-cell window is integrated on its own and the joules are summed. "
-                "Gaps between samples longer than telemetry.max_sample_gap_s are not bridged, "
-                "and invalid or unverified windows are excluded. "
-                "Not joules per correct answer, and not a wall-meter reading. "
+                "Each valid speed-cell window is measured on its own and the joules are summed. "
+                "nvml-energy-counter is the GPU's cumulative energy counter read before and after the "
+                "bench command. nvidia-smi-1hz-trapezoid integrates sampled power and is used only when "
+                "the counter was not read; gaps longer than telemetry.max_sample_gap_s are not bridged. "
+                "Invalid or unverified windows are excluded. GPU only: on a DGX Spark the CPU shares the "
+                "140 W SoC budget and is not counted. Not joules per correct answer, and not a wall meter. "
                 "Null means it was not measured."
             ),
         },
@@ -376,14 +384,23 @@ def _dig(payload: Any, key: str) -> Any:
     return None
 
 
-def _energy(samples: list[Any], windows: Any, *, max_gap_s: float) -> float | None:
-    """Sum per-window integrals. A gap between windows is not trapezoided."""
+_COUNTER = "nvml-energy-counter-per-window"
+_TRAPEZOID = "nvidia-smi-1hz-trapezoid-per-window"
+
+
+def _energy(samples: list[Any], windows: Any, *, max_gap_s: float) -> tuple[float | None, str]:
+    """Sum valid windows: the energy counter delta when it was read, else the power integral."""
     if not isinstance(windows, dict):
-        return None
+        return None, _COUNTER
     total = 0.0
-    measured = False
+    methods: set[str] = set()
     for item in windows.get("windows") or []:
         if not isinstance(item, dict) or not item.get("valid"):
+            continue
+        counted = item.get("energy_j")
+        if isinstance(counted, (int, float)) and not isinstance(counted, bool):
+            total += float(counted)
+            methods.add(_COUNTER)
             continue
         start = item.get("start_unix")
         end = item.get("end_unix")
@@ -398,8 +415,11 @@ def _energy(samples: list[Any], windows: Any, *, max_gap_s: float) -> float | No
         if joules is None:
             continue
         total += joules
-        measured = True
-    return total if measured else None
+        methods.add(_TRAPEZOID)
+    if not methods:
+        return None, _COUNTER
+    method = methods.pop() if len(methods) == 1 else f"mixed: {_COUNTER} where read, else {_TRAPEZOID}"
+    return total, method
 
 
 def _bench_requests(windows: Any, cfg: Config) -> int:

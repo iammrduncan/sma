@@ -54,11 +54,11 @@ Preflight pulls the engine image, with its own timeout and progress, then querie
 
 ## Quickstart
 
-Python 3.11 or newer. [uv](https://docs.astral.sh/uv/) is the intended installer.
+Python 3.11 or newer; the quality extra needs 3.12. [uv](https://docs.astral.sh/uv/) is the intended installer.
 
 ```bash
 uv sync --extra quality
-# quality is lm-eval. The launcher itself installs without it.
+# quality is NVIDIA NeMo Evaluator (nel). The launcher itself installs without it.
 export HF_TOKEN=hf_...          # never put this in sma.yaml or a run folder
 ```
 
@@ -67,14 +67,16 @@ Edit `sma.yaml` if you need to. The host alias defaults to `gpu-host-1`. It must
 ```bash
 sma doctor
 sma run Qwen/Qwen3-8B --bf16 --dry-run
-sma run Qwen/Qwen3-8B --bf16
+sma run Qwen/Qwen3-8B --bf16 --tool-parser hermes   # the tool-call parser for this model
 sma status
 sma list
 sma resume <run-id>
 sma compare <bf16-run-id> <nvfp4-run-id>
 ```
 
-`sma doctor` checks Docker, the configured image, `nvidia-smi`, that the GPU has no compute process, free disk, and that `HF_TOKEN` is set. It does not pull the image and it does not print the token.
+`sma doctor` checks Docker, the configured image, `nvidia-smi`, that the GPU has no compute process, free disk, that the Hugging Face cache path does not contain the hostname, and that `HF_TOKEN` is set. It does not pull the image and it does not print the token.
+
+Fetch refuses a snapshot path that contains the hostname, because that path goes into the run record. The default cache is under your home directory. On a machine whose user name is also its hostname, that path fails. Set `hf.cache_dir` in `sma.yaml` to a path outside your home directory.
 
 A dry-run prints the plan and the exact commands. It does not download, start a container, or write a run folder. It also does not prove the checkpoint's architecture is registered.
 
@@ -82,11 +84,11 @@ A dry-run prints the plan and the exact commands. It does not download, start a 
 
 Each step is idempotent. A `steps/<name>.done` marker is written only after the step finishes. `sma resume <run-id>` skips steps that have a marker, and only on the host alias that started the run. A crash mid-step redoes that step and does not redo finished ones.
 
-1. **Fetch.** Resolve the repo to a commit SHA. Read `config.json` and, when present, `hf_quant_config.json`. Refuse a quant mismatch or an unsupported quant/engine pair before the weight snapshot. Pull the engine image and query its digest for the architecture registry. Flint is refused. If the image cannot be queried, an unknown architecture is a warning and the download continues. Then download that snapshot with `huggingface_hub` (resumable). Hash the weight files. Count total and active parameters from safetensors shapes. Flags are `--bf16`, `--nvfp4`, `--mxfp4`, and `--mixed`.
-2. **Serve for quality.** The pinned image, then the digest recorded from `docker image inspect` on later starts. vLLM: `VLLM_BATCH_INVARIANT=1` when the architecture allows it, `--no-enable-flashinfer-autotune`, `--no-enable-prefix-caching`, `--no-async-scheduling`, fixed seed, `--tensor-parallel-size 1`. SGLang: `--attention-backend flashinfer`, `--tp-size 1`, `--enable-deterministic-inference`, and `--disable-radix-cache` because FlashInfer determinism does not keep the radix cache. Health check with a deadline.
+1. **Fetch.** Resolve the repo to a commit SHA. Read `config.json` and, when present, `hf_quant_config.json`. Refuse a quant mismatch or an unsupported quant/engine pair before the weight snapshot. Pull the engine image and query its digest for the architecture registry. Flint is refused. If the image cannot be queried, an unknown architecture is a warning and the download continues. Then download that commit with `huggingface_hub` (resumable) into a plain folder, `<hf.cache_dir>/<model>/<sha>`. The engine container mounts only that folder at `/model`, so it holds real files, not the Hugging Face cache's links. Hash the weight files. Count total and active parameters from safetensors shapes. Flags are `--bf16`, `--nvfp4`, `--mxfp4`, and `--mixed`.
+2. **Serve for quality.** The pinned image, then the digest recorded from `docker image inspect` on later starts. vLLM: `VLLM_BATCH_INVARIANT=1` when the architecture allows it, `--no-enable-flashinfer-autotune`, `--no-enable-prefix-caching`, `--no-async-scheduling`, fixed seed, `--tensor-parallel-size 1`, and `--default-chat-template-kwargs` from `quality.chat_template_kwargs` (thinking off for every quality client). With `--tool-parser NAME`, `--enable-auto-tool-choice --tool-call-parser NAME`. SGLang: `--attention-backend flashinfer`, `--tp-size 1`, `--enable-deterministic-inference`, and `--disable-radix-cache` because FlashInfer determinism does not keep the radix cache, and `--tool-call-parser NAME` with `--tool-parser`. Health check with a deadline.
 3. **Determinism.** The same prompts at batch sizes 1, 8, and 64, on the quality server with prefix caching off. A mismatch is recorded. The run continues.
 4. **Logprobs.** The pinned corpus is cut into 2048-token windows and scored as raw token ids, with no chat template. vLLM uses `/v1/completions` `prompt_logprobs`. SGLang uses `/generate` input-token top-k. Each position stores top-k (default 64), a tail bucket, and the true next-token logprob. Perplexity is `exp(-mean logprob)`. A field the server does not return stays null.
-5. **Quality.** lm-eval against the local OpenAI-compatible server, at the concurrency in `sma.yaml`. Raw samples and scores are saved. The scorer label is `lm-eval-harness`.
+5. **Quality.** One suite at a time against the local server's chat API, at the concurrency in `sma.yaml`: NVIDIA NeMo Evaluator (`nel`) for most suites, and an NVIDIA eval-factory container run directly for BFCL. Per-question rows, scores with an interval, and the harness's own output are saved.
 6. **Speed.** The server is restarted with batch invariance off. A fresh speed server, including on resume, runs the warm-up soak again. Each attempt's bench command writes `speed/cells/<cell>/attempt-<n>/bench.json`, which is the file SMA reads. Both benches run with `HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1`, and both pass `--tokenizer /model` so the tokenizer is the pinned snapshot. vLLM keeps `--model` as the served name and uses `vllm bench serve` with ttft, tpot, itl, and e2el at 50, 90, and 99. SGLang passes `--model /model` as well, and uses `sglang.bench_serving` with `--dataset-name random`, a pinned local dataset at `/sma-run/speed/sglang-random-dataset.json` (so the container does not download ShareGPT), `--random-range-ratio 1.0`, `--seed`, and `--output-details`. `speed.num_prompts` above that file's row count is refused. A bench that finishes fewer prompts than `num_prompts`, or reports request errors, marks the cell `bench_failed` and retries it once after a backoff, with no cool-down. Only a thermal or power throttle is `throttled` and waits for the GPU to cool. A telemetry gap is `telemetry_gap` and is not retried. That tool's summary, in tag `v0.5.10.post1` (`python/sglang/bench_serving.py`), has median and p99 TTFT/TPOT, median/p95/p99 ITL, and median/p90/p99 end-to-end latency (`median_e2e_latency_ms`, `p90_e2e_latency_ms`). It does not emit p90 TTFT, TPOT, or ITL. SMA computes those from the per-request arrays when they are present, and otherwise stores null with a reason. The file is JSONL and is parsed from the last JSON object, so a retry cannot glue two objects into one invalid document. SGLang serve passes `--enable-metrics`, `--max-running-requests` (the same cap as vLLM `max_num_seqs`), and `--random-seed`. A failed `/metrics` scrape stores null counters and a reason. It does not fail the cell. These SGLang commands are what the code builds. They have not been executed against the pinned image.
 7. **Telemetry.** A 1 Hz `nvidia-smi` sample of SM clock, temperature, power, and throttle reasons for the whole run. A real thermal or power slowdown marks that speed cell invalid and retries it once after a cool-down. `sw_power_cap` is always stored. It invalidates a cell only when `telemetry.sw_power_cap_invalidates` is true, because a GB10 near 140 W can show that flag in steady state. A cell is `unverified` unless it has about `duration / interval` samples (`telemetry.min_sample_ratio`, default 0.8) and its largest gap is no bigger than `telemetry.max_sample_gap_s`. `[N/A]` flags are unverified too. The sampler's failure counter is not used, because a later success resets it. Unverified cells are not retried. Invalid and unverified cells stay on disk and are left out of the headline tok/s.
 8. **Teardown.** The container is removed on success, failure, Ctrl-C, and SIGTERM. The page cache is dropped when the process is allowed to write `/proc/sys/vm/drop_caches`. The run then waits until the GPU is cool, or until the idle timeout.
@@ -100,9 +102,19 @@ If that percentile is absent, the derived number is null and the cell records wh
 
 `sma compare <reference> <candidate>` computes per-token KL with an epsilon floor (`1e-12`) instead of dropping positions. A probability that was actually zero is counted in `kl_infinite_positions` before the floor. `kl_floored_positions` counts every position that hit the floor, including those zeros and merely tiny positive masses. It also records top-1 agreement and delta perplexity, and it records k. It accepts a BF16 reference against a `mixed` candidate when the tokenizer, corpus, and engine match. It refuses a different engine unless you pass `--allow-cross-engine`, and that result is labeled `CROSS-ENGINE`. Different image digests are labeled `IMAGE DIGEST` and are not refused. It refuses when the tokenizer fingerprints differ, or when the token-id windows differ.
 
+`kl_vs_reference.json` also reports the statistics of llama.cpp's `--kl-divergence`: `kl_mean_se`, `kl_quantiles` (p50, p90, p95, p99, p99.9, max), `top1_agreement_se`, `ln_ppl_ratio` with `ln_ppl_ratio_se`, and `rms_delta_p` on the true token. Standard errors are cluster-robust with one cluster per window, because positions in a window share context. The KL is coarse-grained (reference top-k ids plus one tail bucket), so it is a lower bound on full-vocabulary KL. On a GB10 with batch invariance on, two BF16 runs of Qwen3-0.6B gave identical logprobs at all 98,256 positions, so the BF16-vs-BF16 noise floor there was exactly zero.
+
 For MoE NVFP4, MXFP4, and mixed on vLLM, SMA always passes `--moe-backend`. The chain is `flashinfer_b12x`, then `marlin` if that server never becomes healthy. Quality and speed each record the backend that started. Auto-selection is not used. Dense NVFP4 also passes `--linear-backend` (default `flashinfer_b12x`). BF16 does not get the FP4 MoE backend. SGLang does not take that chain. Its MoE fields stay unset unless a log line names a backend. SMA does not invent one.
 
 NVFP4 on vLLM includes ModelOpt W4A4 and compressed-tensors `nvfp4-pack-quantized` when the activation scheme is also 4-bit float (for example a group whose `input_activations.num_bits` is 4). A compressed-tensors group with fp4 weights and `input_activations: null` is `nvfp4_w4a16`. `--nvfp4` refuses it and will not label it `nvfp4`. SMA does not serve W4A16. SGLang NVFP4 is ModelOpt checkpoints. SGLang refuses compressed-tensors NVFP4, FP8, and mixed FP8/NVFP4, and the error says to use vLLM.
+
+## Watching a run
+
+The terminal shows one readable line per event: each step as it starts and finishes, retries, warnings, and server startup. `logs/sma.log` in the run folder keeps the same events as JSON, one object per line.
+
+The engine's own output goes to `logs/server-quality.log` and `logs/server-speed.log`. SMA copies it there live while the server runs, so `tail -f` shows what the engine is doing. Lines appear as they arrive, so stdout and stderr are interleaved. Two lines written at the same instant can swap. While a server starts, the terminal prints a progress line about every 15 seconds with the newest line of that log. If the container exits before it is healthy, SMA stops waiting at once and puts the last log lines in the error.
+
+If a server stops while a step is sending it requests, the step error says so, with the exit code and the last server log lines. A clean shutdown with no error in the log means something on the host stopped the server. On a Spark that runs earlyoom, check `journalctl -u earlyoom`. `engine.gpu_memory_utilization` is the share of the unified memory vLLM claims. A value that leaves less free memory than the guard's threshold gets the server killed.
 
 ## Queue
 
@@ -113,6 +125,7 @@ A pair is one claim. The alias that created the first run is stored on the job a
 ```bash
 sma queue add Qwen/Qwen3-8B --bf16
 sma queue add org/model --nvfp4 --engine sglang
+sma queue add Qwen/Qwen3-8B --bf16 --tool-parser hermes
 sma queue list
 sma queue reclaim          # return a claim whose heartbeat is stale
 sma queue unpin <job-id>
@@ -135,8 +148,12 @@ runs/<model-slug>/<engine>/<quant>/<run-id>/
   logprobs/corpus.json          dataset, revision, sha256, license
   logprobs/perplexity.json
   logprobs/kl_vs_reference.json only when a reference run was supplied
-  quality/<suite>/scores.json
-  quality/<suite>/samples.jsonl
+  quality/<suite>/nel.yaml          the NeMo Evaluator config SMA wrote
+  quality/<suite>/run_config.yaml   the eval-factory container's config (BFCL)
+  quality/<suite>/<grader>.py       a grader SMA ships, when the suite uses one
+  quality/<suite>/attempt-<n>/      nel's output; a retry writes a new attempt
+  quality/<suite>/scores.json       pass@1, interval, question count, seed
+  quality/<suite>/samples.jsonl     one row per question
   speed/summary.json
   speed/cells/<cell>/attempt-<n>/bench.json
   speed/cells/<cell>/attempt-<n>/metrics.json
@@ -156,7 +173,7 @@ JSON is written to a temp file, fsynced, and renamed. A crash does not leave a h
 
 The manifest is the subject record: model repo, revision SHA, weight hashes, quant, mixed composition when the config exposes layer or group counts, architecture check, parameter counts, engine name, image and digest, every server flag that was passed, the env vars SMA set, the MoE backend for quality and for speed, the SMA git commit, the host alias, timestamps, and step status. It does not contain the machine hostname or the HF token. `summary.json` uses null for anything that was not measured. It does not fill missing scores with zero. `quant` in the index is `mixed` for a mixed checkpoint.
 
-Energy in `summary.json` is the sum of per-window GPU power integrals over valid speed cells. A gap longer than `telemetry.max_sample_gap_s` (default 2.5 s) is not trapezoided, and the gap between two cells is not one interval. Invalid and unverified windows are excluded. Scope is `gpu`. Null means it was not measured.
+Energy in `summary.json` is the sum over valid speed cells of the GPU's cumulative energy counter (NVML `nvmlDeviceGetTotalEnergyConsumption`), read just before and just after each bench command (`speed/windows.json` `energy_j`). That is how Zeus, AIPerf, and the ML.ENERGY benchmark measure energy. On a GB10 it updates more often than 4 times a second; under a steady 82 W load it read 3.4% below a 4 Hz power integral. When the counter cannot be read, that cell falls back to the 1 Hz `nvidia-smi` power integral, and `energy.method` says which was used (`mixed` when both). A gap longer than `telemetry.max_sample_gap_s` (default 2.5 s) is not bridged in the fallback. The 1 Hz sampler still records clocks, temperature, and throttle reasons for every cell.
 
 ## Corpus
 
@@ -178,6 +195,24 @@ Energy in `summary.json` is the sum of per-window GPU power integrals over valid
 
 The vLLM tag is pinned (`nvcr.io/nvidia/vllm:26.05.post1-py3`). The SGLang tag is pinned (`lmsysorg/sglang:v0.5.10.post1-cu130`, the versioned arm64 / CUDA 13 tag, not `latest-cu130`). Set `engine.image_digest` or `engine.sglang_image_digest` when you already know a digest. Otherwise SMA records the digest `docker image inspect` returns and uses `image@sha256:…` for later starts in that run, including the other leg and a restart. It does not invent a digest.
 
+### Memory on a Spark
+
+The CPU, the GPU, the OS, and every process share one pool of unified memory. vLLM sizes its KV cache from `engine.gpu_memory_utilization`: it claims that share of the whole pool and fills what the weights do not use with KV cache, whatever the model size. At 0.90 a 1.1 GiB model got 106 GiB of KV cache, and the host's out-of-memory guard then stopped vLLM.
+
+`engine.kv_cache_gib` sets the KV cache directly (`--kv-cache-memory-bytes`, vLLM only). vLLM then reserves the weights plus that much. The share is only checked at startup as free memory. SMA's widest load is its highest concurrency times `engine.max_model_len`, 65,536 tokens by default. After each vLLM start, SMA reads `GPU KV cache size: N tokens` from the server log and adds a warning when N is smaller. A KV cache larger than the load does not change speed numbers; it is unused. SGLang ignores this key and sizes its cache from `engine.gpu_memory_utilization` (`--mem-fraction-static`).
+
+Quality runs NVIDIA NeMo Evaluator 0.3.0 (`nel eval run`) against the quality server's chat API (`/v1/chat/completions`). For each suite SMA writes `quality/<suite>/nel.yaml` and runs nel in that folder. Every request is greedy (temperature 0, `seed`), with `quality.max_tokens`, and carries `chat_template_kwargs: {"enable_thinking": false}` (`quality.chat_template_kwargs`). nel's `reasoning` interceptor moves a leading `<think>` block out of the answer before it is scored. SMA decodes greedily with an 8192-token context, and Qwen3's model card says not to decode thinking mode greedily and to allow 32,768 output tokens, so thinking-mode scores would be truncated. A chat template that does not read `enable_thinking` ignores it. Failed requests are retried `retries.attempts` times in all, each with `quality.request_timeout_s`.
+
+A suite's `bench` is a nel benchmark: a built-in name (`mmlu_pro`, `gpqa`), `lm-eval://<task>` for a generative lm-eval task, or `sma:<name>` for a grader SMA ships in `src/sma/nel_benchmarks/`. SMA copies that file into the suite folder, so the grader that scored a run stays with it. `limit` picks that many questions by a seeded shuffle of the whole dataset (`shuffle_seed` = `seed`), so every model and quant answers the same questions. `scores.json` holds `pass@1`, its bootstrap interval, the question count, the failure count, and the dataset size. The summary copies the score, the interval, and the count. `samples.jsonl` has one row per question (`problem_idx`, the response, the extracted answer, the reward); the full conversation stays in nel's `trajectories.jsonl`. nel writes its absolute output path into some files; SMA removes the hostname from every text file nel wrote, also when nel fails.
+
+GSM8K uses `sma:gsm8k`: nel's own prompt and dataset with a numeric answer check. Both GSM8K graders in nemo-evaluator 0.3.0 mark answers wrongly. On a Spark run of Qwen3-0.6B (50 questions), the built-in grader read "The answer is: 140" as ": 140" and scored 0 of 50, and `numeric_match` strips trailing zeros (140 became 14, 2500 matched 25). SMA's check takes the first number after the last "answer is" or "answer:", or else the last number, and compares the values. It scored 27 of 50, the same as a hand count.
+
+BFCL v3 (`bfcl_v3`, Berkeley Function Calling Leaderboard) runs NVIDIA's eval-factory container (`nvcr.io/nvidia/eval-factory/bfcl:26.03`, arm64 build) with task `bfclv3_ast`: single-turn, live, and multi-turn function calls, sent to the chat API with native tool calling, so the server's tool-call parser is part of what is scored. SMA runs the container itself, not through nel, because nel runs such containers in a temporary folder and deletes BFCL's per-question files. The image is pinned by the digest `docker image inspect` returns. The container runs with host networking (127.0.0.1 is the quality server), as the host user, and with `NEMO_EVALUATOR_TELEMETRY_LEVEL=0`; without that it reports the model name and task to NVIDIA. Its `limit` keeps the first questions in file order, so SMA runs all 4,441. The score is accuracy over every question, with a 95% Wilson interval; `samples.jsonl` has one row per question (`category`, `id`, `correct`). BFCL's own group scores (percent) are kept as `harness_metrics`; they are not the leaderboard's overall score. The quality server has prefix caching off, and BFCL repeats long tool lists every turn, so the multi-turn questions are slow.
+
+A suite with `tools: true` needs the server's tool-call parser. It depends on the model (`hermes` for Qwen3, `llama3_json` for Llama 3, `qwen3_coder` for Qwen3-Coder on vLLM), so pass `--tool-parser NAME` to `sma run`, `run-pair`, `queue add`, or `queue add-pair`, or set `engine.tool_call_parser`. The manifest records it, and a resume keeps it. Without a parser, that suite records a null score with the reason, and the other suites run.
+
+The `quality` extra installs `nemo-evaluator[lm-eval]` and `lm-eval[ifeval]` (`langdetect`, `immutabledict`, `nltk` for `lm-eval://ifeval`). lm-eval's log-likelihood tasks (multiple choice scored by probabilities, such as `global_mmlu`) cannot run over a chat API; nel refuses them.
+
 ## Caveats
 
 - Batch invariance is beta. vLLM documents it for newer datacenter GPUs. It is not verified here on sm_121 or with NVFP4. Gated delta-net models (Qwen3.5 / Qwen3.6) are rejected by that mode, so SMA does not set the flag for those architectures, records a warning, and continues at the fixed concurrency.
@@ -186,9 +221,9 @@ The vLLM tag is pinned (`nvcr.io/nvidia/vllm:26.05.post1-py3`). The SGLang tag i
 - Some Spark units throttle or power off under a sustained load. Throttled speed cells are marked invalid. They are not deleted. `sw_power_cap` is recorded and, by default, does not invalidate the cell.
 - Top-k KL is an approximation. The tail is one bucket. If a reference top-k id is missing from the candidate's stored top-k, that mass is folded into the tail and the position is labeled approximate. Positions that would have been infinite KL stay in the mean with probability floored at `1e-12`, and the count is `kl_floored_positions`. Full-vocabulary KL is not computed.
 - Tokenizers must match. `sma compare` refuses otherwise. Tokens per answer are not a shared unit across models.
-- lm-eval scores are not the arena's pinned scorers. The default suite list is small and limited (ifeval, gsm8k, mmlu_pro, gpqa_diamond). Clear `limit` to run a whole task. The arena's full suite set is not the default.
+- NeMo Evaluator scores are not the arena's pinned scorers. The default suite list is small and limited (ifeval 50, gsm8k 50, mmlu_pro 700, gpqa_diamond 20 of 198). Twenty GPQA questions give an interval about 25 points wide, too wide to separate two quants. The `gpqa_diamond` suite runs nel's built-in `gpqa`, whose dataset is gated on Hugging Face; accept the terms with the account whose token is in the environment or the Hugging Face token file. Clear `limit` to run a whole dataset. The arena's full suite set is not the default.
 - Speed repeats default to 1, plus a warm-up. The arena plan's "at least 3 runs" is `speed.repeats`.
-- Energy is the sum of 1 Hz GPU power integrals over valid speed windows (`scope: gpu`). It is not joules per correct answer and not a wall-meter reading.
+- Energy is GPU only (`scope: gpu`): the NVML counter per valid speed window, with the 1 Hz power integral as a fallback. On a DGX Spark the CPU shares the 140 W SoC budget and is not counted, and there is no on-box system-power counter. It is not joules per correct answer and not a wall-meter reading.
 - The bandwidth ceiling in the summary uses the configured 273 GB/s spec constant and approximate bytes per parameter. It is not a measurement. NVFP4 scale overhead is not included. Mixed checkpoints have no single byte width, so that ceiling is null.
 - The determinism probe sends one completions request with N copies of each prompt, with prefix caching disabled on the quality server. The client cannot force the scheduler to fuse those copies into one batch. `max_num_seqs` is at least 64 so a batch of 64 is allowed.
 - Logprobs go through the server that is already up. A second offline `LLM()` process is not started, because the quality server already holds the GPU.
@@ -197,7 +232,7 @@ The vLLM tag is pinned (`nvcr.io/nvidia/vllm:26.05.post1-py3`). The SGLang tag i
 
 ## What this environment did not verify
 
-This workspace has no NVIDIA GPU and no DGX Spark. The tests use a fake HTTP server and a fake container runtime. They do not pull the NGC or SGLang image, start vLLM or SGLang, run lm-eval, or read a real GPU sensor.
+This workspace has no NVIDIA GPU and no DGX Spark. The tests use a fake HTTP server and a fake container runtime. They do not pull the NGC or SGLang image, start vLLM or SGLang, run NeMo Evaluator, or read a real GPU sensor.
 
 Not verified on hardware:
 
@@ -209,11 +244,13 @@ Not verified on hardware:
 - SGLang `/generate` input-token top-k, `sglang.bench_serving` JSONL from the pinned tag, and SGLang `/metrics` after `--enable-metrics`
 - that the vendored novel slice tokenizes to at least 98,304 tokens on a real checkpoint tokenizer
 - `vllm bench serve` writing the JSON shape this parser accepts (several historical shapes are accepted; a new shape needs a parser update)
-- lm-eval task names (`mmlu_pro`, `gpqa_diamond`) on the installed harness
 - thermal throttle flags from `nvidia-smi` on a Spark, including the older `clocks_throttle_reasons` names
 - dropping the page cache (the unit test only checks that a permission error is recorded)
+- following a vLLM or SGLang server's log with `docker logs --follow` for a whole run (checked once with a short test container on a Spark)
 - loading `FlintForCausalLM` or `dgpp_mixed` in any image
 - any benchmark number, quality score, tok/s, joules, or KL on a real model
+- that a benchmark's dataset is the same revision on two runs. nel 0.3.0 loads Hugging Face datasets without a pinned revision
+- `--default-chat-template-kwargs` on SGLang (SMA passes it to vLLM only; nel suites still send it with every request, the BFCL container does not)
 
 No benchmark numbers are shipped with this repo.
 

@@ -14,8 +14,9 @@ from sma.commands import (
     docker_pull_argv,
     image_ref,
     docker_rm_argv,
-    lm_eval_argv,
+    NEL_CONFIG,
     moe_backend_chain,
+    nel_argv,
     nvidia_smi_query,
     serve_argv,
     serve_env,
@@ -32,6 +33,7 @@ def render_plan(
     revision: str | None,
     assume_moe: bool,
     engine: str = "vllm",
+    tool_parser: str | None = None,
 ) -> str:
     run_id = "<run-id>"
     run_dir = Path("<run-dir>")
@@ -53,6 +55,7 @@ def render_plan(
         moe_backend=backend,
         batch_invariant=batch_invariant,
         engine=engine,
+        tool_parser=tool_parser or cfg.engine.tool_call_parser,
     )
     speed_serve = serve_argv(
         cfg,
@@ -79,7 +82,7 @@ def render_plan(
         "quantize: no",
         "",
         "1 fetch",
-        "  Resolve the repo to a commit SHA with huggingface_hub, then snapshot_download that SHA (resumable).",
+        "  Resolve the repo to a commit SHA with huggingface_hub, then snapshot_download that SHA (resumable) into <hf.cache_dir>/<model>/<sha>.",
         "  Hash weight files, read safetensors shapes for total and active params, and read config.json / hf_quant_config.json.",
         f"  Refuse unless the checkpoint matches --{quant_flag}. SMA does not quantize.",
         "",
@@ -121,24 +124,23 @@ def render_plan(
         "  Store top-k, a tail bucket, and the true next-token logprob. Perplexity = exp(-mean logprob).",
         "",
         "6 quality",
-        f"  Packed concurrency {cfg.quality.concurrency} (recorded). Scorer label: lm-eval-harness, not an arena pinned scorer.",
+        f"  NeMo Evaluator against http://{cfg.engine.bind_host}:{cfg.engine.port}/v1/chat/completions, "
+        f"{cfg.quality.concurrency} requests in flight per "
+        f"suite (recorded), temperature 0, seed {cfg.seed}, max_tokens {cfg.quality.max_tokens}, "
+        f"chat_template_kwargs {cfg.quality.chat_template_kwargs}. Not an arena pinned scorer.",
+        f"  Each suite writes <run-dir>/quality/<suite>/{NEL_CONFIG} and runs there: "
+        + shlex.join(nel_argv(cfg, output_name="attempt-1")),
     ]
-    base = f"http://{cfg.engine.bind_host}:{cfg.engine.port}"
     for suite in cfg.quality.suites:
-        lines.append(
-            "  "
-            + shlex.join(
-                lm_eval_argv(
-                    cfg,
-                    served_name=served,
-                    base_url=base,
-                    suite_name=suite.name,
-                    tasks=suite.tasks,
-                    limit=suite.limit,
-                    output_dir=Path(f"<run-dir>/quality/{suite.name}"),
-                )
+        if suite.image is not None:
+            tools = ", calls tools (needs --tool-parser)" if suite.tools else ""
+            lines.append(
+                f"  {suite.name}: {suite.image} task {suite.task}, all questions, run directly with host "
+                f"networking and telemetry off{tools}"
             )
-        )
+            continue
+        size = "all questions" if suite.limit is None else f"{suite.limit} questions (seeded shuffle)"
+        lines.append(f"  {suite.name}: {suite.bench or suite.name}, {size}")
     lines.extend(
         [
             "",

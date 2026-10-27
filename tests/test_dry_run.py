@@ -32,7 +32,7 @@ def test_dry_run_prints_the_plan_without_a_gpu() -> None:
     assert "--percentile-metrics ttft,tpot,itl,e2el" in stdout
     assert "--metric-percentiles 50,90,99" in stdout
     assert "--save-result" in stdout
-    assert "lm_eval" in stdout
+    assert "nel eval run nel.yaml -o attempt-1" in stdout
     assert "host_alias: gpu-host-1" in stdout
     assert "quantize: no" in stdout
     assert socket.gethostname() not in stdout

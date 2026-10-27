@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
 import httpx
 
@@ -64,10 +64,19 @@ def wait_until_healthy(
     poll_s: float,
     engine_label: str = "server",
     health_paths: tuple[str, ...] = ("/health", "/v1/models"),
+    alive: Callable[[], bool] | None = None,
+    on_wait: Callable[[float], None] | None = None,
+    report_every_s: float = 15.0,
 ) -> None:
+    """Poll until the server answers. Stop early when alive() says the server process is gone.
+
+    on_wait(elapsed_s) is called about every report_every_s while the server is not ready yet.
+    """
     import time
 
-    deadline = time.monotonic() + deadline_s
+    started = time.monotonic()
+    deadline = started + deadline_s
+    reported = started
     last = "no response"
     while time.monotonic() < deadline:
         try:
@@ -85,6 +94,12 @@ def wait_until_healthy(
             return
         except (SmaError, OSError) as exc:
             last = scrub_text(str(exc))
+        if alive is not None and not alive():
+            raise SmaError(f"{engine_label} exited before it became healthy. Last health check: {last}")
+        now = time.monotonic()
+        if on_wait is not None and now - reported >= report_every_s:
+            reported = now
+            on_wait(now - started)
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             break

@@ -1,8 +1,11 @@
+import socket
+
 from sma.cleanup import drop_page_cache, idle_until_cool
 from sma.config import default_config
-from sma.doctor import default_checks, failed
+from sma.doctor import default_checks, failed, format_checks
 from sma.telemetry import integrate_joules, throttled_between
 from sma.telemetry import Sample
+from tests.harness import make_config
 
 
 def test_drop_page_cache_does_not_raise() -> None:
@@ -45,6 +48,24 @@ def test_throttle_window(tmp_path) -> None:
     hits = throttled_between(recorder.path, 140, 160)
     assert len(hits) == 1
     assert throttled_between(recorder.path, 0, 10) == []
+
+
+def test_doctor_fails_a_cache_path_that_contains_the_hostname(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(socket, "gethostname", lambda: "secret-host")
+    monkeypatch.setattr(socket, "getfqdn", lambda: "secret-host")
+    cfg = make_config(tmp_path)
+
+    clean = {check.name: check for check in default_checks(cfg)}
+    assert clean["hf_cache"].status == "ok"
+
+    # A home directory named after the host, as on a machine whose user name is its hostname.
+    cfg.hf.cache_dir = str(tmp_path / "home" / "secret-host" / ".cache" / "sma" / "hf")
+    checks = default_checks(cfg)
+    by_name = {check.name: check for check in checks}
+    assert by_name["hf_cache"].status == "fail"
+    assert "hf.cache_dir" in by_name["hf_cache"].detail
+    assert failed(checks) is True
+    assert "secret-host" not in format_checks(checks)
 
 
 def test_doctor_reports_failures_without_raising() -> None:

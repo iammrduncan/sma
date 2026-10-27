@@ -178,7 +178,9 @@ def test_energy_sums_windows_and_does_not_bridge_the_gap() -> None:
             {"valid": True, "start_unix": 100.0, "end_unix": 110.0},
         ]
     }
-    assert _energy(samples, windows, max_gap_s=2.5) == pytest.approx(1500.0)
+    joules, method = _energy(samples, windows, max_gap_s=2.5)
+    assert joules == pytest.approx(1500.0)
+    assert method == "nvidia-smi-1hz-trapezoid-per-window"
     bridged = integrate_joules(samples, max_gap_s=1000)
     assert bridged is not None and bridged > 2000
     assert integrate_joules(samples, max_gap_s=2.5) == pytest.approx(1500.0)

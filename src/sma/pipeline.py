@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import signal
 import time
 from collections.abc import Callable
@@ -9,31 +10,40 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from sma.atomic import atomic_write_json, atomic_write_text
 from sma.cleanup import drop_page_cache, idle_until_cool
 from sma.commands import (
+    EVAL_FACTORY_CONFIG,
+    NEL_CONFIG,
     bench_argv,
     bench_cells,
     container_name,
     docker_argv,
-    lm_eval_argv,
+    eval_factory_argv,
+    eval_factory_config,
     moe_backend_chain,
+    nel_argv,
+    nel_config,
+    packaged_bench,
     serve_argv,
     serve_env,
 )
 from sma.compare import compare_run_dirs
-from sma.config import Config
+from sma.config import Config, QualitySuite
 from sma.corpus import build_windows
 from sma.errors import CompareRefused, SmaError
 from sma.fetch import FetchResult, download_snapshot, inspect_snapshot
 from sma.identity import assert_alias_safe
 from sma.kl import perplexity
 from sma.locks import GpuLock
+from sma.nvml import energy_counter_mj
 from sma.logsetup import add_run_log, log_event
 from sma.probe import run_determinism
 from sma.proc import require_ok, run_command
 from sma.prom import diff_samples, parse_prometheus
-from sma.qualityout import normalize_suite
+from sma.qualityout import normalize_eval_factory, normalize_suite, scrub_output
 from sma.records import (
     STEP_NAMES,
     load_manifest,
@@ -45,7 +55,17 @@ from sma.records import (
     utc_now,
 )
 from sma.runtime import DockerRuntime, StartSpec
-from sma.scrub import assert_text_clean, scrub_text
+from sma.scrub import assert_text_clean, scrub_obj, scrub_text
+from sma.serverwatch import (
+    STEP_SERVER,
+    kv_capacity_warning,
+    needed_kv_tokens,
+    report_wait,
+    server_log_path,
+    start_following,
+    stopped_server_note,
+    tail_lines,
+)
 from sma.speedmath import (
     bench_request_problem,
     decode_tok_s,
@@ -79,6 +99,8 @@ class Services:
     encode: Callable[[str], list[int]] | None = None
     hooks: Hooks = field(default_factory=Hooks)
     registry: Any = None
+    # The GPU's cumulative energy counter in millijoules, or None. Unset means power integration.
+    energy_counter: Callable[[], int | None] | None = None
 
 
 @dataclass
@@ -91,6 +113,8 @@ class RunSpec:
     resume_run_id: str | None = None
     lock_held: bool = False
     engine: str | None = None
+    # The engine's tool-call parser for this model. None falls back to engine.tool_call_parser.
+    tool_parser: str | None = None
 
 
 @dataclass
@@ -103,6 +127,8 @@ class Ctx:
     snapshot: Path | None = None
     batch_invariant: bool = True
     closed: bool = False
+    # Live server-log copiers by mode. Stopped and joined when that server stops.
+    followers: dict[str, Any] = field(default_factory=dict)
 
     @property
     def base_url(self) -> str:
@@ -188,9 +214,17 @@ class CommandEvaluator:
                 f"{argv[0]} is not on PATH. Install the quality extra "
                 "(`uv sync --extra quality`) or set quality.executable."
             )
-        result = run_command(argv, timeout_s=timeout_s, what="lm-eval")
+        # nel reads nel.yaml and the packaged benchmark file from the suite folder. Python would cache
+        # that file's bytecode next to it, and bytecode stores the absolute path, hostname included.
+        result = run_command(
+            argv,
+            timeout_s=timeout_s,
+            what="nemo-evaluator",
+            cwd=output_dir,
+            extra_env={"PYTHONDONTWRITEBYTECODE": "1"},
+        )
         _write_log(log_path, result.stdout + "\n" + result.stderr)
-        require_ok(result, what=f"lm-eval {' '.join(argv[:6])}")
+        require_ok(result, what=f"nemo-evaluator {' '.join(argv)}")
 
 
 class CommandBencher:
@@ -219,6 +253,7 @@ def production_services(cfg: Config) -> Services:
         bencher=CommandBencher(),
         telemetry_factory=_telemetry,
         registry=registry,
+        energy_counter=lambda: energy_counter_mj(cfg.doctor.gpu_index),
     )
 
 
@@ -292,6 +327,7 @@ def _create(spec: RunSpec, cfg: Config, services: Services) -> Ctx:
         reference_run_id=spec.reference_run_id,
         pair_job_id=spec.pair_job_id,
         engine=spec.engine or "vllm",
+        tool_call_parser=spec.tool_parser or cfg.engine.tool_call_parser,
     )
     add_run_log(run_dir / "logs" / "sma.log")
     publish(cfg, run_dir, manifest)
@@ -315,6 +351,12 @@ def _load(spec: RunSpec, cfg: Config, services: Services) -> Ctx:
     if spec.engine and recorded_engine and recorded_engine != spec.engine:
         raise SmaError(
             f"Run {spec.resume_run_id} was started on {recorded_engine}, not {spec.engine}."
+        )
+    recorded_parser = (manifest.get("engine") or {}).get("tool_call_parser")
+    if spec.tool_parser and spec.tool_parser != recorded_parser:
+        raise SmaError(
+            f"Run {spec.resume_run_id} was started with tool parser {recorded_parser or 'none'}, "
+            f"not {spec.tool_parser}. A resumed run keeps its server flags."
         )
     if manifest.get("model_repo") != spec.repo or manifest.get("quant_flag") != spec.quant_flag:
         raise SmaError(
@@ -413,16 +455,35 @@ def _run_step(ctx: Ctx, name: str, fn: Callable[[Ctx], None]) -> None:
         publish(ctx.cfg, ctx.run_dir, ctx.manifest)
         log_event("step_done", step=name, run_id=ctx.run_id)
     except Exception as exc:
+        note = _stopped_server_note(ctx, name)
+        message = str(exc) if note is None else f"{exc}\n{note}"
         failed = ctx.manifest["steps"][name]
         failed["status"] = "failed"
         failed["finished"] = utc_now()
-        failed["error"] = scrub_text(str(exc))[:2000]
+        failed["error"] = scrub_text(message)[:2000]
         try:
             publish(ctx.cfg, ctx.run_dir, ctx.manifest)
         except Exception:
             log_event("step_publish_failed", step=name)
-        log_event("step_failed", step=name, run_id=ctx.run_id, error=str(exc))
+        log_event("step_failed", step=name, run_id=ctx.run_id, error=message)
         raise
+
+
+def _stopped_server_note(ctx: Ctx, step: str) -> str | None:
+    mode = STEP_SERVER.get(step)
+    if mode is None:
+        return None
+    try:
+        return stopped_server_note(
+            ctx.services.runtime,
+            name=container_name(ctx.cfg, ctx.run_id, mode),
+            mode=mode,
+            log_path=server_log_path(ctx.run_dir, mode),
+            poll_s=ctx.cfg.timeouts.health_poll_s,
+        )
+    except Exception as exc:
+        log_event("server_check_failed", step=step, error=str(exc))
+        return None
 
 
 def _warn(ctx: Ctx, message: str) -> None:
@@ -636,27 +697,75 @@ def _step_quality(ctx: Ctx) -> None:
             log_event("suite_skip", suite=suite.name, run_id=ctx.run_id)
             continue
         suite_dir.mkdir(parents=True, exist_ok=True)
-        argv = lm_eval_argv(
-            ctx.cfg,
-            served_name=ctx.served_name,
-            base_url=ctx.base_url,
-            suite_name=suite.name,
-            tasks=suite.tasks,
-            limit=suite.limit,
-            output_dir=suite_dir,
-        )
-        atomic_write_json(suite_dir / "command.json", {"argv": argv, "concurrency": ctx.cfg.quality.concurrency})
-        ctx.services.evaluator.run(
-            argv,
-            suite_dir,
-            float(ctx.cfg.timeouts.eval_s),
-            ctx.run_dir / "logs" / f"quality-{suite.name}.log",
-        )
-        scores = normalize_suite(suite_dir, suite.name, limit=suite.limit)
-        if "limit" not in scores:
-            scores["limit"] = suite.limit
-            atomic_write_json(suite_dir / "scores.json", scores)
+        # A retry writes to a fresh folder, so a failed attempt's partial output is never mixed in.
+        attempt = 1 + sum(1 for path in suite_dir.glob("attempt-*") if path.is_dir())
+        attempt_dir = suite_dir / f"attempt-{attempt}"
+        if suite.tools and not ctx.manifest["engine"].get("tool_call_parser"):
+            message = (
+                f"Quality suite {suite.name} calls tools, and this run's server has no tool-call parser. "
+                "Pass --tool-parser (for example hermes for Qwen3 on vLLM). The score is null."
+            )
+            _warn(ctx, message)
+            atomic_write_json(
+                suite_dir / "scores.json",
+                {"suite": suite.name, "scorer": "not run", "primary_metric": None, "primary_score": None, "error": message},
+            )
+        elif suite.image is not None:
+            _run_eval_factory_suite(ctx, suite, suite_dir, attempt_dir)
+        else:
+            _run_nel_suite(ctx, suite, suite_dir, attempt_dir)
         atomic_write_json(done, {"suite": suite.name, "finished": utc_now()})
+
+
+def _run_nel_suite(ctx: Ctx, suite: QualitySuite, suite_dir: Path, attempt_dir: Path) -> None:
+    packaged = packaged_bench(suite.bench)
+    if packaged is not None:
+        # The grader that scored this run is kept with it.
+        atomic_write_text(suite_dir / packaged.name, packaged.read_text(encoding="utf-8"))
+    config = nel_config(ctx.cfg, served_name=ctx.served_name, base_url=ctx.base_url, suite=suite)
+    atomic_write_text(suite_dir / NEL_CONFIG, yaml.safe_dump(config, sort_keys=False))
+    argv = nel_argv(ctx.cfg, output_name=attempt_dir.name)
+    atomic_write_json(
+        suite_dir / "command.json",
+        {"argv": argv, "cwd": f"quality/{suite.name}", "concurrency": ctx.cfg.quality.concurrency},
+    )
+    try:
+        ctx.services.evaluator.run(
+            argv, suite_dir, float(ctx.cfg.timeouts.eval_s), ctx.run_dir / "logs" / f"quality-{suite.name}.log"
+        )
+    finally:
+        scrub_output(attempt_dir)
+    normalize_suite(suite_dir, attempt_dir, suite.name, bench=suite.bench or suite.name, limit=suite.limit)
+
+
+def _run_eval_factory_suite(ctx: Ctx, suite: QualitySuite, suite_dir: Path, attempt_dir: Path) -> None:
+    assert suite.image is not None and suite.task is not None
+    digest = ctx.services.runtime.ensure_image(suite.image)
+    image = image_ref(suite.image, digest)
+    config_path = suite_dir / EVAL_FACTORY_CONFIG
+    config = eval_factory_config(ctx.cfg, served_name=ctx.served_name, base_url=ctx.base_url, suite=suite)
+    atomic_write_text(config_path, yaml.safe_dump(config, sort_keys=False))
+    attempt_dir.mkdir(parents=True, exist_ok=True)
+    argv = eval_factory_argv(
+        name=container_name(ctx.cfg, ctx.run_id, f"quality-{suite.name}"),
+        image=image,
+        attempt_dir=attempt_dir.resolve(),
+        config_path=config_path.resolve(),
+        uid=os.getuid(),
+        gid=os.getgid(),
+    )
+    # The mounts are absolute host paths, which can hold the hostname.
+    atomic_write_json(
+        suite_dir / "command.json",
+        {"argv": scrub_obj(argv), "concurrency": ctx.cfg.quality.concurrency, "image": image},
+    )
+    try:
+        ctx.services.evaluator.run(
+            argv, suite_dir, float(ctx.cfg.timeouts.eval_s), ctx.run_dir / "logs" / f"quality-{suite.name}.log"
+        )
+    finally:
+        scrub_output(attempt_dir)
+    normalize_eval_factory(suite_dir, attempt_dir, suite.name, image=image, task=suite.task)
 
 
 def _step_serve_speed(ctx: Ctx) -> None:
@@ -707,6 +816,16 @@ def _step_speed(ctx: Ctx) -> None:
         )
 
 
+def _read_energy(ctx: Ctx) -> int | None:
+    if ctx.services.energy_counter is None:
+        return None
+    try:
+        return ctx.services.energy_counter()
+    except Exception as exc:
+        log_event("energy_counter_failed", error=str(exc))
+        return None
+
+
 def _run_cell(ctx: Ctx, cell: Any) -> tuple[dict[str, Any], dict[str, Any] | None]:
     attempts = 1 + max(0, ctx.cfg.speed.throttle_retries)
     last: dict[str, Any] | None = None
@@ -731,12 +850,14 @@ def _run_cell(ctx: Ctx, cell: Any) -> tuple[dict[str, Any], dict[str, Any] | Non
             result_dir=result_dir,
         )
         atomic_write_json(cell_dir / "command.json", {"argv": argv})
+        energy_before = _read_energy(ctx)
         ctx.services.bencher.run(
             argv,
             cell_dir / "bench.json",
             float(ctx.cfg.timeouts.bench_s),
             ctx.run_dir / "logs" / f"speed-{cell.name}-a{attempt}.log",
         )
+        energy_after = _read_energy(ctx)
         after, after_err = _scrape(ctx)
         ended = time.time()
         from sma.backends import get_backend
@@ -792,6 +913,12 @@ def _run_cell(ctx: Ctx, cell: Any) -> tuple[dict[str, Any], dict[str, Any] | Non
             "end_unix": ended,
             "valid": record["valid"],
             "repeats_in_window": 1,
+            # The counter delta over the bench command alone. Null when the counter was not read.
+            "energy_j": (
+                (energy_after - energy_before) / 1000.0
+                if energy_before is not None and energy_after is not None and energy_after >= energy_before
+                else None
+            ),
         }
         if record["validity"] != "invalid" or attempt == attempts:
             break
@@ -1061,13 +1188,18 @@ def _start_server(ctx: Ctx, mode: str) -> None:
         for attempt in range(1, attempts + 1):
             try:
                 ctx.services.runtime.start(spec)
+                _follow(ctx, mode, spec.name)
+                started = time.monotonic()
                 wait_until_healthy(
                     ctx.base_url,
                     deadline_s=float(ctx.cfg.timeouts.server_start_s),
                     request_timeout_s=ctx.cfg.timeouts.health_request_s,
                     poll_s=ctx.cfg.timeouts.health_poll_s,
+                    alive=lambda: ctx.services.runtime.is_running(spec.name),
+                    on_wait=lambda elapsed: report_wait(ctx.run_dir, mode, elapsed),
                     **_health_kwargs(ctx),
                 )
+                log_event("server_ready", mode=mode, elapsed_s=round(time.monotonic() - started))
                 primary = moe_backend_chain(ctx.cfg)[0] if use_chain else None
                 fallback = bool(use_chain and backend and backend != primary)
                 _record_start(ctx, mode, spec, backend, fallback=fallback)
@@ -1077,11 +1209,14 @@ def _start_server(ctx: Ctx, mode: str) -> None:
                         warmup_done.unlink()
                 return
             except Exception as exc:
-                errors.append(f"{backend or 'default'} attempt {attempt}: {scrub_text(str(exc))}")
+                last = tail_lines(server_log_path(ctx.run_dir, mode), 3)
+                detail = f" Last server log lines: {' | '.join(last)}" if last else ""
+                errors.append(f"{backend or 'default'} attempt {attempt}: {scrub_text(str(exc))}{detail}")
                 try:
                     ctx.services.runtime.stop(spec.name)
                 except Exception:
                     pass
+                _unfollow(ctx, mode)
                 if attempt < attempts and not use_chain:
                     time.sleep(ctx.cfg.retries.backoff_s * (ctx.cfg.retries.backoff_factor ** (attempt - 1)))
                     continue
@@ -1131,10 +1266,15 @@ def _record_start(ctx: Ctx, mode: str, spec: StartSpec, backend: str | None, fal
         text = ctx.services.runtime.logs(spec.name)
     except Exception as exc:
         text = scrub_text(str(exc))
-    _write_log(ctx.run_dir / "logs" / f"server-{mode}.log", text)
+    if mode not in ctx.followers:
+        # A followed log is still being written. Replacing the file would cut it off here.
+        _write_log(server_log_path(ctx.run_dir, mode), text)
     note = _backend_note(text)
     if note:
         engine["resolved_backend_note"] = note
+    short = kv_capacity_warning(text, needed_kv_tokens(ctx.cfg))
+    if short:
+        _warn(ctx, short)
     publish(ctx.cfg, ctx.run_dir, ctx.manifest)
 
 
@@ -1154,6 +1294,7 @@ def _start_spec(ctx: Ctx, mode: str, backend: str | None, batch_invariant: bool)
         moe_backend=backend,
         batch_invariant=batch_invariant,
         engine=name_engine,
+        tool_parser=ctx.manifest["engine"].get("tool_call_parser"),
     )
     env = serve_env(ctx.cfg, mode=mode, batch_invariant=batch_invariant, engine=name_engine)
     name = container_name(ctx.cfg, ctx.run_id, mode)
@@ -1180,6 +1321,8 @@ def _start_spec(ctx: Ctx, mode: str, backend: str | None, batch_invariant: bool)
 def _ensure_server(ctx: Ctx, mode: str) -> None:
     name = container_name(ctx.cfg, ctx.run_id, mode)
     if ctx.services.runtime.is_running(name):
+        if mode not in ctx.followers:
+            _follow(ctx, mode, name)
         try:
             wait_until_healthy(
                 ctx.base_url,
@@ -1198,6 +1341,7 @@ def _ensure_server(ctx: Ctx, mode: str) -> None:
 
 def _stop_mode(ctx: Ctx, mode: str) -> None:
     name = container_name(ctx.cfg, ctx.run_id, mode)
+    following = ctx.followers.get(mode)
     try:
         if ctx.services.runtime.is_running(name) or name in ctx.services.runtime.list_sma():
             text = ""
@@ -1205,11 +1349,30 @@ def _stop_mode(ctx: Ctx, mode: str) -> None:
                 text = ctx.services.runtime.logs(name)
             except Exception:
                 text = ""
-            if text:
-                _write_log(ctx.run_dir / "logs" / f"server-{mode}.log", text)
             ctx.services.runtime.stop(name)
+            _unfollow(ctx, mode)
+            # The followed log interleaves stdout and stderr as they arrive. The dump puts all stdout first.
+            path = server_log_path(ctx.run_dir, mode)
+            followed = following is not None and path.is_file() and path.stat().st_size > 0
+            if text and not followed:
+                _write_log(path, text)
     except Exception as exc:
         log_event("stop_failed", name=name, error=str(exc))
+    finally:
+        _unfollow(ctx, mode)
+
+
+def _follow(ctx: Ctx, mode: str, name: str) -> None:
+    _unfollow(ctx, mode)
+    following = start_following(ctx.services.runtime, name, ctx.run_dir, mode)
+    if following is not None:
+        ctx.followers[mode] = following
+
+
+def _unfollow(ctx: Ctx, mode: str) -> None:
+    following = ctx.followers.pop(mode, None)
+    if following is not None:
+        following.stop()
 
 
 def _teardown_containers(ctx: Ctx) -> None:

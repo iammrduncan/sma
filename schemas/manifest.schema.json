@@ -130,10 +130,12 @@
         "env_speed",
         "clock_cap_mhz",
         "resolved_backend_note",
-        "deterministic_quality"
+        "deterministic_quality",
+        "tool_call_parser"
       ],
       "properties": {
         "name": { "enum": ["vllm", "sglang"] },
+        "tool_call_parser": { "type": ["string", "null"] },
         "image": { "type": "string" },
         "image_digest": { "type": ["string", "null"] },
         "tensor_parallel_size": { "const": 1 },

@@ -170,6 +170,13 @@ def _add_engine(parser: argparse.ArgumentParser) -> None:
         default=None,
         help="Inference engine. vLLM is the default. sglang is opt-in.",
     )
+    parser.add_argument(
+        "--tool-parser",
+        default=None,
+        metavar="NAME",
+        help="The engine's tool-call parser for this model, for example hermes for Qwen3 on vLLM. "
+        "Needed by suites that call tools (BFCL). Default: engine.tool_call_parser.",
+    )
 
 
 def _add_repo(parser: argparse.ArgumentParser) -> None:
@@ -262,6 +269,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
                 revision=args.revision,
                 assume_moe=bool(args.assume_moe and quant != "bf16"),
                 engine=engine,
+                tool_parser=args.tool_parser,
             ),
             end="",
         )
@@ -277,6 +285,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         None,
         None,
         engine=engine,
+        tool_parser=args.tool_parser,
     )
     return 0
 
@@ -289,7 +298,15 @@ def _cmd_run_pair(args: argparse.Namespace) -> int:
     _guard_sglang_prompts(cfg, engine)
     if args.dry_run:
         print(
-            render_plan(cfg, repo=repo, quant_flag=quant, revision=revision, assume_moe=False, engine=engine),
+            render_plan(
+                cfg,
+                repo=repo,
+                quant_flag=quant,
+                revision=revision,
+                assume_moe=False,
+                engine=engine,
+                tool_parser=args.tool_parser,
+            ),
             end="",
         )
         print(
@@ -300,6 +317,7 @@ def _cmd_run_pair(args: argparse.Namespace) -> int:
                 revision=other_revision,
                 assume_moe=False,
                 engine=engine,
+                tool_parser=args.tool_parser,
             ),
             end="",
         )
@@ -314,7 +332,14 @@ def _cmd_run_pair(args: argparse.Namespace) -> int:
     services = production_services(cfg)
     with GpuLock(cfg.lock_file()):
         ref_id = execute(
-            RunSpec(repo=repo, quant_flag=quant, revision=revision, lock_held=True, engine=engine),
+            RunSpec(
+                repo=repo,
+                quant_flag=quant,
+                revision=revision,
+                lock_held=True,
+                engine=engine,
+                tool_parser=args.tool_parser,
+            ),
             cfg,
             services,
         )
@@ -327,6 +352,7 @@ def _cmd_run_pair(args: argparse.Namespace) -> int:
                 reference_run_id=ref_id,
                 lock_held=True,
                 engine=engine,
+                tool_parser=args.tool_parser,
             ),
             cfg,
             services,
@@ -473,6 +499,7 @@ def _cmd_queue_add(args: argparse.Namespace) -> int:
     job = JobQueue(cfg.queue_path()).add(
         [{"repo": args.repo, "quant": _flag(args), "revision": args.revision, "engine": engine}],
         kind="single",
+        tool_parser=args.tool_parser,
     )
     print(job["job_id"])
     return 0
@@ -490,6 +517,7 @@ def _cmd_queue_add_pair(args: argparse.Namespace) -> int:
             {"repo": other_repo, "quant": other_quant, "revision": other_revision, "engine": engine},
         ],
         kind="pair",
+        tool_parser=args.tool_parser,
     )
     print(job["job_id"])
     return 0
@@ -553,6 +581,7 @@ def _execute_one(
     pair_job_id: str | None,
     resume: str | None,
     engine: str | None = None,
+    tool_parser: str | None = None,
 ) -> str:
     from sma.pipeline import RunSpec, execute, production_services
 
@@ -565,6 +594,7 @@ def _execute_one(
             pair_job_id=pair_job_id,
             resume_run_id=resume,
             engine=engine,
+            tool_parser=tool_parser,
         ),
         cfg,
         production_services(cfg),

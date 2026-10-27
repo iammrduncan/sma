@@ -119,3 +119,49 @@ def test_compare_refuses_a_different_tokenizer(tmp_path) -> None:
         (run / "logprobs" / "dump.json").write_text(__import__("json").dumps(dump), encoding="utf-8")
     with pytest.raises(CompareRefused, match="Tokenizers differ"):
         compare_run_dirs(tmp_path / "ref", tmp_path / "cand")
+
+
+def test_clustered_mean_matches_a_hand_computed_cluster_robust_error() -> None:
+    from sma.kl import clustered_mean
+
+    # Window sums 3 and 9 over 2 + 2 values: mean 3. Residual sums: 3 - 2*3 = -3 and 9 - 2*3 = 3.
+    mean, se = clustered_mean([[1.0, 2.0], [4.0, 5.0], []])
+    assert mean == pytest.approx(3.0)
+    assert se == pytest.approx(math.sqrt(2 / 1 * (9 + 9)) / 4)
+    assert clustered_mean([[1.0, 2.0]]) == (pytest.approx(1.5), None)
+    assert clustered_mean([]) == (None, None)
+
+
+def test_compare_reports_llama_cpp_style_fidelity_statistics() -> None:
+    from sma.kl import compare_dumps
+
+    def window(index: int, rows: list[tuple[float, float, float]]) -> dict:
+        # rows: (p of token 1 in the top-2, true-token logprob, tail mass)
+        positions = []
+        for pos, (p1, true_lp, _tail_mass) in enumerate(rows, start=1):
+            positions.append(
+                {
+                    "index": pos,
+                    "true_token_id": 1,
+                    "true_logprob": true_lp,
+                    "top": [{"id": 1, "logprob": math.log(p1)}, {"id": 2, "logprob": math.log((1 - p1) / 2)}],
+                }
+            )
+        return {"index": index, "token_ids": [9, 1, 1], "positions": positions}
+
+    reference = {"windows": [window(0, [(0.6, math.log(0.6), 0)] * 2), window(1, [(0.6, math.log(0.6), 0)] * 2)]}
+    candidate = {"windows": [window(0, [(0.6, math.log(0.6), 0)] * 2), window(1, [(0.3, math.log(0.3), 0)] * 2)]}
+
+    result = compare_dumps(reference, candidate)
+
+    assert result["kl_quantiles"]["p50"] >= 0 and result["kl_quantiles"]["max"] == pytest.approx(
+        max(result["kl_quantiles"].values())
+    )
+    assert result["kl_mean_se"] is not None and result["kl_mean_se"] > 0
+    # Window 1 flips the top-1 token on both of its positions: agreement 0.5.
+    assert result["top1_agreement"] == pytest.approx(0.5)
+    assert result["top1_agreement_se"] == pytest.approx(0.5)
+    # ln(PPL_c / PPL_r) = mean(lp_ref - lp_cand) = (0 + 0 + ln2 + ln2) / 4.
+    assert result["ln_ppl_ratio"] == pytest.approx(math.log(2) / 2)
+    assert result["rms_delta_p"] == pytest.approx(math.sqrt((0 + 0 + 0.09 + 0.09) / 4))
+    assert "lower bound" in result["bound"]

@@ -41,8 +41,10 @@ def scrub_text(text: str) -> str:
     for name in host_names():
         if len(name) < 3:
             continue
+        # A period after the name ends a sentence ("/home/name."). Only a period followed by a
+        # letter or digit continues a longer domain name, which belongs to another machine.
         pattern = re.compile(
-            rf"(?<![A-Za-z0-9._-]){re.escape(name)}(?![A-Za-z0-9._-])",
+            rf"(?<![A-Za-z0-9._-]){re.escape(name)}(?![A-Za-z0-9_-])(?!\.[A-Za-z0-9])",
             re.IGNORECASE,
         )
         redacted = pattern.sub("<host>", redacted)
@@ -60,7 +62,7 @@ def assert_text_clean(text: str, what: str) -> str:
         raise SmaError(
             f"The {what} contains this machine's hostname or a secret. "
             "SMA does not write those into run records. "
-            "Move the Hugging Face cache to a path that does not include the hostname."
+            "Set hf.cache_dir in sma.yaml to a path that does not include the hostname."
         )
     return text
 

@@ -81,12 +81,15 @@
     "suite": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["score", "metric", "scorer", "limit", "error"],
+      "required": ["score", "metric", "scorer", "limit", "n", "ci_lower", "ci_upper", "error"],
       "properties": {
         "score": { "type": ["number", "null"] },
         "metric": { "type": ["string", "null"] },
         "scorer": { "type": "string" },
         "limit": { "type": ["integer", "null"] },
+        "n": { "type": ["integer", "null"] },
+        "ci_lower": { "type": ["number", "null"] },
+        "ci_upper": { "type": ["number", "null"] },
         "error": { "type": ["string", "null"] }
       }
     },
