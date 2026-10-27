@@ -37,6 +37,7 @@
     "params_total_b",
     "params_active_b",
     "size_class",
+    "deployment",
     "warnings"
   ],
   "properties": {
@@ -44,12 +45,12 @@
     "run_id": { "type": "string" },
     "model_repo": { "type": "string" },
     "model_slug": { "type": "string" },
-    "quant_flag": { "enum": ["bf16", "nvfp4", "mxfp4", "mixed"] },
+    "quant_flag": { "enum": ["bf16", "nvfp4", "mxfp4", "mixed", "gguf"] },
     "quant_label": { "type": ["string", "null"] },
     "quant_detected": { "type": ["string", "null"] },
     "revision_sha": { "type": ["string", "null"] },
     "host_alias": { "type": "string" },
-    "engine": { "enum": ["vllm", "sglang"] },
+    "engine": { "enum": ["vllm", "sglang", "llamacpp"] },
     "engine_image": { "type": "string" },
     "engine_image_digest": { "type": ["string", "null"] },
     "status": { "enum": ["pending", "running", "done", "failed"] },
@@ -75,14 +76,58 @@
     "params_total_b": { "type": ["number", "null"] },
     "params_active_b": { "type": ["number", "null"] },
     "size_class": { "type": ["string", "null"] },
+    "deployment": { "$ref": "#/$defs/deployment" },
     "warnings": { "type": "array", "items": { "type": "string" } }
   },
   "$defs": {
+    "deployment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sentence", "engine", "weight_format", "kv_cache_type", "context_per_stream", "context_reason", "computed", "measured"],
+      "properties": {
+        "sentence": { "type": ["string", "null"] },
+        "engine": { "enum": ["vllm", "sglang", "llamacpp"] },
+        "weight_format": { "type": ["string", "null"] },
+        "kv_cache_type": { "type": ["string", "null"] },
+        "context_per_stream": { "type": ["integer", "null"] },
+        "context_reason": { "type": ["string", "null"] },
+        "computed": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["weights_gb", "kv_bytes_per_token", "kv_pool_gb", "kv_pool_tokens", "streams_full_context", "streams_32k", "planned_footprint_gb", "memory_budget_gb"],
+          "properties": {
+            "weights_gb": { "type": ["number", "null"] },
+            "kv_bytes_per_token": { "type": ["integer", "null"] },
+            "kv_pool_gb": { "type": ["number", "null"] },
+            "kv_pool_tokens": { "type": ["integer", "null"] },
+            "streams_full_context": { "type": ["integer", "null"] },
+            "streams_32k": { "type": ["integer", "null"] },
+            "planned_footprint_gb": { "type": ["number", "null"] },
+            "memory_budget_gb": { "type": ["number", "null"] }
+          }
+        },
+        "measured": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kv_pool_tokens", "streams_full_context", "streams_32k", "peak_memory_gb", "output_tok_s_c1", "output_tok_s_c4", "output_tok_s_c8"],
+          "properties": {
+            "kv_pool_tokens": { "type": ["integer", "null"] },
+            "streams_full_context": { "type": ["integer", "null"] },
+            "streams_32k": { "type": ["integer", "null"] },
+            "peak_memory_gb": { "type": ["number", "null"] },
+            "output_tok_s_c1": { "type": ["number", "null"] },
+            "output_tok_s_c4": { "type": ["number", "null"] },
+            "output_tok_s_c8": { "type": ["number", "null"] }
+          }
+        }
+      }
+    },
     "suite": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["score", "metric", "scorer", "limit", "n", "ci_lower", "ci_upper", "error"],
+      "required": ["score", "metric", "scorer", "limit", "n", "ci_lower", "ci_upper", "context_per_stream", "error"],
       "properties": {
+        "context_per_stream": { "type": ["integer", "null"] },
         "score": { "type": ["number", "null"] },
         "metric": { "type": ["string", "null"] },
         "scorer": { "type": "string" },

@@ -42,6 +42,13 @@ def write_snapshot(
         "model_type": model_type,
         "architectures": architectures or ["LlamaForCausalLM"],
         "torch_dtype": "bfloat16",
+        # What the memory plan reads: a tiny model with Qwen3's 40,960-token native context.
+        "num_hidden_layers": 2,
+        "num_attention_heads": 4,
+        "num_key_value_heads": 2,
+        "head_dim": 8,
+        "hidden_size": 32,
+        "max_position_embeddings": 40960,
     }
     if moe:
         config["num_experts"] = 4
@@ -109,6 +116,33 @@ def write_snapshot(
     return root
 
 
+def write_gguf_snapshot(root: Path, selectors: tuple[str, ...] = ("BF16", "UD-Q4_K_XL")) -> Path:
+    """An Unsloth-style GGUF repo: one small qwen3 file per quant selector, with tokenizer metadata."""
+    from tests.gguf_writer import write_gguf
+
+    root.mkdir(parents=True, exist_ok=True)
+    file_types = {"BF16": 32, "F16": 1, "Q8_0": 7}
+    for selector in selectors:
+        meta = {
+            "general.architecture": "qwen3",
+            "general.name": "Tiny",
+            "general.file_type": file_types.get(selector, 15),
+            "qwen3.block_count": 2,
+            "qwen3.context_length": 40960,
+            "qwen3.embedding_length": 32,
+            "qwen3.attention.head_count": 4,
+            "qwen3.attention.head_count_kv": 2,
+            "qwen3.attention.key_length": 8,
+            "qwen3.attention.value_length": 8,
+            "tokenizer.ggml.model": "gpt2",
+            "tokenizer.ggml.tokens": ["a", "b", "c"],
+        }
+        tensor_type = 30 if selector == "BF16" else 12  # BF16, or Q4_K
+        write_gguf(root / f"Tiny-{selector}.gguf", meta, [("token_embd.weight", (256, 4), tensor_type)], data=True)
+    (root / "README.md").write_text("tiny GGUF repo\n", encoding="utf-8")
+    return root
+
+
 class FixtureFetcher:
     def __init__(self, snapshot: Path, *, repo: str, quant_flag: str, sha: str = "a" * 40) -> None:
         self.snapshot = snapshot
@@ -117,8 +151,12 @@ class FixtureFetcher:
         self.sha = sha
         self.calls = 0
 
-    def fetch(self, repo: str, revision: str | None, quant_flag: str) -> FetchResult:
+    def fetch(self, repo: str, revision: str | None, quant_flag: str, gguf: str | None = None) -> FetchResult:
         self.calls += 1
+        if gguf is not None:
+            from sma.fetch import inspect_gguf
+
+            return inspect_gguf(self.snapshot, repo=repo, revision_sha=self.sha, selector=gguf, revision_requested=revision)
         return inspect_snapshot(
             self.snapshot,
             repo=repo,
@@ -138,6 +176,8 @@ class FakeRuntime:
         self.exited: set[str] = set()
         self.digest = "sha256:" + "ab" * 32
         self.server: FakeVLLM | None = None
+        # Appended to every container log, for a test that needs one more engine line.
+        self.extra_log = ""
 
     def ensure_image(self, image: str | None = None) -> str:
         return self.digest
@@ -171,7 +211,15 @@ class FakeRuntime:
             self.server = None
 
     def logs(self, name: str) -> str:
-        return "Using moe backend from the explicit flag\n"
+        # Each engine's own KV lines; each backend reads only its own.
+        return (
+            "Using moe backend from the explicit flag\n"
+            "INFO [cache.py:280] Using fp8 data type to store kv cache. It reduces the GPU memory footprint\n"
+            "INFO [kv_cache_utils.py:1731] GPU KV cache size: 1,000,000 tokens\n"
+            "[sglang] Using KV cache dtype: torch.float8_e4m3fn\n"
+            "[sglang] KV Cache is allocated. #tokens: 1000000, K size: 1.00 GB\n"
+            "I llama_kv_cache: size = 100.00 MiB (1000000 cells,   2 layers,  8/1 seqs), K (q8_0): 50.00 MiB, V (q8_0): 50.00 MiB\n"
+        ) + self.extra_log
 
     def follow_logs(self, name: str, path: Path) -> "FakeFollowing":
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -212,6 +260,9 @@ class FakeEvaluator:
     def run(self, argv: list[str], output_dir: Path, timeout_s: float, log_path: Path) -> None:
         self.calls.append(list(argv))
         log_path.parent.mkdir(parents=True, exist_ok=True)
+        if "/app/llama-perplexity" in argv:
+            self._perplexity(argv, log_path)
+            return
         if argv[0] == "docker":
             self._eval_factory(argv)
             log_path.write_text("fake eval-factory\n", encoding="utf-8")
@@ -248,6 +299,19 @@ class FakeEvaluator:
         ]
         (bench_dir / "results.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
         log_path.write_text("fake nemo-evaluator\n", encoding="utf-8")
+
+    @staticmethod
+    def _perplexity(argv: list[str], log_path: Path) -> None:
+        """llama-perplexity's real output (b11913), and the logits file a reference run writes."""
+        data = Path(__file__).resolve().parent / "data" / "llamacpp"
+        if "--kl-divergence" in argv:
+            log_path.write_text((data / "perplexity-kld-b11913.log").read_text(encoding="utf-8"), encoding="utf-8")
+            return
+        log_path.write_text((data / "perplexity-base-b11913.log").read_text(encoding="utf-8"), encoding="utf-8")
+        if "--kl-divergence-base" in argv:
+            mounts = [argv[index + 1] for index, arg in enumerate(argv) if arg == "-v"]
+            run_dir = Path(next(mount for mount in mounts if mount.endswith(":/sma-run:rw")).rsplit(":", 2)[0])
+            (run_dir / "logprobs" / "kld-base.bin").write_bytes(b"logits")
 
     @staticmethod
     def _eval_factory(argv: list[str]) -> None:

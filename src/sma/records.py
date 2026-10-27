@@ -19,7 +19,7 @@ from sma.errors import SmaError
 from sma.schemautil import validate_instance
 from sma.scrub import scrub_obj, scrub_text
 from sma.speedmath import bandwidth_ceiling_tok_s
-from sma.telemetry import integrate_joules, read_samples
+from sma.telemetry import integrate_joules, peak_memory_bytes, read_memory, read_samples
 
 STEP_NAMES = [
     "fetch",
@@ -98,9 +98,18 @@ def new_manifest(
     pair_job_id: str | None,
     engine: str = "vllm",
     tool_call_parser: str | None = None,
+    gguf: str | None = None,
+    selected_by: str | None = None,
+    selection_reason: str | None = None,
 ) -> dict[str, Any]:
+    from sma.backends import get_backend
+    from sma.engines import configured_digest, image_for
+
     commit, dirty = git_identity()
     now = utc_now()
+    if engine == "llamacpp":
+        # llama-server parses tool calls with the model's own chat template (--jinja). No parser flag.
+        tool_call_parser = "llama.cpp --jinja"
     return {
         "schema_version": 2,
         "run_id": run_id,
@@ -109,7 +118,7 @@ def new_manifest(
         "revision_requested": revision,
         "revision_sha": None,
         "quant_flag": quant_flag,
-        "quant_label": None,
+        "quant_label": gguf,
         "quant_detected": None,
         "quant_detail": None,
         "quant_producer": None,
@@ -138,8 +147,16 @@ def new_manifest(
         },
         "engine": {
             "name": engine,
-            "image": cfg.engine.sglang_image if engine == "sglang" else cfg.engine.image,
-            "image_digest": cfg.engine.sglang_image_digest if engine == "sglang" else cfg.engine.image_digest,
+            "selected_by": selected_by or "default",
+            "selection_reason": selection_reason,
+            "image": image_for(cfg, engine),
+            "image_digest": configured_digest(cfg, engine),
+            "build_info": None,
+            "bench_image": None,
+            "kv_cache_type": get_backend(engine).kv_cache_type,
+            "kv_cache_scales": None,
+            "kv_cache_reported": {},
+            "context_per_stream": None,
             "tensor_parallel_size": 1,
             "moe_backend_config": cfg.engine.moe_backend,
             "moe_backend_chain": moe_backend_chain(cfg),
@@ -159,7 +176,10 @@ def new_manifest(
             ),
             "seed": cfg.seed,
             "max_logprobs": cfg.logprobs.top_k,
-            "logprobs_mode": "sglang_input_top_logprobs" if engine == "sglang" else "raw_logprobs",
+            "logprobs_mode": {
+                "sglang": "sglang_input_top_logprobs",
+                "llamacpp": "llama-perplexity full-vocabulary KL",
+            }.get(engine, "raw_logprobs"),
             "flags_quality": [],
             "flags_speed": [],
             "env_quality": {},
@@ -180,6 +200,12 @@ def new_manifest(
         "pair_job_id": pair_job_id,
         "dispatch_concurrency": cfg.quality.concurrency,
         "config_snapshot": scrub_obj(cfg.to_snapshot()),
+        # Filled at fetch: weights, KV pool, and context per stream, computed before launch.
+        "memory_plan": None,
+        # GGUF runs only: the quant file, the one llama.cpp loads, and what the file's metadata says.
+        "gguf": None if gguf is None else {"selector": gguf},
+        # A full-precision GGUF run writes the logits a later KL reads.
+        "logprobs_reference_file": None,
     }
 
 
@@ -189,9 +215,13 @@ def _deterministic_quality(cfg: Config, engine: str) -> dict[str, Any]:
     return get_backend(engine).deterministic(cfg)
 
 
-def run_dir_for(cfg: Config, repo: str, quant_flag: str, run_id: str, engine: str = "vllm") -> Path:
+def run_dir_for(
+    cfg: Config, repo: str, quant_flag: str, run_id: str, engine: str = "vllm", *, gguf: str | None = None
+) -> Path:
     # Engine is part of the subject. Old runs live at runs/<slug>/<quant>/<id>.
-    return cfg.runs_path() / model_slug(repo) / engine / quant_flag / run_id
+    # Each GGUF file of a repo is its own quant: runs/<slug>/llamacpp/gguf-<selector>/<id>.
+    quant_dir = f"gguf-{model_slug(gguf)}" if gguf else quant_flag
+    return cfg.runs_path() / model_slug(repo) / engine / quant_dir / run_id
 
 
 def marker_path(run_dir: Path, step: str) -> Path:
@@ -286,6 +316,7 @@ def build_summary(run_dir: Path, manifest: dict[str, Any], cfg: Config) -> dict[
                 "n": scores.get("n"),
                 "ci_lower": scores.get("ci_lower"),
                 "ci_upper": scores.get("ci_upper"),
+                "context_per_stream": scores.get("context_per_stream"),
                 "error": scores.get("error"),
             }
     speed_block = {
@@ -310,6 +341,7 @@ def build_summary(run_dir: Path, manifest: dict[str, Any], cfg: Config) -> dict[
         "cells": list(_dig(speed, "cells") or []),
     }
     warnings = list(manifest.get("warnings") or [])
+    deployment = _deployment(manifest, speed, run_dir)
     return {
         "schema_version": 2,
         "run_id": manifest["run_id"],
@@ -365,8 +397,82 @@ def build_summary(run_dir: Path, manifest: dict[str, Any], cfg: Config) -> dict[
         "params_total_b": params.get("total_b"),
         "params_active_b": params.get("active_b"),
         "size_class": params.get("size_class"),
+        "deployment": deployment,
         "warnings": [scrub_text(str(item)) for item in warnings],
     }
+
+
+_KV_LABEL = {"fp8": "an FP8", "q8_0": "a Q8_0"}
+
+
+def _deployment(manifest: dict[str, Any], speed: Any, run_dir: Path) -> dict[str, Any]:
+    """What someone gets running this model this way on a Spark. Computed values come from the memory
+    plan before launch; measured values from the engine's log, the speed cells, and memory samples."""
+    plan = manifest.get("memory_plan") if isinstance(manifest.get("memory_plan"), dict) else {}
+    engine = manifest.get("engine") or {}
+    context = plan.get("context")
+    reported = engine.get("kv_cache_reported") or {}
+    pool_tokens = next(
+        (item.get("pool_tokens") for item in (reported.get("speed"), reported.get("quality")) if isinstance(item, dict) and isinstance(item.get("pool_tokens"), int)),
+        None,
+    )
+    measured_streams = measured_32k = None
+    if isinstance(pool_tokens, int) and isinstance(context, int) and context > 0:
+        measured_streams = pool_tokens // context
+        measured_32k = pool_tokens // min(32_768, context)
+    rates = {concurrency: None for concurrency in (1, 4, 8)}
+    for cell in (_dig(speed, "cells") or []):
+        if isinstance(cell, dict) and cell.get("shape") == "sweep" and cell.get("valid") and cell.get("concurrency") in rates:
+            rates[cell["concurrency"]] = cell.get("output_tok_s")
+    peak = peak_memory_bytes(read_memory(run_dir / "memory.csv"))
+    computed = {
+        "weights_gb": plan.get("weights_gb"),
+        "kv_bytes_per_token": plan.get("kv_bytes_per_token"),
+        "kv_pool_gb": plan.get("pool_gb"),
+        "kv_pool_tokens": plan.get("pool_tokens"),
+        "streams_full_context": plan.get("streams_full_context"),
+        "streams_32k": plan.get("streams_32k"),
+        "planned_footprint_gb": plan.get("footprint_gb"),
+        "memory_budget_gb": plan.get("budget_gb"),
+    }
+    measured = {
+        "kv_pool_tokens": pool_tokens,
+        "streams_full_context": measured_streams,
+        "streams_32k": measured_32k,
+        "peak_memory_gb": None if peak is None else round(peak / 1e9, 2),
+        "output_tok_s_c1": rates[1],
+        "output_tok_s_c4": rates[4],
+        "output_tok_s_c8": rates[8],
+    }
+    return {
+        "sentence": _deployment_sentence(manifest, plan, measured) if plan else None,
+        "engine": engine.get("name") or "vllm",
+        "weight_format": manifest.get("quant_label") or manifest.get("quant_flag"),
+        "kv_cache_type": engine.get("kv_cache_type"),
+        "context_per_stream": context,
+        "context_reason": plan.get("context_reason"),
+        "computed": computed,
+        "measured": measured,
+    }
+
+
+def _deployment_sentence(manifest: dict[str, Any], plan: dict[str, Any], measured: dict[str, Any]) -> str:
+    engine = manifest.get("engine") or {}
+    weights = manifest.get("quant_label") or str(manifest.get("quant_flag") or "").upper()
+    kv = _KV_LABEL.get(str(engine.get("kv_cache_type")), "an 8-bit")
+    streams = measured.get("streams_full_context")
+    streams_text = (
+        f"{streams} full-length streams by the engine's own KV report"
+        if streams is not None
+        else f"{plan.get('streams_full_context')} full-length streams (computed)"
+    )
+    sentence = (
+        f"{weights} weights with {kv} KV cache on {engine.get('name')}: {plan.get('weights_gb')} GB of weights, "
+        f"{plan.get('context'):,} tokens per stream, {streams_text} within {plan.get('budget_gb')} GB."
+    )
+    if measured.get("peak_memory_gb") is not None:
+        sentence += f" Peak memory {measured['peak_memory_gb']} GB."
+    return sentence
 
 
 def _optional_json(path: Path) -> Any:

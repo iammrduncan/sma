@@ -13,9 +13,10 @@ def _fake_snapshot_download(
     token: str | None = None,
     cache_dir: str | None = None,
     local_dir: str | None = None,
+    allow_patterns: list[str] | None = None,
 ) -> str:
     """Behave like huggingface_hub: a cache snapshot is links into blobs, a local_dir is files."""
-    del token
+    del token, allow_patterns
     if local_dir is not None:
         root = Path(local_dir)
         root.mkdir(parents=True, exist_ok=True)

@@ -366,6 +366,14 @@ def _batch_invariant(model_type: str | None, architectures: list[str]) -> tuple[
     return True, None
 
 
+def _kv_cache_algo(blob: dict[str, Any]) -> str | None:
+    nested = _as_dict(blob.get("quantization"))
+    value = nested.get("kv_cache_quant_algo") or blob.get("kv_cache_quant_algo")
+    if not value and isinstance(blob.get("kv_cache_scheme"), dict):
+        value = "compressed-tensors kv_cache_scheme"
+    return str(value) if value else None
+
+
 def detect_quant(
     config: dict[str, Any] | None,
     hf_quant: dict[str, Any] | None = None,
@@ -434,6 +442,8 @@ def detect_quant(
                 "hf_quant_config": hf_fmt or None,
                 "quantization_config": cfg_fmt or None,
                 "quant_method": quant_method or None,
+                # ModelOpt names a calibrated KV cache format here. The KV cache is FP8 either way.
+                "kv_cache_quant_algo": _kv_cache_algo(chosen),
             },
             composition=composition,
         )

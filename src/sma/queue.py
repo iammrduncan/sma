@@ -260,11 +260,16 @@ class JobQueue:
 
 def _leg(item: dict[str, Any]) -> dict[str, Any]:
     quant = item["quant"]
-    if quant not in {"bf16", "nvfp4", "mxfp4", "mixed"}:
+    if quant not in {"bf16", "nvfp4", "mxfp4", "mixed", "gguf"}:
         raise SmaError(f"Unsupported quant {quant}")
+    if (quant == "gguf") != bool(item.get("gguf")):
+        raise SmaError("A GGUF job needs its quant file (--gguf QUANT), and --gguf goes with a GGUF repo only.")
     return {
         "repo": item["repo"],
         "quant": quant,
+        "gguf": item.get("gguf"),
+        # The --engine the job was queued with. None lets the format and preflight choose.
+        "engine_requested": item.get("engine_requested"),
         "revision": item.get("revision"),
         "run_id": None,
         "status": "pending",
@@ -393,8 +398,16 @@ def _run_job(cfg: Config, services_factory: Any, queue: JobQueue, path: Path, jo
                     pair_job_id=job["job_id"] if len(job["legs"]) > 1 else None,
                     resume_run_id=resume,
                     lock_held=True,
-                    engine=job.get("engine") or cfg.engine.name,
+                    # A single job lets the format and preflight choose unless --engine was given. A pair's
+                    # legs share the job's engine. Jobs queued before engine_requested keep their engine.
+                    engine=(
+                        leg["engine_requested"]
+                        if "engine_requested" in leg and len(job["legs"]) == 1
+                        else (job.get("engine") or cfg.engine.name)
+                    ),
+                    selected_by=None if len(job["legs"]) == 1 or "engine_requested" not in leg else ("flag" if leg["engine_requested"] else "default"),
                     tool_parser=job.get("tool_parser"),
+                    gguf=leg.get("gguf"),
                 ),
                 cfg,
                 services,

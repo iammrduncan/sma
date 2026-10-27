@@ -15,7 +15,8 @@ hf:
   download_timeout_s: 3600
 
 engine:
-  # vLLM is the default. sglang is opt-in (--engine sglang or engine.name).
+  # The default engine for safetensors checkpoints: vllm, or sglang (also --engine sglang). GGUF files
+  # (--gguf) always run on llama.cpp. See docs/serving-design.md.
   name: vllm
   # Spark playbook tag. Pin engine.image_digest after the first pull.
   # SMA records whatever digest docker inspect returns. It does not invent one.
@@ -28,27 +29,31 @@ engine:
   # SM12x requires FlashInfer attention. Deterministic quality mode disables the radix cache.
   sglang_attention_backend: flashinfer
   sglang_determinism_backend: flashinfer
+  # DeepGEMM in the pinned SGLang image does not support the GB10 (SM121). Deterministic serving
+  # crashes at CUDA-graph capture ("Unsupported architecture") unless it is off.
+  sglang_disable_deep_gemm: true
+  # llama.cpp for GGUF files: the "full" image has llama-server and llama-perplexity. Versioned
+  # arm64 + CUDA 13 build with SM 12.1 kernels. The run records the digest and llama.cpp's build.
+  llamacpp_image: ghcr.io/ggml-org/llama.cpp:full-cuda13-b11913
+  llamacpp_image_digest: null
+  # llama-server's host-RAM prompt cache in MiB (--cache-ram; llama.cpp's own default). The memory
+  # plan counts it. 0 turns it off.
+  llamacpp_cache_ram_mib: 8192
   port: 8000
   bind_host: 127.0.0.1
   gpus: all
   shm_size: 16g
-  # A fraction of the Spark's unified memory. An OOM hits the whole box.
-  # Without kv_cache_gib, vLLM fills this whole share with KV cache, whatever the model size.
+  # vLLM's startup free-memory check and SGLang's static memory share. The memory plan below sizes
+  # the KV pool and the context per stream; this share no longer decides them.
   gpu_memory_utilization: 0.90
-  # vLLM only. A fixed KV-cache size in GiB, passed as --kv-cache-memory-bytes. vLLM then reserves
-  # weights + this, not the share above, which becomes only its startup free-memory check.
-  # SMA's widest load is the highest concurrency (quality 8, speed 8) times max_model_len (8192):
-  # 65,536 tokens. Per-token KV size depends on the model; vLLM logs "GPU KV cache size: N tokens"
-  # and SMA warns if N is below that load. null keeps the share-based sizing.
-  kv_cache_gib: null
-  max_model_len: 8192
   # At least the largest determinism batch (64).
   max_num_seqs: 64
   # Explicit MoE backend for NVFP4 and MXFP4. Auto-selection can land on Marlin.
   moe_backend: flashinfer_b12x
   moe_backend_fallbacks:
     - marlin
-  # Dense NVFP4 only. Recorded in the manifest.
+  # Dense NVFP4 only, set as VLLM_NVFP4_GEMM_BACKEND (vLLM 0.21 has no --linear-backend flag).
+  # Recorded in the manifest's env.
   linear_backend: flashinfer_b12x
   batch_invariant: true
   no_flashinfer_autotune_quality: true
@@ -64,6 +69,31 @@ engine:
   clock_cap_mhz: null
   apply_clock_cap: false
   container_prefix: sma
+
+memory:
+  # A run's planned footprint (weights + KV pool + engine overhead) stays under this many GB.
+  # The Spark has 130.7 GB; earlyoom stops vllm and python processes under 8% free.
+  budget_gb: 100
+  # Context per stream starts here (256K), or at the model's native maximum if smaller, never
+  # RoPE-stretched, and halves until one stream fits. Each benchmark then gets the largest step
+  # that fits the streams it runs at once. The KV cache is always 8-bit: FP8, or Q8_0 on llama.cpp.
+  start_context: 262144
+  # Run memory beyond weights and KV pool, in GB: the engine's activations, CUDA graphs, and server
+  # processes, plus SMA's tools beside it (nel, the bench client). Measured on a Spark: vLLM with
+  # Qwen3-0.6B peaked 8.9 GB above weights + pool during quality (docs/first-spark-run.md).
+  overhead_gb:
+    vllm: 10.0
+    sglang: 10.0
+    llamacpp: 3.0
+  # Engine memory that grows with the KV pool, as a share of it. llama.cpp's buffers sized by its
+  # context measured 0.9 GB plus 11.7% of the pool on a Spark. Its prompt cache
+  # (engine.llamacpp_cache_ram_mib) is counted on top.
+  pool_overhead_fraction:
+    vllm: 0.0
+    sglang: 0.0
+    llamacpp: 0.12
+  # The least context a quality request needs: prompt plus quality.max_tokens.
+  quality_min_context: 8192
 
 timeouts:
   server_start_s: 900
@@ -98,6 +128,10 @@ logprobs:
   # 48 x 2048 = 98304 scored tokens when the tokenizer yields that many.
   num_windows: 48
   corpus_version: sma-corpus-v3
+  # llama.cpp only: llama-server returns no prompt logprobs, so llama-perplexity scores this many
+  # chunks of window_tokens. A full-precision GGUF run writes its logits for a quant's KL: about
+  # chunks * 1023 tokens * vocabulary * 2 bytes (2.5 GB for 8 chunks of a 152K vocabulary).
+  llamacpp_chunks: 8
 
 quality:
   enabled: true

@@ -14,7 +14,10 @@ q_i is not invented.
 from __future__ import annotations
 
 import math
+import re
 from typing import Any
+
+from sma.errors import SmaError
 
 
 def probability(logprob: float) -> float:
@@ -300,3 +303,41 @@ def compare_dumps(reference: dict[str, Any], candidate: dict[str, Any]) -> dict[
         "token_sequence_mismatches": token_mismatches,
         "per_window": per_window,
     }
+
+
+# llama-perplexity's own summary lines (llama.cpp tools/perplexity). Δp and "Same top p" are percents.
+_LLAMA_CHUNKS = re.compile(r"(?:calculating perplexity|computing) over (\d+) chunks, n_ctx=(\d+)")
+_LLAMA_FINAL = re.compile(r"Final estimate: PPL = ([\d.]+)")
+_LLAMA_STATS = {
+    "ppl_candidate": (r"Mean PPL\(Q\)\s*:\s*([\d.]+)", 1.0),
+    "ppl_base": (r"Mean PPL\(base\)\s*:\s*([\d.]+)", 1.0),
+    "delta_ppl": (r"Mean PPL\(Q\)-PPL\(base\)\s*:\s*(-?[\d.]+)", 1.0),
+    "kld_mean": (r"Mean\s+KLD:\s*(-?[\d.]+)", 1.0),
+    "kld_median": (r"Median\s+KLD:\s*(-?[\d.]+)", 1.0),
+    "kld_p99": (r"99\.0%\s+KLD:\s*(-?[\d.]+)", 1.0),
+    "rms_delta_p": (r"RMS Δp\s*:\s*(-?[\d.]+)", 0.01),
+    "same_top_p": (r"Same top p:\s*(-?[\d.]+)", 0.01),
+}
+
+
+def parse_perplexity_log(text: str) -> dict[str, Any]:
+    """Numbers from a llama-perplexity run. A value the log does not print stays None.
+
+    Each chunk of n_ctx tokens scores its second half, minus the last token: n_ctx - n_ctx // 2 - 1.
+    """
+    out: dict[str, Any] = {"chunks": None, "n_ctx": None, "scored_tokens": None, "ppl": None}
+    found = _LLAMA_CHUNKS.findall(text)
+    if found:
+        chunks, n_ctx = (int(value) for value in found[-1])
+        out.update(chunks=chunks, n_ctx=n_ctx, scored_tokens=chunks * (n_ctx - n_ctx // 2 - 1))
+    final = _LLAMA_FINAL.findall(text)
+    if final:
+        out["ppl"] = float(final[-1])
+    for key, (pattern, scale) in _LLAMA_STATS.items():
+        matches = re.findall(pattern, text)
+        out[key] = float(matches[-1]) * scale if matches else None
+    if out["ppl"] is None:
+        out["ppl"] = out["ppl_candidate"]
+    if out["ppl"] is None:
+        raise SmaError("llama-perplexity finished without a perplexity line. See logs/logprobs-llama-perplexity.log.")
+    return out

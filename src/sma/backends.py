@@ -1,13 +1,15 @@
-"""Small backend interface. vLLM is the default. SGLang is opt-in.
+"""Small backend interface. vLLM is the default, SGLang is opt-in, llama.cpp runs GGUF files.
 
 Each engine owns its serve command, health check, logprobs, bench command,
 metrics names, and deterministic-mode flags. A measurement the engine does
-not return stays null; nothing is copied from the other engine.
+not return stays null; nothing is copied from another engine.
 """
 
 from __future__ import annotations
 
 import json
+import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -15,8 +17,40 @@ from sma.config import Config
 from sma.errors import SmaError
 
 
+@dataclass(frozen=True)
+class ServePlan:
+    """What the memory plan and the checkpoint give a serve command.
+
+    In a dry run before the plan exists, the numbers are placeholder strings such as "<context>".
+    """
+
+    context: int | str
+    pool_bytes: int | str
+    pool_tokens: int | str
+    # llama.cpp: the GGUF file under /model (the first file of a split set). None for safetensors.
+    model_file: str | None = None
+    # llama.cpp: parallel slots. The unified KV pool is shared by all of them.
+    slots: int = 8
+
+
+@dataclass(frozen=True)
+class BenchMounts:
+    """A bench that runs in its own container (llama.cpp): the image and host folders it mounts."""
+
+    image: str
+    model_dir: str
+    run_dir: str
+    tokenizer: str
+    uid: int
+    gid: int
+
+
 class EngineBackend(Protocol):
     name: str
+    # The engine's 8-bit KV cache type, in the memory plan's terms (sma.memplan.KV_TYPES).
+    kv_cache_type: str
+    # Set when the image's own entrypoint must be replaced (llama.cpp's "full" image).
+    entrypoint: str | None
 
     def serve_argv(
         self,
@@ -28,16 +62,28 @@ class EngineBackend(Protocol):
         quant_flag: str,
         moe_backend: str | None,
         batch_invariant: bool,
+        plan: ServePlan,
         tool_parser: str | None = None,
     ) -> list[str]: ...
 
-    def serve_env(self, cfg: Config, *, mode: str, batch_invariant: bool) -> dict[str, str]: ...
+    def serve_env(
+        self, cfg: Config, *, mode: str, batch_invariant: bool, is_moe: bool = False, quant_flag: str = ""
+    ) -> dict[str, str]: ...
 
     def health_paths(self) -> tuple[str, ...]: ...
 
     def bench_argv(
-        self, cfg: Config, *, container: str, served_name: str, cell: Any, result_dir: str
+        self,
+        cfg: Config,
+        *,
+        container: str,
+        served_name: str,
+        cell: Any,
+        result_dir: str,
+        mounts: BenchMounts | None = None,
     ) -> list[str]: ...
+
+    def kv_report(self, log_text: str) -> dict[str, Any]: ...
 
     def metrics_path(self) -> str: ...
 
@@ -135,6 +181,8 @@ def assert_sglang_dataset_covers(num_prompts: int) -> None:
 
 class VllmBackend:
     name = "vllm"
+    kv_cache_type = "fp8"
+    entrypoint = None
 
     def serve_argv(
         self,
@@ -146,6 +194,7 @@ class VllmBackend:
         quant_flag: str,
         moe_backend: str | None,
         batch_invariant: bool,
+        plan: ServePlan,
         tool_parser: str | None = None,
     ) -> list[str]:
         quality = mode == "quality"
@@ -165,13 +214,13 @@ class VllmBackend:
             "1",
             "--gpu-memory-utilization",
             f"{cfg.engine.gpu_memory_utilization:.4g}",
-            *(
-                ["--kv-cache-memory-bytes", str(int(cfg.engine.kv_cache_gib * 2**30))]
-                if cfg.engine.kv_cache_gib is not None
-                else []
-            ),
+            # The memory plan sizes the pool and the context. The KV cache is always 8-bit.
+            "--kv-cache-memory-bytes",
+            str(plan.pool_bytes),
+            "--kv-cache-dtype",
+            "fp8",
             "--max-model-len",
-            str(cfg.engine.max_model_len),
+            str(plan.context),
             "--max-num-seqs",
             str(cfg.engine.max_num_seqs),
             "--max-logprobs",
@@ -189,8 +238,6 @@ class VllmBackend:
             flags.append("--no-async-scheduling")
         if is_moe and quant_flag in {"nvfp4", "mxfp4", "mixed"} and moe_backend:
             flags.extend(["--moe-backend", moe_backend])
-        if (not is_moe) and quant_flag == "nvfp4" and cfg.engine.linear_backend:
-            flags.extend(["--linear-backend", cfg.engine.linear_backend])
         if quality and cfg.quality.chat_template_kwargs:
             # The default for every quality client, including harnesses that cannot add it to a
             # request (BFCL). A request's own chat_template_kwargs still wins.
@@ -204,60 +251,44 @@ class VllmBackend:
         flags.extend(cfg.engine.extra_args)
         return flags
 
-    def serve_env(self, cfg: Config, *, mode: str, batch_invariant: bool) -> dict[str, str]:
-        del cfg
+    def serve_env(
+        self, cfg: Config, *, mode: str, batch_invariant: bool, is_moe: bool = False, quant_flag: str = ""
+    ) -> dict[str, str]:
+        env: dict[str, str] = {}
         if mode == "quality" and batch_invariant:
-            return {"VLLM_BATCH_INVARIANT": "1"}
-        return {}
+            env["VLLM_BATCH_INVARIANT"] = "1"
+        if (not is_moe) and quant_flag == "nvfp4" and cfg.engine.linear_backend:
+            # vLLM 0.21 has no --linear-backend flag ("unrecognized arguments" on 2026-10-27). The dense
+            # NVFP4 GEMM is chosen by this variable, spelled with hyphens (vllm/envs.py).
+            env["VLLM_NVFP4_GEMM_BACKEND"] = cfg.engine.linear_backend.replace("_", "-")
+        return env
 
     def health_paths(self) -> tuple[str, ...]:
         return ("/health", "/v1/models")
 
     def bench_argv(
-        self, cfg: Config, *, container: str, served_name: str, cell: Any, result_dir: str
+        self,
+        cfg: Config,
+        *,
+        container: str,
+        served_name: str,
+        cell: Any,
+        result_dir: str,
+        mounts: BenchMounts | None = None,
     ) -> list[str]:
+        del mounts
         # --model is the served API name. --tokenizer /model is the pinned snapshot.
         # Without --tokenizer, vLLM sets tokenizer_id from the repo id and pulls main.
-        return docker_exec(
-            container,
-            [
-            "vllm",
-            "bench",
-            "serve",
-            "--backend",
-            "openai",
-            "--base-url",
-            "http://127.0.0.1:8000",
-            "--endpoint",
-            "/v1/completions",
-            "--model",
-            served_name,
-            "--tokenizer",
-            "/model",
-            "--dataset-name",
-            "random",
-            "--random-input-len",
-            str(cell.input_len),
-            "--random-output-len",
-            str(cell.output_len),
-            "--num-prompts",
-            str(cfg.speed.num_prompts),
-            "--max-concurrency",
-            str(cell.concurrency),
-            "--request-rate",
-            "inf",
-            "--percentile-metrics",
-            cfg.speed.percentile_metrics,
-            "--metric-percentiles",
-            cfg.speed.metric_percentiles,
-            "--save-result",
-            "--result-dir",
-            result_dir,
-            "--result-filename",
-            "bench.json",
-            "--seed",
-            str(cfg.seed),
-            ],
+        return docker_exec(container, vllm_bench_command(cfg, served_name=served_name, cell=cell, result_dir=result_dir,
+                                                         base_url="http://127.0.0.1:8000", tokenizer="/model"))
+
+    def kv_report(self, log_text: str) -> dict[str, Any]:
+        # A checkpoint can declare FP8 KV scales that are all 1.0 (nvidia/Qwen3-8B-NVFP4 does); vLLM says so.
+        return _kv_report(
+            log_text,
+            type_line=r"Using (\S+) data type to store kv cache",
+            tokens=_VLLM_KV_TOKENS,
+            scale_one=r"Using KV cache scaling factor 1\.0",
         )
 
     def metrics_path(self) -> str:
@@ -302,8 +333,52 @@ class VllmBackend:
         }
 
 
+def vllm_bench_command(cfg: Config, *, served_name: str, cell: Any, result_dir: str, base_url: str, tokenizer: str) -> list[str]:
+    """vLLM's bench client. It drives vLLM and, from its own container, llama-server."""
+    return [
+            "vllm",
+            "bench",
+            "serve",
+            "--backend",
+            "openai",
+            "--base-url",
+            base_url,
+            "--endpoint",
+            "/v1/completions",
+            "--model",
+            served_name,
+            "--tokenizer",
+            tokenizer,
+            "--dataset-name",
+            "random",
+            "--random-input-len",
+            str(cell.input_len),
+            "--random-output-len",
+            str(cell.output_len),
+            "--num-prompts",
+            str(cfg.speed.num_prompts),
+            "--max-concurrency",
+            str(cell.concurrency),
+            "--request-rate",
+            "inf",
+            "--percentile-metrics",
+            cfg.speed.percentile_metrics,
+            "--metric-percentiles",
+            cfg.speed.metric_percentiles,
+            "--save-result",
+            "--result-dir",
+            result_dir,
+            "--result-filename",
+            "bench.json",
+            "--seed",
+            str(cfg.seed),
+    ]
+
+
 class SglangBackend:
     name = "sglang"
+    kv_cache_type = "fp8"
+    entrypoint = None
 
     def serve_argv(
         self,
@@ -315,6 +390,7 @@ class SglangBackend:
         quant_flag: str,
         moe_backend: str | None,
         batch_invariant: bool,
+        plan: ServePlan,
         tool_parser: str | None = None,
     ) -> list[str]:
         del is_moe, quant_flag, moe_backend, batch_invariant
@@ -335,8 +411,13 @@ class SglangBackend:
             "1",
             "--mem-fraction-static",
             f"{cfg.engine.gpu_memory_utilization:.4g}",
+            # The memory plan sizes the pool (in tokens) and the context. The KV cache is always 8-bit.
             "--context-length",
-            str(cfg.engine.max_model_len),
+            str(plan.context),
+            "--max-total-tokens",
+            str(plan.pool_tokens),
+            "--kv-cache-dtype",
+            "fp8_e4m3",
             "--attention-backend",
             backend,
             "--max-running-requests",
@@ -357,19 +438,31 @@ class SglangBackend:
         flags.extend(cfg.engine.extra_args)
         return flags
 
-    def serve_env(self, cfg: Config, *, mode: str, batch_invariant: bool) -> dict[str, str]:
-        del cfg, batch_invariant
+    def serve_env(
+        self, cfg: Config, *, mode: str, batch_invariant: bool, is_moe: bool = False, quant_flag: str = ""
+    ) -> dict[str, str]:
+        del batch_invariant, is_moe, quant_flag
+        env: dict[str, str] = {}
         if mode == "quality":
-            return {"SGLANG_ENABLE_DETERMINISTIC_INFERENCE": "1"}
-        return {}
+            env["SGLANG_ENABLE_DETERMINISTIC_INFERENCE"] = "1"
+        if cfg.engine.sglang_disable_deep_gemm:
+            env["SGLANG_ENABLE_JIT_DEEPGEMM"] = "0"
+        return env
 
     def health_paths(self) -> tuple[str, ...]:
         return ("/health", "/v1/models")
 
     def bench_argv(
-        self, cfg: Config, *, container: str, served_name: str, cell: Any, result_dir: str
+        self,
+        cfg: Config,
+        *,
+        container: str,
+        served_name: str,
+        cell: Any,
+        result_dir: str,
+        mounts: BenchMounts | None = None,
     ) -> list[str]:
-        del served_name
+        del served_name, mounts
         assert_sglang_dataset_covers(cfg.speed.num_prompts)
         # Key names checked against sglang tag v0.5.10.post1,
         # python/sglang/bench_serving.py (result dict around the JSONL write)
@@ -418,6 +511,14 @@ class SglangBackend:
             "--output-file",
             f"{result_dir}/bench.json",
             ],
+        )
+
+    def kv_report(self, log_text: str) -> dict[str, Any]:
+        return _kv_report(
+            log_text,
+            type_line=r"Using KV cache dtype: (\S+)",
+            tokens=_SGLANG_KV_TOKENS,
+            scale_one=r"Defaulting to scaling factors of 1\.0",
         )
 
     def metrics_path(self) -> str:
@@ -476,14 +577,202 @@ class SglangBackend:
         }
 
 
+class LlamaCppBackend:
+    """llama-server for GGUF files. Logprobs come from llama-perplexity instead (see pipeline)."""
+
+    name = "llamacpp"
+    kv_cache_type = "q8_0"
+    entrypoint = "/app/llama-server"
+
+    def serve_argv(
+        self,
+        cfg: Config,
+        *,
+        mode: str,
+        served_name: str,
+        is_moe: bool,
+        quant_flag: str,
+        moe_backend: str | None,
+        batch_invariant: bool,
+        plan: ServePlan,
+        tool_parser: str | None = None,
+    ) -> list[str]:
+        del is_moe, quant_flag, moe_backend, batch_invariant, tool_parser
+        if not plan.model_file:
+            raise SmaError("llama.cpp needs the GGUF file to load. The fetch step records it; re-run from fetch.")
+        flags = [
+            "-m",
+            f"/model/{plan.model_file}",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "8000",
+            "--alias",
+            served_name,
+            "--seed",
+            str(cfg.seed),
+            "-ngl",
+            "all",
+            # Q8_0 is llama.cpp's 8-bit KV cache. A quantized V cache needs flash attention.
+            "-fa",
+            "on",
+            "-ctk",
+            "q8_0",
+            "-ctv",
+            "q8_0",
+            # One unified KV pool of pool_tokens, shared by the slots, each capped at the context.
+            "-c",
+            str(plan.pool_tokens),
+            "-np",
+            str(plan.slots),
+            "--kv-unified",
+            "--kv-unified-per-slot",
+            str(plan.context),
+            # The prompt cache in host RAM, set explicitly because the memory plan counts it.
+            "--cache-ram",
+            str(cfg.engine.llamacpp_cache_ram_mib),
+            "--metrics",
+            "--no-webui",
+            # Tool calls use the model's own chat template.
+            "--jinja",
+            # Level 4 prints the KV cache line ("K (q8_0) ... V (q8_0)") that confirms the cache type.
+            "-lv",
+            "4",
+        ]
+        if mode == "quality" and cfg.quality.chat_template_kwargs:
+            flags.extend(["--chat-template-kwargs", json.dumps(cfg.quality.chat_template_kwargs, sort_keys=True)])
+        flags.extend(cfg.engine.extra_args)
+        return flags
+
+    def serve_env(
+        self, cfg: Config, *, mode: str, batch_invariant: bool, is_moe: bool = False, quant_flag: str = ""
+    ) -> dict[str, str]:
+        del cfg, mode, batch_invariant, is_moe, quant_flag
+        return {}
+
+    def health_paths(self) -> tuple[str, ...]:
+        return ("/health", "/v1/models")
+
+    def bench_argv(
+        self,
+        cfg: Config,
+        *,
+        container: str,
+        served_name: str,
+        cell: Any,
+        result_dir: str,
+        mounts: BenchMounts | None = None,
+    ) -> list[str]:
+        """vLLM's bench client in its own container on the host network, as for vLLM, against llama-server."""
+        if mounts is None:
+            raise SmaError("The llama.cpp bench runs in the vLLM image and needs its mounts.")
+        bench_container = container.rsplit("-", 1)[0] + "-bench"
+        argv = [
+            "docker",
+            "run",
+            "--rm",
+            "--name",
+            bench_container,
+            "--network",
+            "host",
+            "--user",
+            f"{mounts.uid}:{mounts.gid}",
+            "-e",
+            "HOME=/tmp",
+        ]
+        for key, value in BENCH_OFFLINE_ENV.items():
+            argv.extend(["-e", f"{key}={value}"])
+        argv.extend(["-v", f"{mounts.model_dir}:/model:ro", "-v", f"{mounts.run_dir}:/sma-run:rw", mounts.image])
+        argv.extend(
+            vllm_bench_command(
+                cfg,
+                served_name=served_name,
+                cell=cell,
+                result_dir=result_dir,
+                base_url=f"http://127.0.0.1:{cfg.engine.port}",
+                tokenizer=mounts.tokenizer,
+            )
+        )
+        return argv
+
+    def kv_report(self, log_text: str) -> dict[str, Any]:
+        report = _kv_report(log_text, type_line=r"llama_kv_cache: size = .*K \((\w+)\).*V \((\w+)\)", tokens=_LLAMACPP_KV_TOKENS)
+        return report
+
+    def metrics_path(self) -> str:
+        return "/metrics"
+
+    def watched_metrics(self) -> tuple[str, ...]:
+        return LLAMACPP_WATCHED
+
+    def metrics_note(self) -> str:
+        return (
+            "Watched names are llama-server counters (it runs with --metrics). A name absent from /metrics is "
+            "null. vLLM counter names are not copied in."
+        )
+
+    def logprob_positions(
+        self,
+        *,
+        base_url: str,
+        served_name: str,
+        token_ids: list[int],
+        top_k: int,
+        seed: int,
+        timeout_s: float,
+    ) -> list[dict[str, Any]]:
+        raise SmaError(
+            "llama-server returns no prompt logprobs. SMA scores llama.cpp runs with llama-perplexity instead."
+        )
+
+    def deterministic(self, cfg: Config) -> dict[str, Any]:
+        del cfg
+        # llama.cpp has no batch-invariant mode, and llama-server caches prompts by default.
+        return {"prefix_cache": True, "attention_backend": "flash_attn", "determinism_backend": None, "radix_cache": None}
+
+
+# The engine's own startup lines: the KV type it chose and the pool it allocated.
+_VLLM_KV_TOKENS = r"GPU KV cache size: ([\d,]+) tokens"
+_SGLANG_KV_TOKENS = r"KV Cache is allocated\. #tokens: ([\d,]+)"
+_LLAMACPP_KV_TOKENS = r"llama_kv_cache: size = .*?\((\d+) cells"
+
+LLAMACPP_WATCHED = (
+    "llamacpp:prompt_tokens_total",
+    "llamacpp:prompt_seconds_total",
+    "llamacpp:tokens_predicted_total",
+    "llamacpp:tokens_predicted_seconds_total",
+    "llamacpp:prompt_tokens_cached_total",
+    "llamacpp:n_decode_total",
+    "llamacpp:requests_processing",
+    "llamacpp:requests_deferred",
+)
+
+
+def _kv_report(log_text: str, *, type_line: str, tokens: str, scale_one: str | None = None) -> dict[str, Any]:
+    """The KV cache type line, the pool size in tokens, and whether the engine says it used a KV
+    scale of 1.0, from an engine log. None where absent."""
+    line = None
+    kv_type = None
+    for raw in log_text.splitlines():
+        found = re.search(type_line, raw)
+        if found:
+            line = raw.strip()[-300:]
+            kv_type = ",".join(group for group in found.groups() if group)
+    counts = re.findall(tokens, log_text)
+    pool_tokens = int(counts[-1].replace(",", "")) if counts else None
+    scale = None if scale_one is None else bool(re.search(scale_one, log_text))
+    return {"kv_type": kv_type, "kv_type_line": line, "pool_tokens": pool_tokens, "scale_1_0": scale}
+
+
 _BACKENDS: dict[str, EngineBackend] = {
     "vllm": VllmBackend(),
     "sglang": SglangBackend(),
+    "llamacpp": LlamaCppBackend(),
 }
 
 
 def get_backend(name: str) -> EngineBackend:
     backend = _BACKENDS.get(name)
     if backend is None:
-        raise SmaError(f"Unknown engine {name!r}. SMA supports vllm (default) and sglang.")
+        raise SmaError(f"Unknown engine {name!r}. SMA supports vllm (default), sglang, and llamacpp.")
     return backend

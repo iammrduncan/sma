@@ -19,7 +19,7 @@ from sma.records import load_manifest
 from sma.telemetry import Sample, integrate_joules
 from sma.records import _energy
 from tests.fakes import write_snapshot
-from tests.harness import make_config, make_services
+from tests.harness import SERVE_PLAN, make_config, make_services
 
 
 def test_compressed_tensors_nvfp4_is_nvfp4() -> None:
@@ -124,6 +124,7 @@ def test_quality_serve_disables_prefix_cache_and_sglang_uses_flashinfer() -> Non
         quant_flag="bf16",
         moe_backend=None,
         batch_invariant=True,
+        plan=SERVE_PLAN,
     )
     assert "--no-enable-prefix-caching" in flags
     assert "--tensor-parallel-size" in flags
@@ -135,6 +136,7 @@ def test_quality_serve_disables_prefix_cache_and_sglang_uses_flashinfer() -> Non
         quant_flag="bf16",
         moe_backend=None,
         batch_invariant=False,
+        plan=SERVE_PLAN,
         engine="sglang",
     )
     assert "--attention-backend" in sglang
@@ -150,6 +152,7 @@ def test_quality_serve_disables_prefix_cache_and_sglang_uses_flashinfer() -> Non
         quant_flag="bf16",
         moe_backend=None,
         batch_invariant=False,
+        plan=SERVE_PLAN,
         engine="sglang",
     )
     assert "--disable-radix-cache" not in speed

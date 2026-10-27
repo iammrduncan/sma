@@ -9,9 +9,9 @@ from typing import Any
 
 from sma.errors import SmaError
 
-# Match credential fields only. "tokens", "tokenizer", and "token_count" are data.
+# Match credential fields only. "tokens", "tokenizer", "token_count", and "*_per_token" are data.
 _SECRET_KEY = re.compile(
-    r"(?:^|_)(?:hf_token|access_token|refresh_token|id_token|auth_token|token|secret|password|authorization|credential)$"
+    r"(?:^|_)(?:hf_token|access_token|refresh_token|id_token|auth_token|(?<!per_)token|secret|password|authorization|credential)$"
     r"|api[_-]?key",
     re.IGNORECASE,
 )

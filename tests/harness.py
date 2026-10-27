@@ -5,9 +5,14 @@ from __future__ import annotations
 import socket
 from pathlib import Path
 
+from sma.backends import ServePlan
 from sma.config import QualitySuite, default_config, validate_config
 from sma.pipeline import Hooks, Services
 from tests.fakes import FakeBencher, FakeEvaluator, FakeRuntime, FixtureFetcher, telemetry_factory, write_snapshot
+
+
+# A memory plan's view for serve commands: 8,192 tokens per stream in a 20 GB pool.
+SERVE_PLAN = ServePlan(context=8192, pool_bytes=20_000_000_000, pool_tokens=348_768, model_file="Tiny-UD-Q4_K_XL.gguf")
 
 
 def free_port() -> int:
@@ -45,7 +50,6 @@ def make_config(tmp_path: Path, *, port: int | None = None):
     cfg.quality.suites = [QualitySuite("ifeval", 2, bench="lm-eval://ifeval")]
     cfg.quality.concurrency = 2
     cfg.quality.max_tokens = 16
-    cfg.engine.max_model_len = 64
     validate_config(cfg)
     return cfg
 

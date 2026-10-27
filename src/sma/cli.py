@@ -166,9 +166,10 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
 def _add_engine(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--engine",
-        choices=["vllm", "sglang"],
+        choices=["vllm", "sglang", "llamacpp"],
         default=None,
-        help="Inference engine. vLLM is the default. sglang is opt-in.",
+        help="Inference engine. vLLM is the default for safetensors, sglang is opt-in, and GGUF (--gguf) "
+        "always runs on llamacpp.",
     )
     parser.add_argument(
         "--tool-parser",
@@ -193,6 +194,12 @@ def _add_quant_flags(parser: argparse.ArgumentParser, *, required: bool) -> None
         action="store_true",
         help="Checkpoint already mixes FP8 and NVFP4 (for example dgpp_mixed).",
     )
+    group.add_argument(
+        "--gguf",
+        default=None,
+        metavar="QUANT",
+        help="A GGUF repo's quant file, for example UD-Q4_K_XL, Q8_0, or BF16. Runs on llama.cpp.",
+    )
 
 
 def _flag(args: argparse.Namespace) -> str:
@@ -204,7 +211,9 @@ def _flag(args: argparse.Namespace) -> str:
         return "mxfp4"
     if getattr(args, "mixed", False) is True:
         return "mixed"
-    raise SmaError("Pass one of --bf16, --nvfp4, --mxfp4, or --mixed")
+    if getattr(args, "gguf", None):
+        return "gguf"
+    raise SmaError("Pass one of --bf16, --nvfp4, --mxfp4, --mixed, or --gguf QUANT")
 
 
 def _cfg(args: argparse.Namespace) -> Config:
@@ -218,7 +227,21 @@ def _cfg(args: argparse.Namespace) -> Config:
 def _chosen_engine(args: argparse.Namespace, cfg: Config) -> str:
     from sma.engines import engine_name
 
-    return engine_name(getattr(args, "engine", None), cfg)
+    quant = _flag(args) if any(getattr(args, name, None) for name in ("bf16", "nvfp4", "mxfp4", "mixed", "gguf")) else None
+    return engine_name(getattr(args, "engine", None), cfg, quant)
+
+
+def _dry_run_plan(
+    cfg: Config, repo: str, revision: str | None, quant: str, engine: str, gguf: str | None
+) -> tuple[dict | None, str | None, str | None]:
+    """(memory plan, note, GGUF file) from the repo's config and file sizes, or its GGUF header. No weights."""
+    from sma.pipeline import HubFetcher
+
+    try:
+        plan, model_file = HubFetcher(cfg, registry=None, engine=engine).plan_only(repo, revision, quant, gguf)
+    except Exception as exc:  # noqa: BLE001 - a dry run says why it has no numbers and goes on
+        return None, f"Not looked up here: {str(exc).splitlines()[0][:300]}", None
+    return plan, None, model_file
 
 
 def _guard_sglang_prompts(cfg: Config, engine: str) -> None:
@@ -261,6 +284,9 @@ def _cmd_run(args: argparse.Namespace) -> int:
                 "note: --assume-moe does not add an FP4 MoE backend to a BF16 command.",
                 file=sys.stderr,
             )
+        from sma.engines import selected_by
+
+        memory_plan, memory_note, model_file = _dry_run_plan(cfg, args.repo, args.revision, quant, engine, args.gguf)
         print(
             render_plan(
                 cfg,
@@ -270,6 +296,11 @@ def _cmd_run(args: argparse.Namespace) -> int:
                 assume_moe=bool(args.assume_moe and quant != "bf16"),
                 engine=engine,
                 tool_parser=args.tool_parser,
+                gguf=args.gguf,
+                selected=selected_by(args.engine, quant),
+                memory_plan=memory_plan,
+                memory_note=memory_note,
+                model_file=model_file,
             ),
             end="",
         )
@@ -284,8 +315,9 @@ def _cmd_run(args: argparse.Namespace) -> int:
         args.reference,
         None,
         None,
-        engine=engine,
+        engine=args.engine,
         tool_parser=args.tool_parser,
+        gguf=args.gguf,
     )
     return 0
 
@@ -339,6 +371,8 @@ def _cmd_run_pair(args: argparse.Namespace) -> int:
                 lock_held=True,
                 engine=engine,
                 tool_parser=args.tool_parser,
+                # Both legs share one engine, so a pair skips the per-leg preflight choice.
+                selected_by="flag" if args.engine else "default",
             ),
             cfg,
             services,
@@ -353,6 +387,7 @@ def _cmd_run_pair(args: argparse.Namespace) -> int:
                 lock_held=True,
                 engine=engine,
                 tool_parser=args.tool_parser,
+                selected_by="flag" if args.engine else "default",
             ),
             cfg,
             services,
@@ -380,6 +415,7 @@ def _cmd_resume(args: argparse.Namespace) -> int:
             pair_job_id=manifest.get("pair_job_id"),
             resume_run_id=args.run_id,
             engine=(manifest.get("engine") or {}).get("name") or "vllm",
+            gguf=(manifest.get("gguf") or {}).get("selector"),
         ),
         cfg,
         production_services(cfg),
@@ -497,7 +533,16 @@ def _cmd_queue_add(args: argparse.Namespace) -> int:
     engine = _chosen_engine(args, cfg)
     _guard_sglang_prompts(cfg, engine)
     job = JobQueue(cfg.queue_path()).add(
-        [{"repo": args.repo, "quant": _flag(args), "revision": args.revision, "engine": engine}],
+        [
+            {
+                "repo": args.repo,
+                "quant": _flag(args),
+                "revision": args.revision,
+                "engine": engine,
+                "engine_requested": args.engine,
+                "gguf": args.gguf,
+            }
+        ],
         kind="single",
         tool_parser=args.tool_parser,
     )
@@ -513,8 +558,8 @@ def _cmd_queue_add_pair(args: argparse.Namespace) -> int:
     _guard_sglang_prompts(cfg, engine)
     job = JobQueue(cfg.queue_path()).add(
         [
-            {"repo": repo, "quant": quant, "revision": revision, "engine": engine},
-            {"repo": other_repo, "quant": other_quant, "revision": other_revision, "engine": engine},
+            {"repo": repo, "quant": quant, "revision": revision, "engine": engine, "engine_requested": args.engine},
+            {"repo": other_repo, "quant": other_quant, "revision": other_revision, "engine": engine, "engine_requested": args.engine},
         ],
         kind="pair",
         tool_parser=args.tool_parser,
@@ -582,6 +627,7 @@ def _execute_one(
     resume: str | None,
     engine: str | None = None,
     tool_parser: str | None = None,
+    gguf: str | None = None,
 ) -> str:
     from sma.pipeline import RunSpec, execute, production_services
 
@@ -595,6 +641,7 @@ def _execute_one(
             resume_run_id=resume,
             engine=engine,
             tool_parser=tool_parser,
+            gguf=gguf,
         ),
         cfg,
         production_services(cfg),

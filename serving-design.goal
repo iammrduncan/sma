@@ -1,0 +1,83 @@
+# Goal: build the serving design
+
+Run with: /goal Complete serving-design.goal
+
+The spec is docs/serving-design.md. Read it first, then AGENTS.md, README.md, and CONVENTIONS.md.
+Those rules still apply. The owner settled every decision in the spec on 2026-10-27. Do not change
+one. If the build needs a new owner decision, stop and print `BLOCKED: <question>` with your
+recommendation.
+
+## Done means
+
+Every check below holds, and your final message prints the checklist with evidence.
+
+Engines
+1. The checkpoint format picks the engine before launch: safetensors go to vLLM, GGUF goes to
+   llama.cpp, and SGLang runs with `--engine sglang` or when preflight shows that vLLM cannot serve
+   the architecture. The manifest records the engine and why. A test shows that a failed start is
+   never retried on another engine.
+2. llama.cpp is a third `EngineBackend`. Its image is pinned and runs on the GB10 (arm64, CUDA,
+   sm_121). The run records the image digest and the llama.cpp build number.
+3. SMA fetches a GGUF repo at a pinned revision, as one file or split files. It records each file's
+   sha256 and reads the quant type from the file's own metadata. SMA never converts a GGUF.
+4. Each SMA step either works on llama.cpp or stores null with a reason: probe, logprobs and KL,
+   quality including BFCL tool calls, speed, energy, and telemetry.
+
+KV cache
+5. vLLM and SGLang always pass FP8 explicitly. llama.cpp uses `q8_0` for K and V with flash attention
+   on. A test shows that no code path can start a 16-bit KV cache. The manifest records the KV type
+   and where its scales came from.
+
+Context and memory
+6. A memory planner computes weights, KV pool, and engine overhead before launch. It runs the
+   context ladder: 256K or the native maximum, then halves, stopping at the largest step under
+   100 GB. It refuses when a benchmark's smallest needed context does not fit, and it never turns on
+   RoPE stretching. Unit tests use real configs (Qwen3-8B, Qwen3-30B-A3B-Instruct-2507,
+   Qwen3.6-35B-A3B, LFM2.5-8B-A1B, Nemotron-3.5-Lightning-30B-A3B) and reproduce the spec's
+   worked-example table.
+7. The KV pool is sized explicitly. `gpu_memory_utilization: 0.90` no longer decides it.
+8. Each benchmark gets the largest step that fits its concurrent streams, recorded per suite.
+9. `sma run ... --dry-run` prints the engine, the KV type, the context and why, and the memory plan.
+
+Deployment notes
+10. The summary has the deployment block and sentence from the spec, with computed and measured
+    values labeled. The schemas are updated and every record validates.
+
+Docs
+11. README, AGENTS.md (boundary wording from the spec), docs/arena-plan-alignment.md, and
+    docs/first-spark-run.md describe the new behavior. docs/serving-design.md says "built" and lists
+    anything left unbuilt.
+
+Verification
+12. `uv run pytest` passes. The known hostname test may fail on this Spark; say so if it does. On
+    2026-10-27, `uv run pytest` could not import the `tests` package, while
+    `uv run python -m pytest` ran (141 passed, 1 known failure). Fix that root cause first so the
+    documented command works.
+13. One short real run per path on this Spark. A test config with small quality limits is fine; say
+    which.
+    - vLLM BF16, `Qwen/Qwen3-0.6B`, FP8 KV
+    - vLLM NVFP4, `nvidia/Qwen3-8B-NVFP4`, FP8 KV
+    - llama.cpp `unsloth/Qwen3-0.6B-GGUF` `UD-Q4_K_XL`, Q8_0 KV, with KL against the repo's BF16 file
+    - SGLang, one short run with FP8 KV
+    Each run shows: the engine's own log confirms the KV type, the context and deployment block are
+    filled, peak memory is under 100 GB, the records validate, and no hostname appears in the run
+    folder.
+
+## Constraints
+
+- Do not commit or push. The owner commits.
+- Keep hostnames, lab domains, IP addresses, and keys out of the repo and the run records.
+- One server at a time, under `gpu.lock`. Stop every container you start. If a server dies with no
+  error, check `journalctl -u earlyoom` before anything else.
+- Do not build the GGUF quant grid. Just make sure nothing blocks it.
+- Follow AGENTS.md "How to work": fix root causes, add regression tests, and update docs in the same
+  change.
+
+## Final report
+
+Print checks 1 to 13. Mark each PASS or FAIL, with evidence: test names, the command and its key
+output lines, and run folder paths. End with exactly one of these lines:
+
+- `GOAL MET: serving-design.goal` when every check passes
+- `GOAL NOT MET: <failing check numbers>`
+- `BLOCKED: <question>`

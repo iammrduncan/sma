@@ -230,6 +230,48 @@ def coverage_problem(
     return None
 
 
+_MEMORY_HEADER = "ts_unix,mem_available_bytes,mem_total_bytes,phase\n"
+
+
+def meminfo() -> tuple[int, int] | None:
+    """(MemAvailable, MemTotal) in bytes from /proc/meminfo. On a GB10 this memory is the GPU's too."""
+    try:
+        text = Path("/proc/meminfo").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    values: dict[str, int] = {}
+    for line in text.splitlines():
+        name, _, rest = line.partition(":")
+        parts = rest.split()
+        if name in {"MemAvailable", "MemTotal"} and parts and parts[0].isdigit():
+            values[name] = int(parts[0]) * 1024
+    if "MemAvailable" not in values or "MemTotal" not in values:
+        return None
+    return values["MemAvailable"], values["MemTotal"]
+
+
+def read_memory(path: Path) -> list[tuple[float, int, int]]:
+    """(ts_unix, available, total) rows from memory.csv. Empty when it was not recorded."""
+    if not path.is_file():
+        return []
+    rows: list[tuple[float, int, int]] = []
+    with path.open(encoding="utf-8", newline="") as handle:
+        for row in csv.DictReader(handle):
+            try:
+                rows.append((float(row["ts_unix"]), int(row["mem_available_bytes"]), int(row["mem_total_bytes"])))
+            except (KeyError, TypeError, ValueError):
+                continue
+    return rows
+
+
+def peak_memory_bytes(rows: list[tuple[float, int, int]]) -> int | None:
+    """How far available memory fell below the run's first sample, at its lowest. Other processes on the
+    host move it too, so it is the run's footprint only while the run is the only large job."""
+    if len(rows) < 2:
+        return None
+    return max(0, rows[0][1] - min(row[1] for row in rows))
+
+
 def invalidating_throttle(sample: Sample, *, sw_power_cap_invalidates: bool) -> bool:
     if sample.hw_thermal == 1 or sample.sw_thermal == 1 or sample.hw_power == 1:
         return True
@@ -306,6 +348,16 @@ class TelemetryRecorder:
         self._handle.write(row)
         self._handle.flush()
 
+    def append_memory(self, available: int, total: int, *, now: float | None = None) -> None:
+        """One memory.csv row next to telemetry.csv. A test can feed it directly."""
+        path = self.path.with_name("memory.csv")
+        new_file = not path.exists() or path.stat().st_size == 0
+        with path.open("a", encoding="utf-8") as handle:
+            if new_file:
+                handle.write(_MEMORY_HEADER)
+            stamp = time.time() if now is None else now
+            handle.write(f"{stamp:.6f},{available},{total},{self.phase}\n")
+
     def latest_temp(self) -> float | None:
         samples = read_samples(self.path)
         for sample in reversed(samples):
@@ -325,6 +377,9 @@ class TelemetryRecorder:
                         what="nvidia-smi legacy",
                     )
                     result = legacy if legacy.returncode == 0 else result
+                memory = meminfo()
+                if memory is not None:
+                    self.append_memory(*memory)
                 if result.returncode == 0 and result.stdout.strip():
                     self.append_parsed(result.stdout.strip().splitlines()[0])
                     self.failures = 0

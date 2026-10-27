@@ -42,10 +42,11 @@ def serve_argv(
     quant_flag: str,
     moe_backend: str | None,
     batch_invariant: bool,
+    plan: Any,
     engine: str = "vllm",
     tool_parser: str | None = None,
 ) -> list[str]:
-    """Server argv. vLLM is the default. SGLang is opt-in."""
+    """Server argv. vLLM is the default, SGLang is opt-in, llama.cpp runs GGUF. `plan` is a ServePlan."""
     from sma.backends import get_backend
 
     return get_backend(engine).serve_argv(
@@ -56,14 +57,25 @@ def serve_argv(
         quant_flag=quant_flag,
         moe_backend=moe_backend,
         batch_invariant=batch_invariant,
+        plan=plan,
         tool_parser=tool_parser,
     )
 
 
-def serve_env(cfg: Config, *, mode: str, batch_invariant: bool, engine: str = "vllm") -> dict[str, str]:
+def serve_env(
+    cfg: Config,
+    *,
+    mode: str,
+    batch_invariant: bool,
+    engine: str = "vllm",
+    is_moe: bool = False,
+    quant_flag: str = "",
+) -> dict[str, str]:
     from sma.backends import get_backend
 
-    return get_backend(engine).serve_env(cfg, mode=mode, batch_invariant=batch_invariant)
+    return get_backend(engine).serve_env(
+        cfg, mode=mode, batch_invariant=batch_invariant, is_moe=is_moe, quant_flag=quant_flag
+    )
 
 
 def docker_argv(
@@ -75,6 +87,7 @@ def docker_argv(
     serve: list[str],
     env: dict[str, str],
     image: str | None = None,
+    entrypoint: str | None = None,
 ) -> list[str]:
     command = [
         "docker",
@@ -96,6 +109,8 @@ def docker_argv(
     ]
     for key, value in env.items():
         command.extend(["-e", f"{key}={value}"])
+    if entrypoint:
+        command.extend(["--entrypoint", entrypoint])
     command.append(image or image_ref(cfg))
     command.extend(serve)
     return command
@@ -184,7 +199,9 @@ def bench_argv(
     cell: BenchCell,
     engine: str = "vllm",
     result_dir: str | None = None,
+    mounts: Any = None,
 ) -> list[str]:
+    """`mounts` is a BenchMounts for an engine whose bench runs in its own container (llama.cpp)."""
     from sma.backends import get_backend
 
     directory = result_dir or f"/sma-run/speed/cells/{cell.name}/attempt-1"
@@ -194,7 +211,76 @@ def bench_argv(
         served_name=served_name,
         cell=cell,
         result_dir=directory,
+        mounts=mounts,
     )
+
+
+def perplexity_argv(
+    cfg: Config,
+    *,
+    name: str,
+    image: str,
+    model_dir: Path,
+    run_dir: Path,
+    model_file: str,
+    uid: int,
+    gid: int,
+    reference_base: str | None,
+    write_base: bool,
+) -> list[str]:
+    """llama.cpp's own perplexity and KL tool on SMA's corpus, with the same 8-bit KV cache as the server.
+
+    llama-server returns no prompt logprobs, so this replaces the logprob pass for GGUF runs. A
+    reference run writes the full-vocabulary logits (`write_base`); a candidate reads the reference's
+    file and reports KL against it. `reference_base` is a path inside the container.
+    """
+    argv = [
+        "docker",
+        "run",
+        "--rm",
+        "--name",
+        name,
+        "--gpus",
+        cfg.engine.gpus,
+        "--user",
+        f"{uid}:{gid}",
+        "-v",
+        f"{model_dir}:/model:ro",
+        "-v",
+        f"{run_dir}:/sma-run:rw",
+    ]
+    if reference_base:
+        argv.extend(["-v", f"{reference_base}:/sma-reference/kld-base.bin:ro"])
+    argv.extend(
+        [
+            "--entrypoint",
+            "/app/llama-perplexity",
+            image,
+            "-m",
+            f"/model/{model_file}",
+            "-f",
+            "/sma-run/logprobs/corpus.txt",
+            "-c",
+            str(cfg.logprobs.window_tokens),
+            "--chunks",
+            str(cfg.logprobs.llamacpp_chunks),
+            "-ngl",
+            "all",
+            "-fa",
+            "on",
+            "-ctk",
+            "q8_0",
+            "-ctv",
+            "q8_0",
+            "--seed",
+            str(cfg.seed),
+        ]
+    )
+    if reference_base:
+        argv.extend(["--kl-divergence-base", "/sma-reference/kld-base.bin", "--kl-divergence"])
+    elif write_base:
+        argv.extend(["--kl-divergence-base", "/sma-run/logprobs/kld-base.bin"])
+    return argv
 
 
 NEL_CONFIG = "nel.yaml"
