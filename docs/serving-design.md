@@ -175,3 +175,16 @@ These were build details, not owner decisions.
 - SWE-bench Verified-mini: mini-swe-agent's `swebench.yaml`, 4 agents, 250 steps. The runner's
   gold-patch baseline is in
   [`runs/cpu/baseline/sweverified/`](../runs/cpu/baseline/sweverified/README.md).
+
+## BrowseComp-Plus and MuSiQue (decided 2026-10-28)
+
+- BrowseComp-Plus runs in every `sma run` after SWE-bench, on the quality server; its judge step runs
+  after speed. `browsecomp.enabled` turns it off. 100 of 830 questions, a seeded subset.
+- The BM25 index (2.17 GB) and its search server run on the x86_64 runner, not the Spark, so the
+  document store takes nothing from the model's memory or CPU. The Spark reaches it over SSH.
+- It uses the model's own thinking mode and sampling, as KernelBench and SWE-bench do. Each question
+  gets a stream with at least 32,768 tokens of context (`browsecomp.min_context`), the largest ladder
+  step that fits 4 of them.
+- The judge is the lab's Ornith 1.5 122B, with thinking off at temperature 0, one request at a time
+  ([judge-info.md](../judge-info.md)).
+- MuSiQue-Ans is a quality suite (100 seeded questions, thinking off, greedy), graded by rule.

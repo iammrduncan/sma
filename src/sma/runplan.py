@@ -29,6 +29,8 @@ def needs(cfg: Config) -> list[Need]:
         found.append(Need("kernelbench", cfg.kernelbench.concurrency, cfg.memory.quality_min_context))
     if cfg.swebench.enabled:
         found.append(Need("swebench", cfg.swebench.workers, cfg.swebench.min_context))
+    if cfg.browsecomp.enabled:
+        found.append(Need("browsecomp", cfg.browsecomp.workers, cfg.browsecomp.min_context))
     return found
 
 
@@ -36,6 +38,7 @@ def slots(cfg: Config) -> int:
     """llama.cpp's parallel slots: the most requests SMA sends at once, outside the determinism probe."""
     agents = [cfg.kernelbench.concurrency] if cfg.kernelbench.enabled else []
     agents += [cfg.swebench.workers] if cfg.swebench.enabled else []
+    agents += [cfg.browsecomp.workers] if cfg.browsecomp.enabled else []
     return max(cfg.quality.concurrency, *cfg.speed.sweep_concurrency, *agents)
 
 

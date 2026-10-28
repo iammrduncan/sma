@@ -106,12 +106,16 @@ for traj in sorted(glob.glob("*/*.traj.json")):
 
 
 class SshRunner:
-    """The SWE-bench runner over SSH. Paths are relative to remote_dir in the SSH user's home."""
+    """The x86_64 runner over SSH. Paths are relative to remote_dir in the SSH user's home.
 
-    def __init__(self, *, host: str, user: str, key: str, remote_dir: str) -> None:
+    SWE-bench and BrowseComp-Plus share the machine, each in its own folder; label names it in messages.
+    """
+
+    def __init__(self, *, host: str, user: str, key: str, remote_dir: str, label: str = "SWE-bench runner") -> None:
         self.target = f"{user}@{host}"
         self.key = str(Path(key).expanduser())
         self.remote_dir = remote_dir
+        self.label = label
 
     def _ssh(self) -> list[str]:
         return [
@@ -134,18 +138,22 @@ class SshRunner:
         )
         self._run(script, what="SWE-bench runner check (venv, dataset, eval folder, Docker)", timeout_s=60)
 
+    def shell(self, script: str, *, what: str, timeout_s: float = 300.0) -> str:
+        """Run a shell script in remote_dir and return its output. A nonzero exit is an error."""
+        return self._run(script, what=what, timeout_s=timeout_s).stdout
+
     def write_text(self, rel: str, text: str) -> None:
         if "\nSMA_EOF\n" in f"\n{text}\n":
             raise SmaError("The text to write on the SWE-bench runner contains SMA's heredoc marker.")
         folder = shlex.quote(str(Path(rel).parent))
-        self._run(f"mkdir -p {folder} && cat > {shlex.quote(rel)} <<'SMA_EOF'\n{text}\nSMA_EOF", what=f"write {rel} on the SWE-bench runner")
+        self._run(f"mkdir -p {folder} && cat > {shlex.quote(rel)} <<'SMA_EOF'\n{text}\nSMA_EOF", what=f"write {rel} on the {self.label}")
 
     def start(self, rel_dir: str, name: str, command: str) -> None:
         """Start command detached from remote_dir; it writes <name>.log and, when it ends, <name>.exit."""
         log, done, pid = (shlex.quote(f"{rel_dir}/{name}.{ext}") for ext in ("log", "exit", "pid"))
         inner = f"{command} > {log} 2>&1; echo $? > {done}"
         script = f"mkdir -p {shlex.quote(rel_dir)} && rm -f {done} && (nohup sh -c {shlex.quote(inner)} > /dev/null 2>&1 & echo $! > {pid})"
-        self._run(script, what=f"start {name} on the SWE-bench runner")
+        self._run(script, what=f"start {name} on the {self.label}")
 
     def status(self, rel_dir: str, name: str) -> tuple[int | None, bool]:
         """(exit code once it has ended, whether its process is alive)."""
@@ -154,7 +162,7 @@ class SshRunner:
             f"if [ -f {done} ]; then echo exit $(cat {done}); "
             f"elif [ -f {pid} ] && kill -0 $(cat {pid}) 2>/dev/null; then echo alive; else echo none; fi"
         )
-        words = self._run(script, what=f"check {name} on the SWE-bench runner", timeout_s=60).stdout.split()
+        words = self._run(script, what=f"check {name} on the {self.label}", timeout_s=60).stdout.split()
         if words[:1] == ["exit"]:
             return int(words[1]) if len(words) > 1 and words[1].lstrip("-").isdigit() else -1, False
         return None, words[:1] == ["alive"]
@@ -166,7 +174,7 @@ class SshRunner:
         token = shlex.quote(run_id)
         self._run(
             f"pkill -TERM -f -- {pattern}; docker ps -q --filter name={token} | xargs -r docker rm -f >/dev/null; true",
-            what="stop SWE-bench processes on the runner",
+            what=f"stop this run's processes on the {self.label}",
             timeout_s=120,
         )
 
@@ -176,7 +184,7 @@ class SshRunner:
         return self._run(script, what=what, timeout_s=timeout_s).stdout
 
     def read_text(self, rel: str) -> str | None:
-        result = self._run(f"if [ -f {shlex.quote(rel)} ]; then cat {shlex.quote(rel)}; else exit 3; fi", what=f"read {rel} on the SWE-bench runner", ok_codes=(0, 3))
+        result = self._run(f"if [ -f {shlex.quote(rel)} ]; then cat {shlex.quote(rel)}; else exit 3; fi", what=f"read {rel} on the {self.label}", ok_codes=(0, 3))
         return None if result.returncode == 3 else result.stdout
 
     def tunnel(self, port: int, log_path: Path) -> Following:
@@ -184,12 +192,24 @@ class SshRunner:
         argv = [*self._ssh(), "-o", "ExitOnForwardFailure=yes", "-N", "-R", f"127.0.0.1:{port}:127.0.0.1:{port}", self.target]
         return follow_to_file(argv, log_path, what="SWE-bench tunnel")
 
+    def forward(self, local_port: int, remote_port: int, log_path: Path) -> Following:
+        """Put a server on the runner's loopback on this machine's loopback, the other way from tunnel()."""
+        argv = [*self._ssh(), "-o", "ExitOnForwardFailure=yes", "-N", "-L", f"127.0.0.1:{local_port}:127.0.0.1:{remote_port}", self.target]
+        return follow_to_file(argv, log_path, what=f"forward to the {self.label}")
 
-def runner_from_env(cfg: Any) -> SshRunner | None:
+
+def runner_from_env(cfg: Any, *, remote_dir: str | None = None, label: str = "SWE-bench runner") -> SshRunner | None:
+    """The runner named in the root .env, or None when a name is missing."""
     names = (HOST_ENV, USER_ENV, KEY_ENV)
     if not all(os.environ.get(name) for name in names):
         return None
-    return SshRunner(host=os.environ[HOST_ENV], user=os.environ[USER_ENV], key=os.environ[KEY_ENV], remote_dir=cfg.swebench.remote_dir)
+    return SshRunner(
+        host=os.environ[HOST_ENV],
+        user=os.environ[USER_ENV],
+        key=os.environ[KEY_ENV],
+        remote_dir=remote_dir or cfg.swebench.remote_dir,
+        label=label,
+    )
 
 
 def prune_unanswered(runner: Any, run_id: str) -> None:

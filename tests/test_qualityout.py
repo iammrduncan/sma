@@ -112,3 +112,32 @@ def test_timeouts_and_failed_calls_are_unanswered() -> None:
     assert unanswered_count(spark) == 8
     assert unanswered_count({"total_failures": 3, "categories": {"graceful": {"count": 2}, "refusal": {"count": 1}}}) == 2
     assert unanswered_count({"total_failures": 2}) == 2
+
+
+def test_a_partial_credit_scorer_reports_its_mean_with_the_suites_name_and_true_or_false_shares(tmp_path: Path) -> None:
+    # nel reports mean_reward, not pass@1, when any reward is between 0 and 1 (MuSiQue's answer F1).
+    bench_dir = tmp_path / "attempt-1" / "sma_musique"
+    bench_dir.mkdir(parents=True)
+    (bench_dir / "eval-20261028T000000Z-sma_musique.json").write_text(
+        json.dumps(
+            {
+                "sdk_version": "0.3.0",
+                "config": {"shuffle": {"seed": 0, "applied": True, "ds_full_size": 2417}},
+                "benchmark": {
+                    "samples": 2,
+                    "repeats": 1,
+                    "scores": {"mean_reward": {"value": 0.7, "ci_lower": 0.4, "ci_upper": 1.0}, "failures": {"total_failures": 0}},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (bench_dir / "results.jsonl").write_text(
+        '{"problem_idx": 1, "reward": 1.0, "scoring_details": {"answer_f1": 1.0, "exact_match": true, "extracted": "x"}}\n'
+        '{"problem_idx": 2, "reward": 0.4, "scoring_details": {"answer_f1": 0.4, "exact_match": false, "extracted": "y"}}\n',
+        encoding="utf-8",
+    )
+    scores = normalize_suite(tmp_path, tmp_path / "attempt-1", "musique", bench="sma:musique", limit=100, metric="answer_f1")
+    assert (scores["primary_metric"], scores["primary_score"], scores["ci_lower"], scores["ci_upper"]) == ("answer_f1", 0.7, 0.4, 1.0)
+    assert scores["scorer_shares"] == {"exact_match": 0.5}
+    assert (scores["dataset_size"], scores["error"]) == (2417, None)

@@ -1,6 +1,6 @@
-"""KernelBench Level 1 and SWE-bench Verified-mini as steps of a run (owner decision 2026-10-27).
+"""KernelBench Level 1, SWE-bench Verified-mini, and BrowseComp-Plus as steps of a run (owner decisions 2026-10-27/28).
 
-Both run against the quality server with the model's own thinking mode and sampling. Each writes
+All run against the quality server with the model's own thinking mode and sampling. Each writes
 quality/<suite>/scores.json in the same shape as the other suites, so the summary lists them together.
 The pipeline passes in its own server and warning helpers; this module does not import the pipeline.
 """
@@ -9,17 +9,20 @@ from __future__ import annotations
 
 import gzip
 import json
+import shutil
 import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
+from sma import browsecomp as bcp
 from sma import kernelbench as kb
 from sma import swebench as sb
 from sma.atomic import atomic_write_bytes, atomic_write_json, atomic_write_text
 from sma.errors import SmaError
 from sma.httpapi import ApiError, request_json
+from sma.judge import judge_from_env
 from sma.kbservice import finished, service_from_env
 from sma.logsetup import log_event
 from sma.qualityout import wilson_interval
@@ -351,3 +354,212 @@ def _collect(ctx: Any, runner: Any, suite_dir: Path, rel: str, statuses: list[di
         atomic_write_bytes(suite_dir / "trajectories.jsonl.gz", gzip.compress(data, mtime=0))
         # The bundle stays out of git (records.LARGE_FILES); the manifest keeps its hash.
         ctx.manifest["large_files"] = large_file_hashes(ctx.run_dir)
+
+
+# BrowseComp-Plus
+
+_SEARCH_SERVER = "search_server.py"
+
+
+def _research_runner(ctx: Any) -> Any:
+    return ctx.services.research_runner or sb.runner_from_env(
+        ctx.cfg, remote_dir=ctx.cfg.browsecomp.remote_dir, label="BrowseComp-Plus runner"
+    )
+
+
+def _judge(ctx: Any) -> Any:
+    cfg = ctx.cfg.browsecomp
+    return ctx.services.judge or judge_from_env(
+        cfg.judge_model, timeout_s=cfg.judge_timeout_s, attempts=max(1, ctx.cfg.retries.attempts), backoff_s=ctx.cfg.retries.backoff_s
+    )
+
+
+def _bcp_data(runner: Any) -> tuple[dict[str, dict[str, str]], dict[str, list[str]], dict[str, list[str]]]:
+    """The decrypted questions and answers, and both qrels, from the runner. They stay in memory."""
+    rows: dict[str, dict[str, str]] = {}
+    for line in (runner.read_text("data/queries.jsonl") or "").splitlines():
+        if line.strip():
+            row = json.loads(line)
+            rows[str(row["query_id"])] = {"query": row["query"], "answer": row["answer"]}
+    if not rows:
+        raise SmaError("The BrowseComp-Plus runner has no data/queries.jsonl. Run services/browsecomp-plus/setup.sh there.")
+    evidence = bcp.read_qrels(runner.read_text("data/qrel_evidence.txt") or "")
+    golds = bcp.read_qrels(runner.read_text("data/qrel_golds.txt") or "")
+    return rows, evidence, golds
+
+
+def search_command(cfg: Any, run_id: str) -> str:
+    bc = cfg.browsecomp
+    return (
+        f".venv/bin/python {_SEARCH_SERVER} --index indexes/bm25 --tokenizer data/tokenizer "
+        f"--port {int(bc.search_port)} --snippet-max-tokens {int(bc.snippet_max_tokens)} --tag {sb.run_rel(run_id)}"
+    )
+
+
+def browsecomp_step(ctx: Any, *, ensure_server: EnsureServer, warn: Warn) -> None:
+    """Each picked question: the model searches the runner's BM25 index until it answers. The judge comes later."""
+    cfg = ctx.cfg.browsecomp
+    suite_dir = ctx.run_dir / "quality" / bcp.SUITE
+    if not cfg.enabled:
+        return  # Off in config; the config snapshot says so, and the summary has no BrowseComp-Plus suite.
+    if _judge(ctx) is None:
+        _skip(ctx, warn, bcp.SUITE, "SMA_JUDGE_URL and SMA_JUDGE_API_KEY are not both set (see .env.example), so no answer could be graded. BrowseComp-Plus did not run.")
+        return
+    runner = _research_runner(ctx)
+    if runner is None:
+        _skip(ctx, warn, bcp.SUITE, "SWE_RUNNER_HOST, SWE_RUNNER_USER, and SWE_RUNNER_SSH_KEY are not all set (see .env.example). BrowseComp-Plus's search runs there, so it did not run.")
+        return
+    if not ctx.manifest["engine"].get("tool_call_parser"):
+        _skip(ctx, warn, bcp.SUITE, "BrowseComp-Plus's agent searches through a tool call, and this run's server has no tool-call parser. Pass --tool-parser. The score is null.")
+        return
+    runner.shell(
+        f"test -x .venv/bin/python && test -f {_SEARCH_SERVER} && test -d indexes/bm25 && test -d data/tokenizer "
+        "&& test -f data/queries.jsonl && test -f data/qrel_evidence.txt && test -f data/qrel_golds.txt",
+        what="BrowseComp-Plus runner check (venv, search server, index, tokenizer, queries, qrels)",
+        timeout_s=60,
+    )
+    rows, _evidence, _golds = _bcp_data(runner)
+    picked = bcp.pick_queries(list(rows), cfg.limit, ctx.cfg.seed)
+    ensure_server(ctx, "quality")
+    defaults = model_defaults(ctx)
+    thinking = defaults["thinking"]["enable_thinking"]
+    atomic_write_json(
+        suite_dir / "settings.json",
+        scrub_obj(
+            {
+                **defaults,
+                "protocol": f"BrowseComp-Plus {bcp.COMMIT[:8]} search_agent/glm_zai_client.py with its defaults, QUERY_TEMPLATE_NO_GET_DOCUMENT, no system prompt",
+                "queries_revision": bcp.QUERIES_REVISION,
+                "index": f"Tevatron/browsecomp-plus-indexes bm25 at {bcp.INDEX_REVISION} (Pyserini BM25, k1=0.9, b=0.4)",
+                "limit": cfg.limit,
+                "seed": ctx.cfg.seed,
+                "query_ids": picked,
+                "workers": cfg.workers,
+                "max_tokens": cfg.max_tokens,
+                "max_iterations": cfg.max_iterations,
+                "k": cfg.k,
+                "snippet_max_tokens": cfg.snippet_max_tokens,
+                "search_command": search_command(ctx.cfg, ctx.run_id),
+            }
+        ),
+    )
+    answers = suite_dir / "queries"
+    todo = [qid for qid in picked if not (answers / f"{qid}.json").is_file()]
+    if not todo:
+        return
+    rel = sb.run_rel(ctx.run_id)
+    forward_log = ctx.run_dir / "logs" / "browsecomp-forward.log"
+    search_url = f"http://127.0.0.1:{int(cfg.local_port)}"
+    runner.start(rel, "search", search_command(ctx.cfg, ctx.run_id))
+    forward = [runner.forward(int(cfg.local_port), int(cfg.search_port), forward_log)]
+    try:
+        _wait_search(ctx, runner, rel, search_url, forward, forward_log)
+
+        def search(query: str) -> str:
+            if forward[0].process.poll() is not None:
+                log_event("browsecomp_forward_restart", run_id=ctx.run_id)
+                forward[0] = runner.forward(int(cfg.local_port), int(cfg.search_port), forward_log)
+            reply = request_json("POST", search_url + "/search", timeout_s=120, payload={"query": query, "k": cfg.k},
+                                 attempts=max(1, ctx.cfg.retries.attempts), backoff_s=max(1.0, ctx.cfg.retries.backoff_s))
+            return str((reply or {}).get("output"))
+
+        def chat(body: dict[str, Any]) -> dict[str, Any]:
+            return request_json("POST", ctx.base_url + "/v1/chat/completions", timeout_s=cfg.request_timeout_s, payload=body,
+                                attempts=max(1, ctx.cfg.retries.attempts), backoff_s=ctx.cfg.retries.backoff_s)
+
+        def answer(qid: str) -> None:
+            record = bcp.run_query(
+                bcp.question_text(rows[qid]["query"]), chat=chat, search=search, model=ctx.served_name, k=cfg.k,
+                max_tokens=cfg.max_tokens, max_iterations=cfg.max_iterations, enable_thinking=thinking,
+            )  # fmt: skip
+            atomic_write_json(answers / f"{qid}.json", scrub_obj({"query_id": qid, **record}))
+
+        log_event("browsecomp_start", questions=len(todo), run_id=ctx.run_id)
+        with ThreadPoolExecutor(max_workers=cfg.workers) as pool:
+            for _ in pool.map(answer, todo):
+                pass
+    finally:
+        forward[0].stop(timeout_s=1)
+        runner.stop(ctx.run_id)
+        text = runner.read_text(f"{rel}/search.log")
+        if text:
+            atomic_write_text(ctx.run_dir / "logs" / "browsecomp-search.log", scrub_text(text))
+
+
+def _wait_search(ctx: Any, runner: Any, rel: str, url: str, forward: list[Any], forward_log: Path) -> None:
+    """Until the search server answers through the forward. Its index takes a while to open."""
+    deadline = time.monotonic() + ctx.cfg.browsecomp.search_start_s
+    while True:
+        code, alive = runner.status(rel, "search")
+        if code is not None or not alive:
+            raise SmaError(f"BrowseComp-Plus's search server stopped on the runner (exit {code}). See logs/browsecomp-search.log.")
+        if forward[0].process.poll() is not None:
+            forward[0] = runner.forward(int(ctx.cfg.browsecomp.local_port), int(ctx.cfg.browsecomp.search_port), forward_log)
+        try:
+            health = request_json("GET", url + "/health", timeout_s=10, attempts=1)
+        except SmaError:
+            health = None
+        if isinstance(health, dict) and health.get("ok"):
+            log_event("browsecomp_search_ready", docs=health.get("docs"), run_id=ctx.run_id)
+            return
+        if time.monotonic() > deadline:
+            raise SmaError(f"BrowseComp-Plus's search server did not answer within {ctx.cfg.browsecomp.search_start_s:.0f} s. See logs/browsecomp-search.log.")
+        time.sleep(2.0)
+
+
+def browsecomp_results_step(ctx: Any, *, warn: Warn) -> None:
+    """Grade each finished answer with the judge, score the run, and bundle the plain text into one git-ignored file."""
+    cfg = ctx.cfg.browsecomp
+    suite_dir = ctx.run_dir / "quality" / bcp.SUITE
+    answers = suite_dir / "queries"
+    settings_path = suite_dir / "settings.json"
+    if not cfg.enabled or not settings_path.is_file():
+        return  # BrowseComp-Plus did not run; its scores.json says why.
+    if (suite_dir / "scores.json").is_file() and not answers.is_dir():
+        return  # Already scored and bundled.
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    picked = [str(qid) for qid in settings["query_ids"]]
+    missing = [qid for qid in picked if not (answers / f"{qid}.json").is_file()]
+    if missing:
+        raise SmaError(f"{len(missing)} BrowseComp-Plus questions have no answer yet. Resume the run.")
+    judge = _judge(ctx)
+    if judge is None:
+        raise SmaError("SMA_JUDGE_URL and SMA_JUDGE_API_KEY are not both set, and this run's BrowseComp-Plus answers are waiting for the judge. Set them in .env and resume.")
+    runner = _research_runner(ctx)
+    if runner is None:
+        raise SmaError("The SWE_RUNNER_* names are not set, and the judge needs the answers kept on the BrowseComp-Plus runner. Set them in .env and resume.")
+    rows, evidence, golds = _bcp_data(runner)
+    records = {qid: json.loads((answers / f"{qid}.json").read_text(encoding="utf-8")) for qid in picked}
+
+    def grade(qid: str) -> None:
+        path = answers / f"{qid}.judge.json"
+        if path.is_file():
+            return
+        response = bcp.final_response(records[qid])
+        if response is None:
+            judgment: dict[str, Any] = {"skipped": f"status {records[qid].get('status')}: no final answer to judge, so it counts as wrong"}
+        else:
+            prompt = bcp.judge_prompt(bcp.question_text(rows[qid]["query"]), response, rows[qid]["answer"])
+            reply = judge.ask(prompt, max_tokens=cfg.judge_max_tokens, temperature=cfg.judge_temperature, extra_body=cfg.judge_extra_body)
+            judgment = {**reply, "parsed": bcp.parse_judge(reply.get("content"))}
+        atomic_write_json(path, scrub_obj(judgment))
+
+    log_event("browsecomp_judge", questions=len(picked), judge=cfg.judge_model, run_id=ctx.run_id)
+    with ThreadPoolExecutor(max_workers=cfg.judge_concurrency) as pool:
+        for _ in pool.map(grade, picked):
+            pass
+    judgments = {qid: json.loads((answers / f"{qid}.judge.json").read_text(encoding="utf-8")) for qid in picked}
+    table = [bcp.per_query(qid, records[qid], judgments[qid], evidence, golds) for qid in picked]
+    atomic_write_text(suite_dir / "per_query.jsonl", "".join(json.dumps(row, sort_keys=True) + "\n" for row in table))
+    scores = bcp.score(table, judge=cfg.judge_model, limit=cfg.limit)
+    scores.update(context_per_stream=_context(ctx, "browsecomp"), concurrency=cfg.workers,
+                  judge_settings={"max_tokens": cfg.judge_max_tokens, "temperature": cfg.judge_temperature,
+                                  "extra_body": cfg.judge_extra_body, "concurrency": cfg.judge_concurrency})
+    if scores["judge_parse_errors"]:
+        warn(ctx, f"The judge's reply could not be read for {scores['judge_parse_errors']} BrowseComp-Plus answers; they count as wrong, as in BrowseComp-Plus.")
+    lines = [json.dumps({"query_id": qid, "answer_run": records[qid], "judgment": judgments[qid]}, sort_keys=True) for qid in picked]
+    atomic_write_bytes(suite_dir / "trajectories.jsonl.gz", gzip.compress("".join(line + "\n" for line in lines).encode("utf-8"), mtime=0))
+    ctx.manifest["large_files"] = large_file_hashes(ctx.run_dir)
+    atomic_write_json(suite_dir / "scores.json", scores)
+    # The questions and answers must not appear as plain text online; only the git-ignored bundle keeps them.
+    shutil.rmtree(answers)

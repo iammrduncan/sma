@@ -30,9 +30,11 @@ STEP_NAMES = [
     "quality",
     "kernelbench",
     "swebench",
+    "browsecomp_plus",
     "serve_speed",
     "speed",
     "kernelbench_results",
+    "browsecomp_plus_results",
     "telemetry",
     "teardown",
     "cleanup",
@@ -42,7 +44,13 @@ _SLUG = re.compile(r"[^A-Za-z0-9._-]+")
 
 # Files too big for git. .gitignore lists the same paths. The manifest keeps each one's sha256 and
 # size, so a copy kept elsewhere can be checked against the committed record.
-LARGE_FILES = ("logprobs/dump.json", "logprobs/kld-base.bin", "quality/swebench_verified_mini/trajectories.jsonl.gz")
+# BrowseComp-Plus's bundle also holds its questions and answers, which must never be published as plain text.
+LARGE_FILES = (
+    "logprobs/dump.json",
+    "logprobs/kld-base.bin",
+    "quality/swebench_verified_mini/trajectories.jsonl.gz",
+    "quality/browsecomp_plus/trajectories.jsonl.gz",
+)
 
 
 def utc_now() -> str:

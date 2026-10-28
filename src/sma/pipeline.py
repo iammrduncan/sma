@@ -114,9 +114,12 @@ class Services:
     registry: Any = None
     # The GPU's cumulative energy counter in millijoules, or None. Unset means power integration.
     energy_counter: Callable[[], int | None] | None = None
-    # KernelBench's service and SWE-bench's runner. None reads them from the environment (the root .env).
+    # KernelBench's service, SWE-bench's runner, BrowseComp-Plus's runner, and the judge. None reads them
+    # from the environment (the root .env).
     kernelbench: Any = None
     swe_runner: Any = None
+    research_runner: Any = None
+    judge: Any = None
 
 
 @dataclass
@@ -401,10 +404,13 @@ def execute(
                 _run_step(ctx, "quality", _step_quality)
                 _run_step(ctx, "kernelbench", _step_kernelbench)
                 _run_step(ctx, "swebench", _step_swebench)
+                _run_step(ctx, "browsecomp_plus", _step_browsecomp)
                 _run_step(ctx, "serve_speed", _step_serve_speed)
                 _run_step(ctx, "speed", _step_speed)
                 # The service times the kernels on its own GPU while SWE-bench and speed run here.
                 _run_step(ctx, "kernelbench_results", _step_kernelbench_results)
+                # The judge runs on lab hardware, after speed, so a judge outage cannot hold up the measurements.
+                _run_step(ctx, "browsecomp_plus_results", _step_browsecomp_results)
                 ctx.manifest["timestamps"]["finished"] = utc_now()
                 publish(cfg, ctx.run_dir, ctx.manifest)
             except BaseException:
@@ -1056,6 +1062,14 @@ def _step_kernelbench_results(ctx: Ctx) -> None:
     agentic.kernelbench_results_step(ctx, warn=_warn)
 
 
+def _step_browsecomp(ctx: Ctx) -> None:
+    agentic.browsecomp_step(ctx, ensure_server=_ensure_server, warn=_warn)
+
+
+def _step_browsecomp_results(ctx: Ctx) -> None:
+    agentic.browsecomp_results_step(ctx, warn=_warn)
+
+
 def _record_suite_context(ctx: Ctx, suite_dir: Path) -> None:
     """Each suite records the context per stream it ran with: the plan's step for quality's streams."""
     path = suite_dir / "scores.json"
@@ -1086,7 +1100,7 @@ def _run_nel_suite(ctx: Ctx, suite: QualitySuite, suite_dir: Path, attempt_dir: 
         )
     finally:
         scrub_output(attempt_dir)
-    normalize_suite(suite_dir, attempt_dir, suite.name, bench=suite.bench or suite.name, limit=suite.limit)
+    normalize_suite(suite_dir, attempt_dir, suite.name, bench=suite.bench or suite.name, limit=suite.limit, metric=suite.metric)
 
 
 def _run_eval_factory_suite(ctx: Ctx, suite: QualitySuite, suite_dir: Path, attempt_dir: Path) -> None:

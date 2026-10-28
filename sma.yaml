@@ -167,6 +167,13 @@ quality:
     - name: gpqa_diamond
       bench: gpqa
       limit: 20
+    # MuSiQue-Ans (owner decision 2026-10-28): multi-hop questions, each with its own 17 to 20 Wikipedia
+    # paragraphs, answered in one reply and scored by rule with MuSiQue's answer F1 (exact match is kept too).
+    # The dev split, from a mirror checked against the official file. See src/sma/nel_benchmarks/musique.py.
+    - name: musique
+      bench: sma:musique
+      limit: 100
+      metric: answer_f1
     # BFCL v3 (Berkeley Function Calling Leaderboard): single-turn, live, and multi-turn tool calls
     # through the chat API with native tool calling. NVIDIA's container runs it directly, not through
     # nel, so SMA keeps one row per question. All 4,441 questions run; the container cannot sample.
@@ -213,6 +220,42 @@ swebench:
   poll_s: 60
   agent_wait_s: 43200
   grade_wait_s: 7200
+
+# BrowseComp-Plus (owner decision 2026-10-28): deep research over a fixed set of 100,195 web documents.
+# The model answers 100 of its 830 questions (a seeded shuffle, the same for every model) by calling a
+# BM25 search tool, as BrowseComp-Plus's chat client does at 04694903: top 5 hits, each cut to 512
+# tokens, one 20,000-token output budget per question, up to 100 replies, the model's own sampling and
+# thinking mode. The index and its search server live on the x86_64 runner (services/browsecomp-plus,
+# the SWE_RUNNER_* machine), so the document store takes nothing from the Spark; SMA reaches it through
+# an SSH forward. After speed, the judge grades each answer with BrowseComp-Plus's grader prompt:
+# SMA_JUDGE_URL and SMA_JUDGE_API_KEY in the root .env. The headline is accuracy over the 100; evidence
+# recall and search calls need no judge. Needs --tool-parser.
+browsecomp:
+  enabled: true
+  limit: 100
+  workers: 4
+  min_context: 32768
+  max_tokens: 20000
+  max_iterations: 100
+  k: 5
+  snippet_max_tokens: 512
+  request_timeout_s: 1800
+  remote_dir: sma-bcp
+  search_port: 8790
+  local_port: 8790
+  search_start_s: 600
+  # Ornith 1.5 122B on the lab's V100s (judge-info.md), with thinking off at temperature 0, as
+  # BrowseComp-Plus runs its own judge. Scores are compared only within one judge. llama.cpp is not
+  # batch-invariant, so the judge gets one request at a time and no prompt cache (judge-info.md section 6).
+  judge_model: ornith-1.5-122b
+  judge_max_tokens: 4096
+  judge_temperature: 0.0
+  judge_extra_body:
+    chat_template_kwargs:
+      enable_thinking: false
+    cache_prompt: false
+  judge_concurrency: 1
+  judge_timeout_s: 900
 
 speed:
   warmup_requests: 4

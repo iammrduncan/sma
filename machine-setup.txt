@@ -1,0 +1,94 @@
+SMA MACHINE SETUP (as of 2026-10-28)
+====================================
+
+Four machines. Only the first one serves the model being measured; the other three do side jobs so
+nothing competes with it. Machine names are ${NAME} placeholders; their values are in the
+git-ignored root .env (.env.example lists them).
+
+
+HOW THEY CONNECT
+----------------
+
+                      +------------------------------------------+
+                      |  DGX SPARK #1   ${SMA_HOST}              |
+                      |  sma CLI + the model server (one model)  |
+                      +------------------------------------------+
+                         |                  |                  |
+          kernels, HTTP  |        SSH       |                  |  HTTPS (judge)
+                         v                  v                  v
+  +----------------------------+  +-----------------------------+  +------------------------------+
+  | DGX SPARK #2               |  | x86 RUNNER                  |  | JUDGE SERVER (3x V100)       |
+  | ${KERNELBENCH_HOST}        |  | ${SWE_RUNNER_HOST}          |  | behind the lab LiteLLM proxy |
+  | KernelBench service:       |  | SWE-bench tasks (Docker)    |  | ${SMA_JUDGE_URL}             |
+  | compiles + times kernels   |  | BrowseComp-Plus BM25 search |  | Ornith 1.5 122B grades       |
+  +----------------------------+  +-----------------------------+  | BrowseComp-Plus answers      |
+                                     ^                             +------------------------------+
+                                     | the runner calls the model back through SSH forwards:
+                                     |   -R 8000  agents -> model server on Spark #1
+                                     |   -L 8790  Spark #1 -> search server on the runner
+
+
+1. DGX SPARK #1: RUNS SMA AND SERVES THE MODEL    ${SMA_HOST}
+-----------------------------------------------------------
+Hardware   NVIDIA GB10 (Blackwell, sm_121), 20 Arm cores (10 Cortex-X925 + 10 Cortex-A725),
+           128 GB unified LPDDR5X shared by CPU and GPU (121 GiB visible), 4 TB NVMe
+Software   Ubuntu 24.04 (DGX OS), driver 580, Docker + NVIDIA Container Toolkit, uv
+Storage    model weights and the run files too big for git sit on the lab NAS (NFS)
+Runs       sma run <model> --<quant> --tool-parser <name>
+             - one model at a time, under a GPU lock; tensor parallel 1
+             - engine by format: vLLM (safetensors), SGLang (opt-in), llama.cpp (GGUF), pinned images
+             - memory plan: weights + engine overhead + KV pool <= 100 GB; KV cache always 8-bit
+             - quality server -> determinism, logprobs, quality suites, KernelBench prompts,
+               SWE-bench agents, BrowseComp-Plus questions -> restart -> speed -> graders
+Watch out  earlyoom stops python/vllm below 8% free memory. If a server dies with no error,
+           check `journalctl -u earlyoom` first.
+
+
+2. DGX SPARK #2: KERNELBENCH SERVICE    ${KERNELBENCH_HOST}
+-----------------------------------------------------------
+Hardware   NVIDIA GB10, same as Spark #1 (121 GiB unified memory)
+Software   kernelbench-eval container (services/kernelbench): CUDA 13.0, PyTorch 2.9.1,
+           KernelBench commit 423217d9. Limits: 96 GB memory, 18 CPUs.
+Settings   GPU clock locked at 2200 MHz by a systemd unit (repeatable timings).
+           One kernel at a time; the GPU belongs to this service alone.
+           Each kernel runs in a Landlock sandbox: no network, no signals outside it.
+Reached    HTTP at ${KERNELBENCH_URL}, only from Spark #1 (and the lab owner). No key.
+Job        SMA sends all 100 Level 1 kernels as one job, keeps measuring, collects results at the end.
+           Compare scores only within one environment fingerprint (now 5975f7a6360573f7).
+Baseline   runs/gb10/baseline/kernelbench/README.md
+
+
+3. x86 RUNNER: SWE-BENCH AND BROWSECOMP-PLUS SEARCH    ${SWE_RUNNER_HOST}
+-----------------------------------------------------------------------
+Hardware   Debian 13 VM: 10 vCPU (x86_64, AVX2), 24 GB RAM, 250 GB disk. No GPU.
+Access     SSH only, from Spark #1, as ${SWE_RUNNER_USER} (docker group, no sudo).
+           It reaches the internet; nothing on the lab network reaches it but Spark #1.
+~/sma-swe  SWE-bench Verified-mini: mini-swe-agent 2.4.6 + SWE-bench harness 5.0.2,
+           50 task images (about 35 GB). 4 agents call the model through `ssh -R 8000`.
+           Setup: services/swe-runner/setup.sh. Baseline: runs/cpu/baseline/sweverified/
+~/sma-bcp  BrowseComp-Plus: JDK 21, Pyserini 1.2.0, the 2.2 GB BM25 index over 100,195 documents,
+           the decrypted questions (never published). About 4 GB on disk.
+           SMA starts search_server.py per run (0.7 GB RAM, ready in 14 s) and reaches it
+           through `ssh -L 8790`. Setup: services/browsecomp-plus/setup.sh
+
+
+4. JUDGE SERVER: 3x V100    behind ${SMA_JUDGE_URL}
+---------------------------------------------------
+Hardware   8-GPU server, 2x Xeon E5-2660 v3, 128 GB DDR4.
+           3x Tesla V100 32 GB PCIe serve the judge; a 4th V100 serves LFM 2.5 24B.
+Model      Ornith 1.5 122B (Q4_K_M GGUF, 76 GB) on llama.cpp b11528 built for Volta (sm_70),
+           layers split 15:16:17 across the 3 cards, 3 sessions of 204,800 tokens, q8_0 KV.
+           About 37-59 tokens/s per stream.
+Served     Proxmox + K3s; clients go through the lab LiteLLM proxy (OpenAI-compatible).
+Key        SMA_JUDGE_API_KEY in .env. It reaches ornith-1.5-122b and lfm2.5-24b.
+SMA calls  model ornith-1.5-122b, BrowseComp-Plus's grader prompt, thinking off, temperature 0,
+           max_tokens 4096, cache_prompt false, one request at a time, after the speed step.
+Full spec  judge-info.md (rebuild steps, server flags, and the judge test)
+
+
+WHERE EACH BENCHMARK RUNS
+-------------------------
+  determinism, logprobs, speed, quality suites (incl. MuSiQue, BFCL)   Spark #1
+  KernelBench Level 1      prompts on Spark #1, compile + timing on Spark #2
+  SWE-bench Verified-mini  model on Spark #1, agents + task containers on the x86 runner
+  BrowseComp-Plus          model on Spark #1, search on the x86 runner, grading on the judge server
