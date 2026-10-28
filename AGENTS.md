@@ -73,6 +73,9 @@ uv run sma run Qwen/Qwen3-8B --bf16 --dry-run         # prints the plan; no GPU,
   corpus hash. Do not edit these files.
 - `src/sma/nel_benchmarks/` holds graders that NeMo Evaluator loads by path (`sma:<name>` in a
   quality suite). They import `nemo_evaluator`, so SMA's own code never imports them.
+- `services/` holds what runs on other machines: the KernelBench evaluation service and the SWE-bench
+  runner's setup (services/README.md). They are not part of the `sma` package.
+  `tests/test_services.py` tests them offline.
 - `tests/` uses in-process fakes: `fakes.py` (Docker, Hugging Face, NeMo Evaluator, llama-perplexity,
   bench, a GGUF repo), `fake_vllm.py` (an HTTP server), `gguf_writer.py` (small GGUF files), and
   `harness.py` (`make_config`, `make_services`). `tests/data/configs` holds real config.json files and
