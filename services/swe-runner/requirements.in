@@ -1,0 +1,12 @@
+# What the runner installs (README.md). requirements.txt pins these and everything they pull in,
+# with hashes, for Python 3.13 on x86_64 Linux:
+#   uv pip compile requirements.in --generate-hashes --no-annotate --python-version 3.13 \
+#     --python-platform x86_64-unknown-linux-gnu -o requirements.txt
+swebench==5.0.2
+mini-swe-agent==2.4.6
+# mini-swe-agent calls the model through LiteLLM. 1.107.0 carried a credential stealer
+# (BerriAI/litellm#47826); 1.106.2 is the last release before it.
+litellm==1.106.2
+# build_dataset.py
+pyarrow==26.0.0
+huggingface-hub==1.33.0
