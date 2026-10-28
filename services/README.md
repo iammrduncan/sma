@@ -1,6 +1,6 @@
 # Benchmark services
 
-SMA serves and measures one model on one Spark. Two benchmarks need another machine, and this folder holds what runs there. Neither is part of the `sma` package, and SMA does not call either one yet. Each guide says how to deploy it and how to call it during an eval.
+SMA serves and measures one model on one Spark. Two benchmarks need another machine, and this folder holds what runs there. Neither is part of the `sma` package. Every `sma run` calls both, in its `kernelbench`, `swebench`, and `kernelbench_results` steps, with the machines named in the root `.env` (`.env.example` lists them). Each guide says how to deploy it and how to call it by hand.
 
 | Service | Runs on | Why another machine | SMA reaches it | Guide |
 | --- | --- | --- | --- | --- |
