@@ -334,6 +334,10 @@ Not verified on hardware:
 
 No benchmark numbers are shipped with this repo. The numbers above are wiring checks on small models, not arena results.
 
+## Benchmark services
+
+KernelBench and SWE-bench Verified-mini run on other machines: a second GPU machine compiles and times the kernels, and an x86_64 Docker host runs the agent's tasks. [`services/`](services/README.md) has both, with how to deploy your own copy and how to call it.
+
 ## Development
 
 ```bash

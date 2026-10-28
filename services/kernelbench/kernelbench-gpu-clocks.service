@@ -1,0 +1,22 @@
+# Lock the GPU's clock for KernelBench timing (README.md, "Lock the GPU clock"). Set GPU and
+# CLOCK_MHZ below, then:
+#   sudo install -m 0644 kernelbench-gpu-clocks.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now kernelbench-gpu-clocks.service
+# Stopping the unit resets the clocks and turns persistence mode off.
+[Unit]
+Description=Persistence mode and a locked GPU clock for KernelBench timing
+Wants=nvidia-persistenced.service
+After=nvidia-persistenced.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# GPU is what nvidia-smi -i takes: an index or a PCI bus id. CLOCK_MHZ is the SM clock in MHz.
+Environment=GPU=0 CLOCK_MHZ=2200
+ExecStart=/usr/bin/nvidia-smi -i ${GPU} --persistence-mode=1
+ExecStart=/usr/bin/nvidia-smi -i ${GPU} --lock-gpu-clocks=${CLOCK_MHZ},${CLOCK_MHZ}
+ExecStop=/usr/bin/nvidia-smi -i ${GPU} --reset-gpu-clocks
+ExecStop=/usr/bin/nvidia-smi -i ${GPU} --persistence-mode=0
+
+[Install]
+WantedBy=multi-user.target
