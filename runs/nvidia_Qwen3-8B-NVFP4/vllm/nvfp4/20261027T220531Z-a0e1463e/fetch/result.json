@@ -1,0 +1,60 @@
+{
+  "architecture": "qwen3",
+  "architectures": [
+    "Qwen3ForCausalLM"
+  ],
+  "batch_invariant_reason": null,
+  "batch_invariant_supported": true,
+  "dtype": "bfloat16",
+  "experts_per_tok": null,
+  "file_hashes": {
+    "config.json": "sha256:3442fb5c8fa88d838108bdb7b2ffdba7811d39741759644ac06b4787f5e8346a",
+    "hf_quant_config.json": "sha256:a7338e63f043d3173377a8aae3796db939243d2727e15a324fe2bd9371b2cae6",
+    "model-00001-of-00002.safetensors": "sha256:6c13ef7322f4e5460858782e32da7e34b6c6fa8148cbeb70abcd2b44455d43f0",
+    "model-00002-of-00002.safetensors": "sha256:cf084e6b0e9f4bed9d15b6a454c34c0a1e8c4b74668db62b4063defc5a601c96"
+  },
+  "file_sizes": {
+    ".gitattributes": 1570,
+    "README.md": 4939,
+    "added_tokens.json": 707,
+    "chat_template.jinja": 4168,
+    "config.json": 2679,
+    "generation_config.json": 214,
+    "hf_quant_config.json": 268,
+    "merges.txt": 1671853,
+    "model-00001-of-00002.safetensors": 4987209424,
+    "model-00002-of-00002.safetensors": 1409856960,
+    "model.safetensors.index.json": 105079,
+    "special_tokens_map.json": 388,
+    "tokenizer.json": 11422654,
+    "tokenizer_config.json": 5407,
+    "vocab.json": 2776833
+  },
+  "gguf": null,
+  "is_moe": false,
+  "num_experts": null,
+  "params_active": 5151962688,
+  "params_active_b": 5.2,
+  "params_method": "dense: active = total, embeddings included, from safetensors shapes",
+  "params_total": 5151962688,
+  "params_total_b": 5.2,
+  "quant_detail": "nvfp4 via hf_quant_config.json",
+  "quant_detected": "nvfp4",
+  "quant_flag": "nvfp4",
+  "quant_label": "nvfp4",
+  "quant_producer": "modelopt 0.35.0",
+  "repo": "nvidia/Qwen3-8B-NVFP4",
+  "revision_requested": null,
+  "revision_sha": "ccd10a893cbca613259517c3efe08e151ddf2b8e",
+  "size_class": "3-8B",
+  "snapshot_path": "/data/models/sma/hf/nvidia_Qwen3-8B-NVFP4/ccd10a893cbca613259517c3efe08e151ddf2b8e",
+  "sources": {
+    "hf_quant_config": "nvfp4",
+    "kv_cache_quant_algo": "FP8",
+    "quant_method": null,
+    "quantization_config": "nvfp4"
+  },
+  "tokenizer_fingerprint": "sha256:aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
+  "warnings": [],
+  "weights_bytes": 6397066384
+}

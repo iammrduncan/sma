@@ -1,0 +1,8 @@
+{
+  "completed_benchmarks": {
+    "gsm8k.py": {
+      "bundle_path": "attempt-1/sma_gsm8k"
+    }
+  },
+  "failed_benchmarks": {}
+}

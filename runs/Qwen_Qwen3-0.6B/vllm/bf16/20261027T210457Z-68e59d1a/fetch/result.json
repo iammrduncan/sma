@@ -1,0 +1,53 @@
+{
+  "architecture": "qwen3",
+  "architectures": [
+    "Qwen3ForCausalLM"
+  ],
+  "batch_invariant_reason": null,
+  "batch_invariant_supported": true,
+  "dtype": "bfloat16",
+  "experts_per_tok": null,
+  "file_hashes": {
+    "config.json": "sha256:660db3b73d788119c04535e48cf9be5f55bc3100841a718637ae695b442f27dd",
+    "model.safetensors": "sha256:f47f71177f32bcd101b7573ec9171e6a57f4f4d31148d38e382306f42996874b"
+  },
+  "file_sizes": {
+    ".gitattributes": 1570,
+    "LICENSE": 11343,
+    "README.md": 13965,
+    "config.json": 726,
+    "generation_config.json": 239,
+    "merges.txt": 1671853,
+    "model.safetensors": 1503300328,
+    "tokenizer.json": 11422654,
+    "tokenizer_config.json": 9732,
+    "vocab.json": 2776833
+  },
+  "gguf": null,
+  "is_moe": false,
+  "num_experts": null,
+  "params_active": 751632384,
+  "params_active_b": 0.8,
+  "params_method": "dense: active = total, embeddings included, from safetensors shapes",
+  "params_total": 751632384,
+  "params_total_b": 0.8,
+  "quant_detail": "no quantization_config; dtype bfloat16",
+  "quant_detected": "bf16",
+  "quant_flag": "bf16",
+  "quant_label": "bf16",
+  "quant_producer": null,
+  "repo": "Qwen/Qwen3-0.6B",
+  "revision_requested": null,
+  "revision_sha": "c1899de289a04d12100db370d81485cdf75e47ca",
+  "size_class": "<1B",
+  "snapshot_path": "/data/models/sma/hf/Qwen_Qwen3-0.6B/c1899de289a04d12100db370d81485cdf75e47ca",
+  "sources": {
+    "dtype": "bfloat16",
+    "hf_quant_config": null,
+    "quant_method": null,
+    "quantization_config": null
+  },
+  "tokenizer_fingerprint": "sha256:aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
+  "warnings": [],
+  "weights_bytes": 1503300328
+}

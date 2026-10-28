@@ -1,0 +1,39 @@
+{"event": "run_created", "level": "INFO", "logger": "sma", "message": "run_created run_id=20261027T220531Z-a0e1463e repo=nvidia/Qwen3-8B-NVFP4 quant=nvfp4", "ts": "2026-10-27T22:05:31Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=fetch run_id=20261027T220531Z-a0e1463e attempt=1", "ts": "2026-10-27T22:05:31Z"}
+{"event": "fetched", "level": "INFO", "logger": "sma", "message": "fetched repo=nvidia/Qwen3-8B-NVFP4 revision_sha=ccd10a893cbca613259517c3efe08e151ddf2b8e", "ts": "2026-10-27T22:05:31Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=KV cache: fp8, 73,728 bytes per token in the full-attention layers", "ts": "2026-10-27T22:05:34Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=context per stream: 40,960 tokens (native maximum 40,960 tokens fits)", "ts": "2026-10-27T22:05:34Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=memory: 6.4 GB weights + 13.0 GB engine overhead + 80.6 GB KV pool = 100.0 GB of the 100.0 GB budget", "ts": "2026-10-27T22:05:34Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=streams that fit: 26 at 40,960 tokens, 33 at 32,768", "ts": "2026-10-27T22:05:34Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=per benchmark: determinism 16,384, logprobs 40,960, quality 40,960, speed 40,960", "ts": "2026-10-27T22:05:34Z"}
+{"event": "warning", "level": "INFO", "logger": "sma", "message": "warning message=Batch invariance is off for this nvfp4 checkpoint: vLLM's batch-invariant mode replaces its quantized kernels (NVFP4 by emulation), so the quality server would not run what users run. The determinism probe still measures run-to-run batching noise.", "ts": "2026-10-27T22:05:34Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=fetch run_id=20261027T220531Z-a0e1463e", "ts": "2026-10-27T22:05:34Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=serve_quality run_id=20261027T220531Z-a0e1463e attempt=1", "ts": "2026-10-27T22:05:34Z"}
+{"event": "docker_run", "level": "INFO", "logger": "sma", "message": "docker_run name=sma-20261027T220531Z-a0e1463e-quality mode=quality", "ts": "2026-10-27T22:05:34Z"}
+{"event": "server_log", "level": "INFO", "logger": "sma", "message": "server_log mode=quality path=/home/<host>/github/sma/runs/nvidia_Qwen3-8B-NVFP4/vllm/nvfp4/20261027T220531Z-a0e1463e/logs/server-quality.log", "ts": "2026-10-27T22:05:35Z"}
+{"event": "server_wait", "level": "INFO", "logger": "sma", "message": "server_wait mode=quality elapsed_s=16 line=INFO 10-27 22:05:51 [weight_utils.py:895] Prefetching checkpoint files into page cache finished in 0.30s", "ts": "2026-10-27T22:05:51Z"}
+{"event": "server_wait", "level": "INFO", "logger": "sma", "message": "server_wait mode=quality elapsed_s=32 line=INFO 10-27 22:05:51 [weight_utils.py:895] Prefetching checkpoint files into page cache finished in 0.30s", "ts": "2026-10-27T22:06:07Z"}
+{"event": "server_wait", "level": "INFO", "logger": "sma", "message": "server_wait mode=quality elapsed_s=49 line=Loading safetensors checkpoint shards:  50% Completed | 1/2 [00:31<00:31, 31.14s/it]", "ts": "2026-10-27T22:06:23Z"}
+{"event": "server_wait", "level": "INFO", "logger": "sma", "message": "server_wait mode=quality elapsed_s=65 line=INFO 10-27 22:06:36 [backends.py:1148] Dynamo bytecode transform time: 4.48 s", "ts": "2026-10-27T22:06:40Z"}
+{"event": "server_wait", "level": "INFO", "logger": "sma", "message": "server_wait mode=quality elapsed_s=81 line=INFO 10-27 22:06:52 [monitor.py:81] Initial profiling/warmup run took 3.29 s", "ts": "2026-10-27T22:06:56Z"}
+{"event": "server_ready", "level": "INFO", "logger": "sma", "message": "server_ready mode=quality elapsed_s=89", "ts": "2026-10-27T22:07:04Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=serve_quality run_id=20261027T220531Z-a0e1463e", "ts": "2026-10-27T22:07:04Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=determinism run_id=20261027T220531Z-a0e1463e attempt=1", "ts": "2026-10-27T22:07:04Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=determinism run_id=20261027T220531Z-a0e1463e", "ts": "2026-10-27T22:07:13Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=logprobs run_id=20261027T220531Z-a0e1463e attempt=1", "ts": "2026-10-27T22:07:13Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=logprobs run_id=20261027T220531Z-a0e1463e", "ts": "2026-10-27T22:08:08Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=quality run_id=20261027T220531Z-a0e1463e attempt=1", "ts": "2026-10-27T22:08:08Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=quality run_id=20261027T220531Z-a0e1463e", "ts": "2026-10-27T22:08:36Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=serve_speed run_id=20261027T220531Z-a0e1463e attempt=1", "ts": "2026-10-27T22:08:36Z"}
+{"event": "docker_run", "level": "INFO", "logger": "sma", "message": "docker_run name=sma-20261027T220531Z-a0e1463e-speed mode=speed", "ts": "2026-10-27T22:08:39Z"}
+{"event": "server_log", "level": "INFO", "logger": "sma", "message": "server_log mode=speed path=/home/<host>/github/sma/runs/nvidia_Qwen3-8B-NVFP4/vllm/nvfp4/20261027T220531Z-a0e1463e/logs/server-speed.log", "ts": "2026-10-27T22:08:40Z"}
+{"event": "server_wait", "level": "INFO", "logger": "sma", "message": "server_wait mode=speed elapsed_s=16 line=INFO 10-27 22:08:56 [weight_utils.py:895] Prefetching checkpoint files into page cache finished in 0.24s", "ts": "2026-10-27T22:08:56Z"}
+{"event": "server_wait", "level": "INFO", "logger": "sma", "message": "server_wait mode=speed elapsed_s=33 line=INFO 10-27 22:08:56 [weight_utils.py:895] Prefetching checkpoint files into page cache finished in 0.24s", "ts": "2026-10-27T22:09:12Z"}
+{"event": "server_wait", "level": "INFO", "logger": "sma", "message": "server_wait mode=speed elapsed_s=49 line=INFO 10-27 22:08:56 [weight_utils.py:895] Prefetching checkpoint files into page cache finished in 0.24s", "ts": "2026-10-27T22:09:29Z"}
+{"event": "server_wait", "level": "INFO", "logger": "sma", "message": "server_wait mode=speed elapsed_s=65 line=INFO 10-27 22:09:43 [gpu_model_runner.py:5008] Model loading took 5.98 GiB memory and 47.636411 seconds", "ts": "2026-10-27T22:09:45Z"}
+{"event": "server_wait", "level": "INFO", "logger": "sma", "message": "server_wait mode=speed elapsed_s=81 line=INFO 10-27 22:10:01 [monitor.py:53] torch.compile took 17.48 s in total", "ts": "2026-10-27T22:10:01Z"}
+{"event": "server_ready", "level": "INFO", "logger": "sma", "message": "server_ready mode=speed elapsed_s=96", "ts": "2026-10-27T22:10:15Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=serve_speed run_id=20261027T220531Z-a0e1463e", "ts": "2026-10-27T22:10:15Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=speed run_id=20261027T220531Z-a0e1463e attempt=1", "ts": "2026-10-27T22:10:15Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=speed run_id=20261027T220531Z-a0e1463e", "ts": "2026-10-27T22:25:07Z"}
+{"event": "warning", "level": "INFO", "logger": "sma", "message": "warning message=Page cache was not dropped. The next model may see leftover file cache.", "ts": "2026-10-27T22:25:11Z"}

@@ -1,0 +1,517 @@
+{
+  "architecture": "qwen3",
+  "architecture_check": {
+    "message": "llama.cpp has no architecture registry to query; the server start is the check.",
+    "ok": true,
+    "source": "llama.cpp"
+  },
+  "architectures": [
+    "qwen3"
+  ],
+  "config_snapshot": {
+    "determinism": {
+      "batch_sizes": [
+        1,
+        8,
+        64
+      ],
+      "max_tokens": 32,
+      "prompts": [
+        "The capital of France is",
+        "2 + 2 =",
+        "def add(a, b):\n    return"
+      ],
+      "temperature": 0
+    },
+    "doctor": {
+      "gpu_index": 0,
+      "min_free_gb": 20
+    },
+    "engine": {
+      "apply_clock_cap": false,
+      "batch_invariant": true,
+      "bind_host": "127.0.0.1",
+      "clock_cap_mhz": null,
+      "container_prefix": "sma",
+      "extra_args": [],
+      "gpu_memory_utilization": 0.9,
+      "gpus": "all",
+      "image": "nvcr.io/nvidia/vllm:26.05.post1-py3",
+      "image_digest": null,
+      "linear_backend": "flashinfer_b12x",
+      "llamacpp_cache_ram_mib": 8192,
+      "llamacpp_image": "ghcr.io/ggml-org/llama.cpp:full-cuda13-b11913",
+      "llamacpp_image_digest": null,
+      "max_num_seqs": 64,
+      "moe_backend": "flashinfer_b12x",
+      "moe_backend_fallbacks": [
+        "marlin"
+      ],
+      "name": "vllm",
+      "no_async_scheduling_with_batch_invariant": true,
+      "no_flashinfer_autotune_quality": true,
+      "port": 8000,
+      "server_stop_timeout_s": 30,
+      "sglang_attention_backend": "flashinfer",
+      "sglang_determinism_backend": "flashinfer",
+      "sglang_disable_deep_gemm": true,
+      "sglang_image": "lmsysorg/sglang:v0.5.10.post1-cu130",
+      "sglang_image_digest": null,
+      "shm_size": "16g",
+      "tool_call_parser": null,
+      "trust_remote_code": false
+    },
+    "hf": {
+      "cache_dir": "/data/models/sma/hf",
+      "download_timeout_s": 3600,
+      "token_env": "HF_TOKEN"
+    },
+    "host_alias": "gpu-host-1",
+    "lock_path": "~/.local/share/sma/locks/gpu.lock",
+    "logprobs": {
+      "corpus_version": "sma-corpus-v3",
+      "llamacpp_chunks": 8,
+      "num_windows": 48,
+      "top_k": 64,
+      "window_tokens": 2048
+    },
+    "memory": {
+      "budget_gb": 100,
+      "overhead_gb": {
+        "llamacpp": 3.0,
+        "sglang": 10.0,
+        "vllm": 10.0
+      },
+      "pool_overhead_fraction": {
+        "llamacpp": 0.12,
+        "sglang": 0.0,
+        "vllm": 0.0
+      },
+      "quality_min_context": 8192,
+      "start_context": 262144
+    },
+    "quality": {
+      "chat_template_kwargs": {
+        "enable_thinking": false
+      },
+      "concurrency": 8,
+      "enabled": true,
+      "executable": "nel",
+      "max_tokens": 4096,
+      "request_timeout_s": 900,
+      "suites": [
+        {
+          "bench": "lm-eval://ifeval",
+          "image": null,
+          "limit": 10,
+          "name": "ifeval",
+          "task": null,
+          "tools": false
+        },
+        {
+          "bench": "sma:gsm8k",
+          "image": null,
+          "limit": 10,
+          "name": "gsm8k",
+          "task": null,
+          "tools": false
+        }
+      ]
+    },
+    "queue": {
+      "claim_grace_s": 30,
+      "dir": "~/.local/share/sma/queue",
+      "heartbeat_s": 30,
+      "max_attempts": 1,
+      "poll_s": 5,
+      "retry_backoff_factor": 2,
+      "retry_backoff_s": 30,
+      "stale_claim_s": 3600
+    },
+    "retries": {
+      "attempts": 3,
+      "backoff_factor": 2.0,
+      "backoff_s": 2.0
+    },
+    "runs_dir": "runs",
+    "schema_version": 1,
+    "seed": 0,
+    "speed": {
+      "decode": {
+        "input_len": 128,
+        "name": "decode",
+        "output_len": 512
+      },
+      "derive_stat": "p50",
+      "metric_percentiles": "50,90,99",
+      "num_prompts": 32,
+      "percentile_metrics": "ttft,tpot,itl,e2el",
+      "prefill": {
+        "input_len": 2048,
+        "name": "prefill",
+        "output_len": 64
+      },
+      "repeats": 1,
+      "sweep": {
+        "input_len": 1024,
+        "name": "sweep",
+        "output_len": 256
+      },
+      "sweep_concurrency": [
+        1,
+        4,
+        8
+      ],
+      "throttle_retries": 1,
+      "warmup_max_tokens": 8,
+      "warmup_requests": 4,
+      "warmup_soak_s": 30
+    },
+    "telemetry": {
+      "cool_between_legs": true,
+      "drop_page_cache": true,
+      "idle_timeout_s": 60,
+      "idle_until_cool_c": 55,
+      "interval_s": 1.0,
+      "max_sample_gap_s": 2.5,
+      "min_sample_ratio": 0.8,
+      "poll_s": 5,
+      "spec_bandwidth_gbps": 273,
+      "spec_usable_gb": 115,
+      "sw_power_cap_invalidates": false
+    },
+    "timeouts": {
+      "bench_s": 7200,
+      "command_s": 120,
+      "docker_s": 300,
+      "eval_s": 14400,
+      "health_poll_s": 2,
+      "health_request_s": 5,
+      "image_pull_s": 3600,
+      "logprob_request_s": 600,
+      "metrics_s": 10,
+      "server_start_s": 900
+    }
+  },
+  "dispatch_concurrency": 8,
+  "engine": {
+    "batch_invariant_quality": false,
+    "batch_invariant_supported": false,
+    "batch_invariant_warning": "llama.cpp has no batch-invariant mode. The determinism probe still runs and records what it sees.",
+    "bench_image": "nvcr.io/nvidia/vllm:26.05.post1-py3@sha256:94e21552f644e0c1627464ba89d2f7a4ce7442e196f72afa0bb5d7fba23cbb03",
+    "build_info": "b11913-7aca0d2ea",
+    "clock_cap_mhz": null,
+    "context_per_stream": 40960,
+    "deterministic_quality": {
+      "attention_backend": "flash_attn",
+      "determinism_backend": null,
+      "prefix_cache": true,
+      "radix_cache": null
+    },
+    "env_quality": {},
+    "env_speed": {},
+    "flags_quality": [
+      "-m",
+      "/model/Qwen3-0.6B-BF16.gguf",
+      "--host",
+      "0.0.0.0",
+      "--port",
+      "8000",
+      "--alias",
+      "unsloth/Qwen3-0.6B-GGUF",
+      "--seed",
+      "0",
+      "-ngl",
+      "all",
+      "-fa",
+      "on",
+      "-ctk",
+      "q8_0",
+      "-ctv",
+      "q8_0",
+      "-c",
+      "1278029",
+      "-np",
+      "8",
+      "--kv-unified",
+      "--kv-unified-per-slot",
+      "40960",
+      "--cache-ram",
+      "8192",
+      "--metrics",
+      "--no-webui",
+      "--jinja",
+      "-lv",
+      "4",
+      "--chat-template-kwargs",
+      "{\"enable_thinking\": false}"
+    ],
+    "flags_speed": [
+      "-m",
+      "/model/Qwen3-0.6B-BF16.gguf",
+      "--host",
+      "0.0.0.0",
+      "--port",
+      "8000",
+      "--alias",
+      "unsloth/Qwen3-0.6B-GGUF",
+      "--seed",
+      "0",
+      "-ngl",
+      "all",
+      "-fa",
+      "on",
+      "-ctk",
+      "q8_0",
+      "-ctv",
+      "q8_0",
+      "-c",
+      "1278029",
+      "-np",
+      "8",
+      "--kv-unified",
+      "--kv-unified-per-slot",
+      "40960",
+      "--cache-ram",
+      "8192",
+      "--metrics",
+      "--no-webui",
+      "--jinja",
+      "-lv",
+      "4"
+    ],
+    "flashinfer_autotune_quality": true,
+    "image": "ghcr.io/ggml-org/llama.cpp:full-cuda13-b11913",
+    "image_digest": "sha256:0e93433128475d21fc369ad2a43cda23c993dcbbb5879e1fc7b1bea53721c4e9",
+    "kv_cache_reported": {
+      "quality": {
+        "build_info": "b11913-7aca0d2ea",
+        "kv_type": "q8_0,q8_0",
+        "kv_type_line": "0.03.475.342 I llama_kv_cache: size = 74270.88 MiB (1278208 cells,  28 layers,  8/1 seqs), K (q8_0): 37135.44 MiB, V (q8_0): 37135.44 MiB",
+        "pool_tokens": 1278208,
+        "scale_1_0": null
+      },
+      "speed": {
+        "build_info": "b11913-7aca0d2ea",
+        "kv_type": "q8_0,q8_0",
+        "kv_type_line": "0.03.739.670 I llama_kv_cache: size = 74270.88 MiB (1278208 cells,  28 layers,  8/1 seqs), K (q8_0): 37135.44 MiB, V (q8_0): 37135.44 MiB",
+        "pool_tokens": 1278208,
+        "scale_1_0": null
+      }
+    },
+    "kv_cache_scales": "q8_0 per-block scales",
+    "kv_cache_type": "q8_0",
+    "linear_backend": null,
+    "logprobs_mode": "llama-perplexity full-vocabulary KL",
+    "max_logprobs": 64,
+    "moe_backend_chain": [
+      "flashinfer_b12x",
+      "marlin"
+    ],
+    "moe_backend_config": "flashinfer_b12x",
+    "moe_backend_fallback": false,
+    "moe_backend_quality": null,
+    "moe_backend_quality_fallback": false,
+    "moe_backend_speed": null,
+    "moe_backend_speed_fallback": false,
+    "moe_backend_used": null,
+    "name": "llamacpp",
+    "no_async_scheduling_quality": false,
+    "resolved_backend_note": null,
+    "seed": 0,
+    "selected_by": "format",
+    "selection_reason": null,
+    "tensor_parallel_size": 1,
+    "tool_call_parser": "llama.cpp --jinja"
+  },
+  "file_hashes": {
+    "Qwen3-0.6B-BF16.gguf": "sha256:f9c9f1d3c1e21755b82d4e165f88dbbbd4355646d632fb5d6cef7c66ed4ee04e"
+  },
+  "gguf": {
+    "architecture": "qwen3",
+    "file_type": "MOSTLY_BF16",
+    "file_type_id": 32,
+    "files": [
+      "Qwen3-0.6B-BF16.gguf"
+    ],
+    "model_file": "Qwen3-0.6B-BF16.gguf",
+    "name": "Qwen3-0.6B",
+    "native_context": 40960,
+    "notes": [],
+    "selector": "BF16",
+    "split_count": 1
+  },
+  "host_alias": "gpu-host-1",
+  "is_moe": false,
+  "large_files": {
+    "logprobs/kld-base.bin": {
+      "bytes": 2487019476,
+      "sha256": "sha256:f4bf36790d2695b440ac4a5d537f663e8f8a1c17204c9d89f3f2b365e9de7d07"
+    }
+  },
+  "logprobs_reference_file": "logprobs/kld-base.bin",
+  "memory_plan": {
+    "benchmarks": {
+      "determinism": 16384,
+      "logprobs": 40960,
+      "quality": 40960,
+      "speed": 40960
+    },
+    "budget_bytes": 100000000000,
+    "budget_gb": 100.0,
+    "context": 40960,
+    "context_reason": "native maximum 40,960 tokens fits",
+    "footprint_bytes": 100000000000,
+    "footprint_gb": 100.0,
+    "kv_bytes_per_token": 60928,
+    "kv_type": "q8_0",
+    "ladder": [
+      40960,
+      32768,
+      16384,
+      8192,
+      4096,
+      2048,
+      1024
+    ],
+    "layout_notes": [],
+    "notes": [],
+    "overhead_bytes": 11589934592,
+    "overhead_gb": 11.59,
+    "pool_bytes": 77867752285,
+    "pool_gb": 77.87,
+    "pool_overhead_fraction": 0.12,
+    "pool_tokens": 1278029,
+    "stream_bytes": 2495610880,
+    "stream_gb": 2.5,
+    "streams_32k": 39,
+    "streams_full_context": 31,
+    "weights_bytes": 1198182848,
+    "weights_gb": 1.2
+  },
+  "model_repo": "unsloth/Qwen3-0.6B-GGUF",
+  "model_slug": "unsloth_Qwen3-0.6B-GGUF",
+  "pair_job_id": null,
+  "params": {
+    "active": 596049920,
+    "active_b": 0.6,
+    "method": "GGUF tensor shapes; dense: active = total, embeddings included, from safetensors shapes",
+    "size_class": "<1B",
+    "source": "safetensors shapes",
+    "total": 596049920,
+    "total_b": 0.6
+  },
+  "quant_composition": {
+    "tensor_bytes": {
+      "BF16": 1191968768,
+      "F32": 262144
+    },
+    "tensor_types": {
+      "BF16": 197,
+      "F32": 113
+    }
+  },
+  "quant_detail": "GGUF MOSTLY_BF16; tensors 197 BF16, 113 F32",
+  "quant_detected": "gguf",
+  "quant_flag": "gguf",
+  "quant_label": "BF16",
+  "quant_producer": null,
+  "reference_run_id": null,
+  "revision_requested": null,
+  "revision_sha": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+  "run_id": "20261027T204345Z-27873964",
+  "schema_version": 2,
+  "sma_git_commit": "2e6fec65aaa43da933c6c3fff55cfaf10446930a",
+  "sma_git_dirty": false,
+  "sma_version": "0.1.0",
+  "steps": {
+    "cleanup": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-27T20:50:55Z",
+      "started": "2026-10-27T20:50:55Z",
+      "status": "done"
+    },
+    "determinism": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-27T20:44:04Z",
+      "started": "2026-10-27T20:43:55Z",
+      "status": "done"
+    },
+    "fetch": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-27T20:43:48Z",
+      "started": "2026-10-27T20:43:45Z",
+      "status": "done"
+    },
+    "logprobs": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-27T20:44:10Z",
+      "started": "2026-10-27T20:44:04Z",
+      "status": "done"
+    },
+    "quality": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-27T20:44:31Z",
+      "started": "2026-10-27T20:44:10Z",
+      "status": "done"
+    },
+    "serve_quality": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-27T20:43:55Z",
+      "started": "2026-10-27T20:43:48Z",
+      "status": "done"
+    },
+    "serve_speed": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-27T20:44:39Z",
+      "started": "2026-10-27T20:44:31Z",
+      "status": "done"
+    },
+    "speed": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-27T20:50:53Z",
+      "started": "2026-10-27T20:44:39Z",
+      "status": "done"
+    },
+    "teardown": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-27T20:50:55Z",
+      "started": "2026-10-27T20:50:55Z",
+      "status": "done"
+    },
+    "telemetry": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-27T20:50:53Z",
+      "started": "2026-10-27T20:50:53Z",
+      "status": "done"
+    }
+  },
+  "subject": {
+    "engine": "llamacpp",
+    "hardware_alias": "gpu-host-1",
+    "model_repo": "unsloth/Qwen3-0.6B-GGUF",
+    "quant": "BF16",
+    "revision_sha": "50968a4468ef4233ed78cd7c3de230dd1d61a56b"
+  },
+  "timestamps": {
+    "created": "2026-10-27T20:43:45Z",
+    "finished": "2026-10-27T20:50:53Z",
+    "started": "2026-10-27T20:43:45Z"
+  },
+  "tokenizer_fingerprint": "sha256:1268c8a00ef6c8046a544a162d7be4c944f0327045a660e5d1368c904e44bdda",
+  "warnings": [
+    "Determinism probe failed. The run continues. Use the recorded concurrency for both quants and treat quality deltas against a wider noise band.",
+    "Speed cell sweep_c8_r1 bench failed on attempt 1: bench completed 31 requests, and speed.num_prompts is 32. A speed cell is invalid unless every prompt finished.. Retrying after backoff. This is not a thermal or power throttle, so there is no cool-down.",
+    "Page cache was not dropped. The next model may see leftover file cache."
+  ]
+}

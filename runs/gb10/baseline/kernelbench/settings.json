@@ -1,0 +1,106 @@
+{
+ "written": "2026-10-27 by hack-lab (workload kernelbench-gb10)",
+ "service": {
+  "url": "${KERNELBENCH_URL}",
+  "host": "${KERNELBENCH_HOST}",
+  "api": "v1, JSON, asynchronous jobs",
+  "access": "${SMA_HOST} only (tailnet tag kernelbench-client, whose only grant is this service), plus the lab owner; no key",
+  "evaluates": "one kernel at a time; the GPU belongs to this service alone (a Kubernetes DRA claim), and the host's own model slot is off"
+ },
+ "gpu": {
+  "name": "NVIDIA GB10",
+  "compute_capability": "12.1",
+  "driver": "580.173.02",
+  "pci_bus_id": "${KERNELBENCH_GPU_PCI}",
+  "memory": "121 GB unified LPDDR5X shared with the CPU (273 GB/s, NVIDIA's spec); no separate GPU memory",
+  "persistence_mode": "Enabled",
+  "clock_lock": {
+   "sm_mhz": 2200,
+   "how": "a systemd unit at boot: nvidia-smi --persistence-mode=1, then --lock-gpu-clocks=2200,2200 (min = max)",
+   "why": "repeatable timings: unlocked, the clock moves with temperature and the power cap",
+   "max_sm_mhz": 3003,
+   "default_applications_clock_mhz": 2418,
+   "memory_clock": "not reported or settable on the GB10"
+  },
+  "measured_unlocked": {
+   "load": "fp32 8192x8192 matmul plus a 4 GiB elementwise loop, 90 s",
+   "sm_mhz": "2463 falling to 2385",
+   "power_w": "82-85",
+   "temp_c_max": 79,
+   "event_reasons": "0x0 and 0x4 (SW power cap) now and then"
+  },
+  "measured_locked": {
+   "load": "the same, 120 s",
+   "sm_mhz": "2184-2190",
+   "power_w": "60-65",
+   "temp_c_max": 72,
+   "event_reasons": "0x0, with 0x4 now and then without moving the clock"
+  },
+  "lock_cost": "Level 1 times 2.6% longer than unlocked (geometric mean; median 0.3%); compute-bound problems up to 12% longer"
+ },
+ "software": {
+  "kernelbench_commit": "423217d9fda91e0c2d67e4a43bf62f96f6d104f1",
+  "torch": "2.9.1+cu130",
+  "cuda_runtime": "13.0",
+  "nvcc": "13.0 (cuda_13.0.r13.0/compiler.36424714_0)",
+  "cudnn": "9.13 (91300)",
+  "python": "3.12.3",
+  "torch_cuda_arch_list": "12.1 (kernels build for sm_121; PyTorch's own kernels are sm_120, which run on 12.1, so its startup warning is harmless)",
+  "base_image": "docker.io/nvidia/cuda:13.0.2-devel-ubuntu24.04@sha256:5dc1bca23d05bd37b011be68ec470c03b403a5da07ec3a86e41af9470e9d0cc6",
+  "image_tag": "kernelbench-eval:gb10-r2-a98b638f7eeb",
+  "not_installed": "LiteLLM and the OpenAI client (KernelBench imports them for generation, which the service never does; stubs take their names)",
+  "extra_python_packages": "einops 0.8.1 (Level 3's Mamba2 problems 48 and 49 import it), numpy 2.3.5, ninja 1.13.0; the problems need nothing else beyond torch and the standard library"
+ },
+ "container": {
+  "cpu": {
+   "request": 8,
+   "limit": 18,
+   "host_cores": 20
+  },
+  "memory_gib": {
+   "request": 16,
+   "limit": 96
+  },
+  "host_memory_budget_gib": 94.0,
+  "host_memory_floor_gib": 8.0,
+  "memory_rules": "a worker is stopped when the container's own memory passes 94 GiB (2 GiB short of the limit, which would kill the whole container), or when the machine's available memory falls below 8 GiB: on unified memory the GPU's allocations come from the machine's RAM and are not charged to the container",
+  "network": "none (no egress; only the node's tailnet serve reaches it)",
+  "root_filesystem": "read-only",
+  "user": "uid 10001, no capabilities, Pod Security restricted, no Kubernetes token",
+  "sandbox": "each kernel in its own process under Landlock ABI 7 (host kernel 6.17): writes only its scratch folder, /dev and its own /proc entry; no TCP; signals and abstract sockets scoped to itself"
+ },
+ "defaults": {
+  "num_correct_trials": 5,
+  "num_perf_trials": 100,
+  "timing_method": "cuda_event",
+  "precision": "fp32",
+  "backend": "cuda",
+  "timeout_s": 300,
+  "seed": 42,
+  "excessive_speedup_threshold": 10
+ },
+ "limits": {
+  "kernels_per_job": 1000,
+  "kernel_src_kib": 512,
+  "queued_jobs": 50,
+  "timeout_s_range": [
+   60,
+   1800
+  ]
+ },
+ "fingerprint": {
+  "value": "5975f7a6360573f7",
+  "covers": [
+   "GPU name",
+   "driver",
+   "CUDA runtime",
+   "nvcc",
+   "PyTorch",
+   "KernelBench commit",
+   "clock lock"
+  ],
+  "previous": {
+   "d65833d3417b3ab1": "the same before the clock lock (level1-fp32-cuda_event-100.unlocked.json)"
+  }
+ }
+}

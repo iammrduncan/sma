@@ -143,6 +143,10 @@ These were build details, not owner decisions.
   Qwen3-0.6B, TRITON_ATTN backend).
 - **SGLang's pool.** `--max-total-tokens` sets it in tokens. Deterministic SGLang also needs
   `SGLANG_ENABLE_JIT_DEEPGEMM=0` on the GB10, with or without FP8.
+- **Real kernels for quantized checkpoints** (owner decision during the build). vLLM's batch-invariant
+  quality mode served NVFP4 by emulation on the Spark ("VLLM_BATCH_INVARIANT forces NVFP4 linear to use
+  the emulation backend"), at about 2 tokens per second per request for an 8B model. Quantized
+  checkpoints now run their real kernels with batch invariance off; BF16 keeps it.
 - **Engine overhead.** `memory.overhead_gb` per engine, measured on the Spark
   (docs/first-spark-run.md), covers the engine and SMA's tools beside it (nel, the bench client):
   10 GB for vLLM. llama.cpp also needs a share of its pool (`memory.pool_overhead_fraction`, 0.12: its
@@ -153,13 +157,6 @@ These were build details, not owner decisions.
 
 ## Open for the owner
 
-- vLLM's batch-invariant quality mode serves NVFP4 through emulation, not the real kernels (found on
-  the Spark on 2026-10-27: "VLLM_BATCH_INVARIANT forces NVFP4 linear to use the emulation backend").
-  An NVFP4 run's quality and logprob numbers are then not what an NVFP4 user gets, and its quality
-  server runs at a few tokens per second. Reflecting real usage points to turning batch invariance off
-  for NVFP4 quality runs and recording that, at the cost of run-to-run batching noise. The arena plan
-  asked for batch invariance, so this is the owner's call.
-
 - A config that ships RoPE stretching on gets its original length as the native context, as decided.
   gpt-oss (YaRN, original 4,096) and DeepSeek-style configs then plan at 4,096 tokens, though they
   were released for long context. Treating a release config's own stretching as native would plan
@@ -169,4 +166,5 @@ These were build details, not owner decisions.
 
 SWE-bench Verified-mini's agent settings: step limit, sampling, and thinking mode. The
 recommendation so far is 250 steps (mini-swe-agent's default), each model's recommended sampling,
-and the model's default thinking mode.
+and the model's default thinking mode. The runner's gold-patch baseline and how to call it are in
+[`runs/cpu/baseline/sweverified/`](../runs/cpu/baseline/sweverified/README.md).

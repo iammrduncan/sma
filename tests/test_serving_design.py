@@ -269,7 +269,7 @@ def test_the_dry_run_prints_the_engine_kv_type_context_and_memory_plan(monkeypat
     assert "engine: vllm (the default for safetensors" in out
     assert "kv cache: fp8 (always 8-bit)" in out
     assert "memory plan: context per stream: 262,144 tokens (262,144 tokens fits)" in out
-    assert "memory plan: memory: 61.0 GB weights + 10.0 GB engine overhead" in out
+    assert "memory plan: memory: 61.0 GB weights + 13.0 GB engine overhead" in out
     assert "--kv-cache-dtype fp8" in out and "--max-model-len 262144" in out
 
     assert main(["run", "unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF", "--gguf", "UD-Q4_K_XL", "--dry-run"]) == 0
@@ -492,3 +492,26 @@ def test_a_run_whose_measured_peak_passed_the_budget_says_so(tmp_path: Path) -> 
     run_id = execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
     warnings = _json(_run_dir(tmp_path, run_id) / "summary.json")["warnings"]
     assert any("Peak memory was 102.0 GB, over the 100 GB budget" in w and "memory.overhead_gb.vllm" in w for w in warnings)
+
+
+@pytest.mark.parametrize("quant", ["nvfp4", "mxfp4"])
+def test_quantized_checkpoints_run_their_real_kernels_on_vllm(tmp_path: Path, quant: str) -> None:
+    # vLLM's batch-invariant mode served NVFP4 by emulation on a Spark, at about 2 tokens per second.
+    cfg = make_config(tmp_path)
+    services, _fetcher, _runtime = make_services(tmp_path, cfg, quant=quant)
+    run_id = execute(RunSpec(repo="example/tiny", quant_flag=quant), cfg, services)
+    manifest = _json(_run_dir(tmp_path, run_id) / "manifest.json")
+    engine = manifest["engine"]
+    assert engine["batch_invariant_quality"] is False
+    assert "VLLM_BATCH_INVARIANT" not in engine["env_quality"]
+    assert "--no-async-scheduling" not in engine["flags_quality"]
+    assert engine["batch_invariant_warning"].startswith(f"Batch invariance is off for this {quant} checkpoint")
+    assert (_run_dir(tmp_path, run_id) / "determinism.json").is_file()
+
+
+def test_bf16_on_vllm_keeps_batch_invariance(tmp_path: Path) -> None:
+    cfg = make_config(tmp_path)
+    services, _fetcher, _runtime = make_services(tmp_path, cfg)
+    run_id = execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
+    engine = _json(_run_dir(tmp_path, run_id) / "manifest.json")["engine"]
+    assert engine["batch_invariant_quality"] is True and engine["env_quality"]["VLLM_BATCH_INVARIANT"] == "1"

@@ -1,0 +1,32 @@
+{"event": "run_created", "level": "INFO", "logger": "sma", "message": "run_created run_id=20261027T205056Z-11068cfd repo=unsloth/Qwen3-0.6B-GGUF quant=gguf", "ts": "2026-10-27T20:50:56Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=fetch run_id=20261027T205056Z-11068cfd attempt=1", "ts": "2026-10-27T20:50:56Z"}
+{"event": "fetched", "level": "INFO", "logger": "sma", "message": "fetched repo=unsloth/Qwen3-0.6B-GGUF revision_sha=50968a4468ef4233ed78cd7c3de230dd1d61a56b", "ts": "2026-10-27T20:51:24Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=KV cache: q8_0, 60,928 bytes per token in the full-attention layers", "ts": "2026-10-27T20:51:24Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=context per stream: 40,960 tokens (native maximum 40,960 tokens fits)", "ts": "2026-10-27T20:51:24Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=memory: 0.41 GB weights + 11.59 GB engine overhead + 78.58 GB KV pool (+12% engine buffers sized by it) = 100.0 GB of the 100.0 GB budget", "ts": "2026-10-27T20:51:24Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=streams that fit: 31 at 40,960 tokens, 39 at 32,768", "ts": "2026-10-27T20:51:24Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=per benchmark: determinism 16,384, logprobs 40,960, quality 40,960, speed 40,960", "ts": "2026-10-27T20:51:24Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=fetch run_id=20261027T205056Z-11068cfd", "ts": "2026-10-27T20:51:25Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=serve_quality run_id=20261027T205056Z-11068cfd attempt=1", "ts": "2026-10-27T20:51:25Z"}
+{"event": "docker_run", "level": "INFO", "logger": "sma", "message": "docker_run name=sma-20261027T205056Z-11068cfd-quality mode=quality", "ts": "2026-10-27T20:51:25Z"}
+{"event": "server_log", "level": "INFO", "logger": "sma", "message": "server_log mode=quality path=/home/<host>/github/sma/runs/unsloth_Qwen3-0.6B-GGUF/llamacpp/gguf-UD-Q4_K_XL/20261027T205056Z-11068cfd/logs/server-quality.log", "ts": "2026-10-27T20:51:25Z"}
+{"event": "server_ready", "level": "INFO", "logger": "sma", "message": "server_ready mode=quality elapsed_s=6", "ts": "2026-10-27T20:51:31Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=serve_quality run_id=20261027T205056Z-11068cfd", "ts": "2026-10-27T20:51:31Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=determinism run_id=20261027T205056Z-11068cfd attempt=1", "ts": "2026-10-27T20:51:31Z"}
+{"event": "warning", "level": "INFO", "logger": "sma", "message": "warning message=Determinism probe failed. The run continues. Use the recorded concurrency for both quants and treat quality deltas against a wider noise band.", "ts": "2026-10-27T20:51:38Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=determinism run_id=20261027T205056Z-11068cfd", "ts": "2026-10-27T20:51:38Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=logprobs run_id=20261027T205056Z-11068cfd attempt=1", "ts": "2026-10-27T20:51:38Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=logprobs run_id=20261027T205056Z-11068cfd", "ts": "2026-10-27T20:51:43Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=quality run_id=20261027T205056Z-11068cfd attempt=1", "ts": "2026-10-27T20:51:43Z"}
+{"event": "docker_run", "level": "INFO", "logger": "sma", "message": "docker_run name=sma-20261027T205056Z-11068cfd-quality mode=quality", "ts": "2026-10-27T20:51:43Z"}
+{"event": "server_log", "level": "INFO", "logger": "sma", "message": "server_log mode=quality path=/home/<host>/github/sma/runs/unsloth_Qwen3-0.6B-GGUF/llamacpp/gguf-UD-Q4_K_XL/20261027T205056Z-11068cfd/logs/server-quality.log", "ts": "2026-10-27T20:51:43Z"}
+{"event": "server_ready", "level": "INFO", "logger": "sma", "message": "server_ready mode=quality elapsed_s=6", "ts": "2026-10-27T20:51:49Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=quality run_id=20261027T205056Z-11068cfd", "ts": "2026-10-27T20:52:01Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=serve_speed run_id=20261027T205056Z-11068cfd attempt=1", "ts": "2026-10-27T20:52:01Z"}
+{"event": "docker_run", "level": "INFO", "logger": "sma", "message": "docker_run name=sma-20261027T205056Z-11068cfd-speed mode=speed", "ts": "2026-10-27T20:52:02Z"}
+{"event": "server_log", "level": "INFO", "logger": "sma", "message": "server_log mode=speed path=/home/<host>/github/sma/runs/unsloth_Qwen3-0.6B-GGUF/llamacpp/gguf-UD-Q4_K_XL/20261027T205056Z-11068cfd/logs/server-speed.log", "ts": "2026-10-27T20:52:03Z"}
+{"event": "server_ready", "level": "INFO", "logger": "sma", "message": "server_ready mode=speed elapsed_s=6", "ts": "2026-10-27T20:52:09Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=serve_speed run_id=20261027T205056Z-11068cfd", "ts": "2026-10-27T20:52:09Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=speed run_id=20261027T205056Z-11068cfd attempt=1", "ts": "2026-10-27T20:52:09Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=speed run_id=20261027T205056Z-11068cfd", "ts": "2026-10-27T20:56:21Z"}
+{"event": "warning", "level": "INFO", "logger": "sma", "message": "warning message=Page cache was not dropped. The next model may see leftover file cache.", "ts": "2026-10-27T20:56:23Z"}

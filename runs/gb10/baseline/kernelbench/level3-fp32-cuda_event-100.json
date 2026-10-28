@@ -1,0 +1,803 @@
+{
+ "level": 3,
+ "options": {
+  "num_perf_trials": 100,
+  "timing_method": "cuda_event",
+  "precision": "fp32"
+ },
+ "environment": {
+  "python": "3.12.3",
+  "torch": "2.9.1+cu130",
+  "cuda_runtime": "13.0",
+  "cudnn": 91300,
+  "kernelbench_commit": "423217d9fda91e0c2d67e4a43bf62f96f6d104f1",
+  "torch_cuda_arch_list": "12.1",
+  "sandbox": {
+   "landlock_abi": 7,
+   "writable": [
+    "/tmp/kernelbench/kb-92a9f7f05580",
+    "/dev",
+    "/proc/self"
+   ],
+   "tcp": "denied",
+   "signals_and_abstract_sockets": "own sandbox only"
+  },
+  "nvcc": "Build cuda_13.0.r13.0/compiler.36424714_0",
+  "gpu": {
+   "name": "NVIDIA GB10",
+   "driver_version": "580.173.02",
+   "pci_bus_id": "${KERNELBENCH_GPU_PCI}",
+   "memory_total_mib": "[N/A]",
+   "power_limit_w": "[N/A]",
+   "clocks_max_sm_mhz": "3003",
+   "persistence_mode": "Enabled",
+   "compute_capability": "12.1"
+  },
+  "clocks_under_load": {
+   "sm_mhz": "2184",
+   "mem_mhz": "[N/A]",
+   "power_w": "82.43",
+   "temp_c": "54",
+   "event_reasons": "0x0000000000000000"
+  },
+  "clock_lock_mhz": "2200",
+  "fingerprint": "5975f7a6360573f7",
+  "host_memory_budget_gib": 94.0,
+  "host_memory_floor_gib": 8.0,
+  "probed_at": "2026-10-27T23:12:19Z"
+ },
+ "job": "kb-20261027-231216-90cc43ba",
+ "recorded_at": "2026-10-27T23:18:40Z",
+ "problems": [
+  {
+   "level": 3,
+   "problem_id": 1,
+   "problem_name": "1_MLP.py",
+   "stats": {
+    "mean": 25.8,
+    "std": 0.379,
+    "min": 25.5,
+    "max": 27.1,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 2975105024
+  },
+  {
+   "level": 3,
+   "problem_id": 2,
+   "problem_name": "2_ShallowWideMLP.py",
+   "stats": {
+    "mean": 79.1,
+    "std": 1.04,
+    "min": 77.7,
+    "max": 83.1,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 8885043200
+  },
+  {
+   "level": 3,
+   "problem_id": 3,
+   "problem_name": "3_DeepNarrowMLP.py",
+   "stats": {
+    "mean": 7.16,
+    "std": 0.246,
+    "min": 6.97,
+    "max": 7.82,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 475234304
+  },
+  {
+   "level": 3,
+   "problem_id": 4,
+   "problem_name": "4_LeNet5.py",
+   "stats": {
+    "mean": 4.14,
+    "std": 0.106,
+    "min": 4.09,
+    "max": 4.59,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 295361536
+  },
+  {
+   "level": 3,
+   "problem_id": 5,
+   "problem_name": "5_AlexNet.py",
+   "stats": {
+    "mean": 197.0,
+    "std": 1.52,
+    "min": 194.0,
+    "max": 204.0,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 3875793408
+  },
+  {
+   "level": 3,
+   "problem_id": 6,
+   "problem_name": "6_GoogleNetInceptionModule.py",
+   "stats": {
+    "mean": 68.8,
+    "std": 5.55,
+    "min": 66.8,
+    "max": 124.0,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 5782830080
+  },
+  {
+   "level": 3,
+   "problem_id": 7,
+   "problem_name": "7_GoogleNetInceptionV1.py",
+   "stats": {
+    "mean": 7.41,
+    "std": 0.192,
+    "min": 7.33,
+    "max": 8.21,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 312634880
+  },
+  {
+   "level": 3,
+   "problem_id": 8,
+   "problem_name": "8_ResNetBasicBlock.py",
+   "stats": {
+    "mean": 19.3,
+    "std": 0.223,
+    "min": 19.0,
+    "max": 20.0,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 519987712
+  },
+  {
+   "level": 3,
+   "problem_id": 9,
+   "problem_name": "9_ResNet18.py",
+   "stats": {
+    "mean": 1.74,
+    "std": 0.0901,
+    "min": 1.7,
+    "max": 2.15,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 326077440
+  },
+  {
+   "level": 3,
+   "problem_id": 10,
+   "problem_name": "10_ResNet101.py",
+   "stats": {
+    "mean": 27.1,
+    "std": 0.463,
+    "min": 26.6,
+    "max": 28.2,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 462809600
+  },
+  {
+   "level": 3,
+   "problem_id": 11,
+   "problem_name": "11_VGG16.py",
+   "stats": {
+    "mean": 38.7,
+    "std": 0.801,
+    "min": 37.6,
+    "max": 42.0,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 874811392
+  },
+  {
+   "level": 3,
+   "problem_id": 12,
+   "problem_name": "12_VGG19.py",
+   "stats": {
+    "mean": 43.8,
+    "std": 0.764,
+    "min": 42.8,
+    "max": 45.5,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 896050176
+  },
+  {
+   "level": 3,
+   "problem_id": 13,
+   "problem_name": "13_DenseNet121TransitionLayer.py",
+   "stats": {
+    "mean": 50.7,
+    "std": 6.33,
+    "min": 49.3,
+    "max": 113.0,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 4831848960
+  },
+  {
+   "level": 3,
+   "problem_id": 14,
+   "problem_name": "14_DenseNet121DenseBlock.py",
+   "stats": {
+    "mean": 74.7,
+    "std": 0.868,
+    "min": 73.4,
+    "max": 77.1,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 2122546688
+  },
+  {
+   "level": 3,
+   "problem_id": 15,
+   "problem_name": "15_DenseNet121.py",
+   "stats": {
+    "mean": 21.4,
+    "std": 0.268,
+    "min": 21.3,
+    "max": 22.6,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 323796480
+  },
+  {
+   "level": 3,
+   "problem_id": 16,
+   "problem_name": "16_DenseNet201.py",
+   "stats": {
+    "mean": 39.4,
+    "std": 0.479,
+    "min": 39.1,
+    "max": 41.6,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 407376384
+  },
+  {
+   "level": 3,
+   "problem_id": 17,
+   "problem_name": "17_SqueezeNetFireModule.py",
+   "stats": {
+    "mean": 148.0,
+    "std": 11.5,
+    "min": 146.0,
+    "max": 262.0,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 13186909184
+  },
+  {
+   "level": 3,
+   "problem_id": 18,
+   "problem_name": "18_SqueezeNet.py",
+   "stats": {
+    "mean": 243.0,
+    "std": 1.57,
+    "min": 240.0,
+    "max": 249.0,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 2950172672
+  },
+  {
+   "level": 3,
+   "problem_id": 19,
+   "problem_name": "19_MobileNetV1.py",
+   "stats": {
+    "mean": 4.47,
+    "std": 0.142,
+    "min": 4.4,
+    "max": 5.07,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 301100544
+  },
+  {
+   "level": 3,
+   "problem_id": 20,
+   "problem_name": "20_MobileNetV2.py",
+   "stats": {
+    "mean": 6.01,
+    "std": 0.165,
+    "min": 5.94,
+    "max": 6.9,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 298302464
+  },
+  {
+   "level": 3,
+   "problem_id": 21,
+   "problem_name": "21_EfficientNetMBConv.py",
+   "stats": {
+    "mean": 59.4,
+    "std": 3.99,
+    "min": 57.7,
+    "max": 98.6,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 3019509248
+  },
+  {
+   "level": 3,
+   "problem_id": 22,
+   "problem_name": "22_EfficientNetB0.py",
+   "stats": {
+    "mean": 5.96,
+    "std": 0.127,
+    "min": 5.91,
+    "max": 6.6,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 299940864
+  },
+  {
+   "level": 3,
+   "problem_id": 23,
+   "problem_name": "23_EfficientNetB1.py",
+   "stats": {
+    "mean": 5.09,
+    "std": 0.0973,
+    "min": 5.04,
+    "max": 5.65,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 295700992
+  },
+  {
+   "level": 3,
+   "problem_id": 24,
+   "problem_name": "24_EfficientNetB2.py",
+   "stats": {
+    "mean": 1.17,
+    "std": 0.0587,
+    "min": 1.15,
+    "max": 1.54,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 306802688
+  },
+  {
+   "level": 3,
+   "problem_id": 25,
+   "problem_name": "25_ShuffleNetUnit.py",
+   "stats": {
+    "mean": 86.9,
+    "std": 2.12,
+    "min": 84.8,
+    "max": 106.0,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 4336468992
+  },
+  {
+   "level": 3,
+   "problem_id": 26,
+   "problem_name": "26_ShuffleNet.py",
+   "stats": {
+    "mean": 63.9,
+    "std": 0.753,
+    "min": 62.8,
+    "max": 65.9,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 481295872
+  },
+  {
+   "level": 3,
+   "problem_id": 27,
+   "problem_name": "27_RegNet.py",
+   "stats": {
+    "mean": 25.0,
+    "std": 0.429,
+    "min": 24.5,
+    "max": 26.2,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 287433728
+  },
+  {
+   "level": 3,
+   "problem_id": 28,
+   "problem_name": "28_VisionTransformer.py",
+   "stats": {
+    "mean": 3.16,
+    "std": 0.143,
+    "min": 3.09,
+    "max": 3.69,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 363596800
+  },
+  {
+   "level": 3,
+   "problem_id": 29,
+   "problem_name": "29_SwinMLP.py",
+   "stats": {
+    "mean": 23.3,
+    "std": 0.184,
+    "min": 23.2,
+    "max": 23.9,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 363915264
+  },
+  {
+   "level": 3,
+   "problem_id": 30,
+   "problem_name": "30_SwinTransformerV2.py",
+   "stats": {
+    "mean": 22.1,
+    "std": 0.411,
+    "min": 21.7,
+    "max": 23.1,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 399726592
+  },
+  {
+   "level": 3,
+   "problem_id": 31,
+   "problem_name": "31_VisionAttention.py",
+   "stats": {
+    "mean": 266.0,
+    "std": 1.5,
+    "min": 264.0,
+    "max": 274.0,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 17290365952
+  },
+  {
+   "level": 3,
+   "problem_id": 32,
+   "problem_name": "32_ConvolutionalVisionTransformer.py",
+   "stats": {
+    "mean": 0.643,
+    "std": 0.00353,
+    "min": 0.637,
+    "max": 0.657,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 287662080
+  },
+  {
+   "level": 3,
+   "problem_id": 33,
+   "problem_name": "33_VanillaRNN.py",
+   "stats": {
+    "mean": 32.8,
+    "std": 0.827,
+    "min": 30.8,
+    "max": 34.7,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 3021176832
+  },
+  {
+   "level": 3,
+   "problem_id": 34,
+   "problem_name": "34_VanillaRNNHidden.py",
+   "stats": {
+    "mean": 5.29,
+    "std": 0.105,
+    "min": 5.27,
+    "max": 5.97,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 288892416
+  },
+  {
+   "level": 3,
+   "problem_id": 35,
+   "problem_name": "35_LSTM.py",
+   "stats": {
+    "mean": 16.9,
+    "std": 0.136,
+    "min": 16.5,
+    "max": 17.4,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 302578688
+  },
+  {
+   "level": 3,
+   "problem_id": 36,
+   "problem_name": "36_LSTMHn.py",
+   "stats": {
+    "mean": 16.3,
+    "std": 0.177,
+    "min": 15.9,
+    "max": 17.0,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 302578688
+  },
+  {
+   "level": 3,
+   "problem_id": 37,
+   "problem_name": "37_LSTMCn.py",
+   "stats": {
+    "mean": 16.9,
+    "std": 0.289,
+    "min": 16.2,
+    "max": 18.7,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 302578688
+  },
+  {
+   "level": 3,
+   "problem_id": 38,
+   "problem_name": "38_LSTMBidirectional.py",
+   "stats": {
+    "mean": 39.0,
+    "std": 0.454,
+    "min": 37.1,
+    "max": 40.7,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 641226752
+  },
+  {
+   "level": 3,
+   "problem_id": 39,
+   "problem_name": "39_GRU.py",
+   "stats": {
+    "mean": 22.3,
+    "std": 0.211,
+    "min": 21.5,
+    "max": 22.9,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 318497792
+  },
+  {
+   "level": 3,
+   "problem_id": 40,
+   "problem_name": "40_GRUHidden.py",
+   "stats": {
+    "mean": 23.4,
+    "std": 0.201,
+    "min": 23.0,
+    "max": 24.6,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 314863616
+  },
+  {
+   "level": 3,
+   "problem_id": 41,
+   "problem_name": "41_GRUBidirectional.py",
+   "stats": {
+    "mean": 45.8,
+    "std": 0.271,
+    "min": 45.6,
+    "max": 47.3,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 675415040
+  },
+  {
+   "level": 3,
+   "problem_id": 42,
+   "problem_name": "42_GRUBidirectionalHidden.py",
+   "stats": {
+    "mean": 45.9,
+    "std": 0.235,
+    "min": 45.7,
+    "max": 46.8,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 665052160
+  },
+  {
+   "level": 3,
+   "problem_id": 43,
+   "problem_name": "43_MinGPTCausalAttention.py",
+   "stats": {
+    "mean": 89.4,
+    "std": 1.56,
+    "min": 87.3,
+    "max": 103.0,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 3177590784
+  },
+  {
+   "level": 3,
+   "problem_id": 44,
+   "problem_name": "44_MiniGPTBlock.py",
+   "stats": {
+    "mean": 214.0,
+    "std": 1.43,
+    "min": 211.0,
+    "max": 221.0,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 4068645888
+  },
+  {
+   "level": 3,
+   "problem_id": 45,
+   "problem_name": "45_UNetSoftmax.py",
+   "stats": {
+    "mean": 42.9,
+    "std": 0.704,
+    "min": 41.6,
+    "max": 44.1,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 730358784
+  },
+  {
+   "level": 3,
+   "problem_id": 46,
+   "problem_name": "46_NetVladWithGhostClusters.py",
+   "stats": {
+    "mean": 14.8,
+    "std": 0.353,
+    "min": 14.6,
+    "max": 17.3,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 1004833280
+  },
+  {
+   "level": 3,
+   "problem_id": 47,
+   "problem_name": "47_NetVladNoGhostClusters.py",
+   "stats": {
+    "mean": 14.4,
+    "std": 0.439,
+    "min": 14.1,
+    "max": 16.7,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 991693312
+  },
+  {
+   "level": 3,
+   "problem_id": 48,
+   "problem_name": "48_Mamba2ReturnY.py",
+   "stats": {
+    "mean": 87.0,
+    "std": 0.92,
+    "min": 86.2,
+    "max": 93.0,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 4337631232
+  },
+  {
+   "level": 3,
+   "problem_id": 49,
+   "problem_name": "49_Mamba2ReturnFinalState.py",
+   "stats": {
+    "mean": 63.9,
+    "std": 1.51,
+    "min": 63.0,
+    "max": 77.6,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 3179413504
+  },
+  {
+   "level": 3,
+   "problem_id": 50,
+   "problem_name": "50_ReLUSelfAttention.py",
+   "stats": {
+    "mean": 48.4,
+    "std": 0.57,
+    "min": 47.1,
+    "max": 49.4,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 1886531584
+  }
+ ]
+}

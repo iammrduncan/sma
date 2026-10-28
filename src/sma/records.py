@@ -16,6 +16,7 @@ from sma.catalog import Catalog
 from sma.commands import moe_backend_chain
 from sma.config import Config
 from sma.errors import SmaError
+from sma.hashing import sha256_file
 from sma.schemautil import validate_instance
 from sma.scrub import scrub_obj, scrub_text
 from sma.speedmath import bandwidth_ceiling_tok_s
@@ -35,6 +36,10 @@ STEP_NAMES = [
 ]
 
 _SLUG = re.compile(r"[^A-Za-z0-9._-]+")
+
+# Files too big for git. .gitignore lists the same paths. The manifest keeps each one's sha256 and
+# size, so a copy kept elsewhere can be checked against the committed record.
+LARGE_FILES = ("logprobs/dump.json", "logprobs/kld-base.bin")
 
 
 def utc_now() -> str:
@@ -206,6 +211,8 @@ def new_manifest(
         "gguf": None if gguf is None else {"selector": gguf},
         # A full-precision GGUF run writes the logits a later KL reads.
         "logprobs_reference_file": None,
+        # Filled at logprobs: the sha256 and size of each file in LARGE_FILES that the run wrote.
+        "large_files": {},
     }
 
 
@@ -222,6 +229,27 @@ def run_dir_for(
     # Each GGUF file of a repo is its own quant: runs/<slug>/llamacpp/gguf-<selector>/<id>.
     quant_dir = f"gguf-{model_slug(gguf)}" if gguf else quant_flag
     return cfg.runs_path() / model_slug(repo) / engine / quant_dir / run_id
+
+
+def large_file_hashes(run_dir: Path) -> dict[str, dict[str, Any]]:
+    """The sha256 and size of each file in LARGE_FILES that exists in the run folder."""
+    found = {}
+    for rel in LARGE_FILES:
+        path = run_dir / rel
+        if path.is_file():
+            found[rel] = {"sha256": f"sha256:{sha256_file(path)}", "bytes": path.stat().st_size}
+    return found
+
+
+def large_file_problem(run_dir: Path, manifest: dict[str, Any], rel: str) -> str | None:
+    """Why a run's large file does not match its manifest, or None. A run with no recorded hash passes."""
+    recorded = (manifest.get("large_files") or {}).get(rel)
+    if not recorded:
+        return None
+    path = run_dir / rel
+    if path.stat().st_size != recorded["bytes"] or f"sha256:{sha256_file(path)}" != recorded["sha256"]:
+        return f"{rel} does not match the sha256 in its manifest. It is not the file this run wrote."
+    return None
 
 
 def marker_path(run_dir: Path, step: str) -> Path:

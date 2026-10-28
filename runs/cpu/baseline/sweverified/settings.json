@@ -1,0 +1,39 @@
+{
+ "written": "2026-10-27 by hack-lab",
+ "runner": {
+  "host": "${SWE_RUNNER_HOST}",
+  "login": "${SWE_RUNNER_USER} with ${SWE_RUNNER_SSH_KEY} (docker group, no sudo)",
+  "machine": "VM on a Dell R730 host (2x Intel Xeon E5-2680 v3 @ 2.50 GHz), CPU type x86-64-v3",
+  "vcpus": 10,
+  "memory_gib": 23.5,
+  "disk_gb": 246,
+  "disk_free_gb_before": 202,
+  "os": "Debian GNU/Linux 13 (trixie), kernel 6.12.107+deb13-cloud-amd64",
+  "docker": "29.9.2 (overlayfs, cgroup v2)",
+  "python": "3.13.5",
+  "uv": "0.13.5",
+  "network": "internet only; nothing in the lab; reached from ${SMA_HOST} and the owner over SSH only"
+ },
+ "tools": {
+  "venv": "~/sma-swe/.venv (SMA's)",
+  "swebench": "5.0.2",
+  "mini-swe-agent": "2.4.6",
+  "docker (Python)": "7.2.0",
+  "litellm": "1.106.4 (pulled in by mini-swe-agent; checked 2026-10-27 for the 1.107.0 compromise's files: none)"
+ },
+ "dataset": {
+  "file": "~/sma-swe/data/verified-mini.jsonl (SMA's build_dataset.py)",
+  "tasks": "MariusHobbhahn/swe-bench-verified-mini at b316c349 (50 tasks), rows from SWE-bench_Verified at 78f471bf (as SMA built it)",
+  "sha256_prefix": "911f0fe15b153b36"
+ },
+ "images": {
+  "list": "~/sma-swe/images.txt: 50 x docker.io/swebench/sweb.eval.x86_64.<task>:latest@sha256:..., pulled by digest and tagged :latest",
+  "disk_gb": "about 35 (shared layers)"
+ },
+ "baseline_run": {
+  "command": "python -m swebench.harness.run_evaluation --dataset_name ~/sma-swe/data/verified-mini.jsonl --split test --predictions_path gold --run_id gold-baseline --max_workers 1 --timeout 1800",
+  "folder": "~/sma-swe-baseline (separate from SMA's ~/sma-swe)",
+  "workers": 1,
+  "timeout_s": 1800
+ }
+}

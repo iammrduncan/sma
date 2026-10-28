@@ -9,13 +9,19 @@ from typing import Any
 from sma.atomic import atomic_write_json
 from sma.errors import CompareRefused
 from sma.kl import compare_dumps
-from sma.records import load_manifest
+from sma.records import large_file_problem, load_manifest
 
 
-def _dump(run_dir: Path) -> dict[str, Any]:
+def _dump(run_dir: Path, manifest: dict[str, Any]) -> dict[str, Any]:
     path = run_dir / "logprobs" / "dump.json"
     if not path.is_file():
-        raise CompareRefused(f"{run_dir.name} has no logprobs/dump.json. The logprob step has not finished.")
+        raise CompareRefused(
+            f"{run_dir.name} has no logprobs/dump.json. The logprob step has not finished, or the dump "
+            "(kept out of git) was not copied back into the run folder."
+        )
+    mismatch = large_file_problem(run_dir, manifest, "logprobs/dump.json")
+    if mismatch:
+        raise CompareRefused(f"{run_dir.name}: {mismatch}")
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise CompareRefused(f"{path} is not a JSON object")
@@ -53,8 +59,8 @@ def compare_run_dirs(
             "Refusing KL, top-1 agreement, and delta perplexity. "
             "Both runs must score the same token ids."
         )
-    ref_dump = _dump(reference_dir)
-    cand_dump = _dump(candidate_dir)
+    ref_dump = _dump(reference_dir, reference)
+    cand_dump = _dump(candidate_dir, candidate)
     if ref_dump.get("corpus_version") != cand_dump.get("corpus_version"):
         raise CompareRefused(
             "Corpus versions differ "

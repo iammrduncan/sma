@@ -1,0 +1,34 @@
+{"event": "run_created", "level": "INFO", "logger": "sma", "message": "run_created run_id=20261027T211309Z-7b158bb5 repo=Qwen/Qwen3-0.6B quant=bf16", "ts": "2026-10-27T21:13:09Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=fetch run_id=20261027T211309Z-7b158bb5 attempt=1", "ts": "2026-10-27T21:13:09Z"}
+{"event": "image_pull_start", "level": "INFO", "logger": "sma", "message": "image_pull_start engine=sglang image=lmsysorg/sglang:v0.5.10.post1-cu130", "ts": "2026-10-27T21:13:09Z"}
+{"event": "fetched", "level": "INFO", "logger": "sma", "message": "fetched repo=Qwen/Qwen3-0.6B revision_sha=c1899de289a04d12100db370d81485cdf75e47ca", "ts": "2026-10-27T21:13:17Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=KV cache: fp8, 57,344 bytes per token in the full-attention layers", "ts": "2026-10-27T21:13:18Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=context per stream: 40,960 tokens (native maximum 40,960 tokens fits)", "ts": "2026-10-27T21:13:18Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=memory: 1.5 GB weights + 13.0 GB engine overhead + 85.5 GB KV pool = 100.0 GB of the 100.0 GB budget", "ts": "2026-10-27T21:13:18Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=streams that fit: 36 at 40,960 tokens, 45 at 32,768", "ts": "2026-10-27T21:13:18Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=per benchmark: determinism 16,384, logprobs 40,960, quality 40,960, speed 40,960", "ts": "2026-10-27T21:13:18Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=fetch run_id=20261027T211309Z-7b158bb5", "ts": "2026-10-27T21:13:18Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=serve_quality run_id=20261027T211309Z-7b158bb5 attempt=1", "ts": "2026-10-27T21:13:18Z"}
+{"event": "docker_run", "level": "INFO", "logger": "sma", "message": "docker_run name=sma-20261027T211309Z-7b158bb5-quality mode=quality", "ts": "2026-10-27T21:13:18Z"}
+{"event": "server_log", "level": "INFO", "logger": "sma", "message": "server_log mode=quality path=/home/<host>/github/sma/runs/Qwen_Qwen3-0.6B/sglang/bf16/20261027T211309Z-7b158bb5/logs/server-quality.log", "ts": "2026-10-27T21:13:18Z"}
+{"event": "server_wait", "level": "INFO", "logger": "sma", "message": "server_wait mode=quality elapsed_s=16 line=Multi-thread loading shards:   0% Completed | 0/1 [00:00<?, ?it/s][2026-10-27 21:13:29] Parameter lm_head.weight not found in params_dict", "ts": "2026-10-27T21:13:35Z"}
+{"event": "server_wait", "level": "INFO", "logger": "sma", "message": "server_wait mode=quality elapsed_s=33 line=[2026-10-27 21:13:51] INFO:     172.17.0.1:33374 - \"GET /health HTTP/1.1\" 503 Service Unavailable", "ts": "2026-10-27T21:13:51Z"}
+{"event": "server_ready", "level": "INFO", "logger": "sma", "message": "server_ready mode=quality elapsed_s=40", "ts": "2026-10-27T21:13:58Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=serve_quality run_id=20261027T211309Z-7b158bb5", "ts": "2026-10-27T21:13:58Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=determinism run_id=20261027T211309Z-7b158bb5 attempt=1", "ts": "2026-10-27T21:13:58Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=determinism run_id=20261027T211309Z-7b158bb5", "ts": "2026-10-27T21:14:03Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=logprobs run_id=20261027T211309Z-7b158bb5 attempt=1", "ts": "2026-10-27T21:14:03Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=logprobs run_id=20261027T211309Z-7b158bb5", "ts": "2026-10-27T21:14:25Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=quality run_id=20261027T211309Z-7b158bb5 attempt=1", "ts": "2026-10-27T21:14:25Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=quality run_id=20261027T211309Z-7b158bb5", "ts": "2026-10-27T21:14:40Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=serve_speed run_id=20261027T211309Z-7b158bb5 attempt=1", "ts": "2026-10-27T21:14:40Z"}
+{"event": "docker_run", "level": "INFO", "logger": "sma", "message": "docker_run name=sma-20261027T211309Z-7b158bb5-speed mode=speed", "ts": "2026-10-27T21:14:44Z"}
+{"event": "server_log", "level": "INFO", "logger": "sma", "message": "server_log mode=speed path=/home/<host>/github/sma/runs/Qwen_Qwen3-0.6B/sglang/bf16/20261027T211309Z-7b158bb5/logs/server-speed.log", "ts": "2026-10-27T21:14:44Z"}
+{"event": "server_wait", "level": "INFO", "logger": "sma", "message": "server_wait mode=speed elapsed_s=16 line=Multi-thread loading shards:   0% Completed | 0/1 [00:00<?, ?it/s][2026-10-27 21:14:54] Parameter lm_head.weight not found in params_dict", "ts": "2026-10-27T21:15:00Z"}
+{"event": "server_wait", "level": "INFO", "logger": "sma", "message": "server_wait mode=speed elapsed_s=33 line=[2026-10-27 21:15:15] Capture cuda graph num tokens [4, 8, 12, 16, 20, 24, 28, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192, 208, 224, 240, 256, 288, 320, 352, 384, 416, 448, 480, 512, 576, 640, 7", "ts": "2026-10-27T21:15:16Z"}
+{"event": "server_wait", "level": "INFO", "logger": "sma", "message": "server_wait mode=speed elapsed_s=49 line=[2026-10-27 21:15:33] INFO:     172.17.0.1:50722 - \"GET /health HTTP/1.1\" 503 Service Unavailable", "ts": "2026-10-27T21:15:33Z"}
+{"event": "server_ready", "level": "INFO", "logger": "sma", "message": "server_ready mode=speed elapsed_s=52", "ts": "2026-10-27T21:15:36Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=serve_speed run_id=20261027T211309Z-7b158bb5", "ts": "2026-10-27T21:15:36Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=speed run_id=20261027T211309Z-7b158bb5 attempt=1", "ts": "2026-10-27T21:15:36Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=speed run_id=20261027T211309Z-7b158bb5", "ts": "2026-10-27T21:20:47Z"}
+{"event": "warning", "level": "INFO", "logger": "sma", "message": "warning message=Page cache was not dropped. The next model may see leftover file cache.", "ts": "2026-10-27T21:20:51Z"}

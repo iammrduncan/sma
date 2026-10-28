@@ -1,0 +1,21 @@
+{
+  "bench": "sma:gsm8k",
+  "bundle": "attempt-1/sma_gsm8k/eval-20261027T211439Z-sma_gsm8k.json",
+  "categories": null,
+  "ci_lower": 0.5,
+  "ci_upper": 1.0,
+  "concurrency": 8,
+  "context_per_stream": 40960,
+  "dataset_size": 1319,
+  "error": null,
+  "failures": 0,
+  "limit": 10,
+  "n": 10,
+  "pass_at_1_failures_as_wrong": null,
+  "primary_metric": "pass@1",
+  "primary_score": 0.8,
+  "repeats": 1,
+  "scorer": "nemo-evaluator 0.3.0",
+  "shuffle_seed": 0,
+  "suite": "gsm8k"
+}

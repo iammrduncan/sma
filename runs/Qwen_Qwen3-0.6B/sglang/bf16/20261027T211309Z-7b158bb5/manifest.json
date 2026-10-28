@@ -1,0 +1,489 @@
+{
+  "architecture": "qwen3",
+  "architecture_check": {
+    "message": "Qwen3ForCausalLM is registered",
+    "ok": true,
+    "source": "container"
+  },
+  "architectures": [
+    "Qwen3ForCausalLM"
+  ],
+  "config_snapshot": {
+    "determinism": {
+      "batch_sizes": [
+        1,
+        8,
+        64
+      ],
+      "max_tokens": 32,
+      "prompts": [
+        "The capital of France is",
+        "2 + 2 =",
+        "def add(a, b):\n    return"
+      ],
+      "temperature": 0
+    },
+    "doctor": {
+      "gpu_index": 0,
+      "min_free_gb": 20
+    },
+    "engine": {
+      "apply_clock_cap": false,
+      "batch_invariant": true,
+      "bind_host": "127.0.0.1",
+      "clock_cap_mhz": null,
+      "container_prefix": "sma",
+      "extra_args": [],
+      "gpu_memory_utilization": 0.9,
+      "gpus": "all",
+      "image": "nvcr.io/nvidia/vllm:26.05.post1-py3",
+      "image_digest": null,
+      "linear_backend": "flashinfer_b12x",
+      "llamacpp_cache_ram_mib": 8192,
+      "llamacpp_image": "ghcr.io/ggml-org/llama.cpp:full-cuda13-b11913",
+      "llamacpp_image_digest": null,
+      "max_num_seqs": 64,
+      "moe_backend": "flashinfer_b12x",
+      "moe_backend_fallbacks": [
+        "marlin"
+      ],
+      "name": "vllm",
+      "no_async_scheduling_with_batch_invariant": true,
+      "no_flashinfer_autotune_quality": true,
+      "port": 8000,
+      "server_stop_timeout_s": 30,
+      "sglang_attention_backend": "flashinfer",
+      "sglang_determinism_backend": "flashinfer",
+      "sglang_disable_deep_gemm": true,
+      "sglang_image": "lmsysorg/sglang:v0.5.10.post1-cu130",
+      "sglang_image_digest": null,
+      "shm_size": "16g",
+      "tool_call_parser": null,
+      "trust_remote_code": false
+    },
+    "hf": {
+      "cache_dir": "/data/models/sma/hf",
+      "download_timeout_s": 3600,
+      "token_env": "HF_TOKEN"
+    },
+    "host_alias": "gpu-host-1",
+    "lock_path": "~/.local/share/sma/locks/gpu.lock",
+    "logprobs": {
+      "corpus_version": "sma-corpus-v3",
+      "llamacpp_chunks": 8,
+      "num_windows": 48,
+      "top_k": 64,
+      "window_tokens": 2048
+    },
+    "memory": {
+      "budget_gb": 100,
+      "overhead_gb": {
+        "llamacpp": 3.0,
+        "sglang": 13.0,
+        "vllm": 13.0
+      },
+      "pool_overhead_fraction": {
+        "llamacpp": 0.12,
+        "sglang": 0.0,
+        "vllm": 0.0
+      },
+      "quality_min_context": 8192,
+      "start_context": 262144
+    },
+    "quality": {
+      "chat_template_kwargs": {
+        "enable_thinking": false
+      },
+      "concurrency": 8,
+      "enabled": true,
+      "executable": "nel",
+      "max_tokens": 1024,
+      "request_timeout_s": 900,
+      "suites": [
+        {
+          "bench": "lm-eval://ifeval",
+          "image": null,
+          "limit": 10,
+          "name": "ifeval",
+          "task": null,
+          "tools": false
+        },
+        {
+          "bench": "sma:gsm8k",
+          "image": null,
+          "limit": 10,
+          "name": "gsm8k",
+          "task": null,
+          "tools": false
+        }
+      ]
+    },
+    "queue": {
+      "claim_grace_s": 30,
+      "dir": "~/.local/share/sma/queue",
+      "heartbeat_s": 30,
+      "max_attempts": 1,
+      "poll_s": 5,
+      "retry_backoff_factor": 2,
+      "retry_backoff_s": 30,
+      "stale_claim_s": 3600
+    },
+    "retries": {
+      "attempts": 3,
+      "backoff_factor": 2.0,
+      "backoff_s": 2.0
+    },
+    "runs_dir": "runs",
+    "schema_version": 1,
+    "seed": 0,
+    "speed": {
+      "decode": {
+        "input_len": 128,
+        "name": "decode",
+        "output_len": 512
+      },
+      "derive_stat": "p50",
+      "metric_percentiles": "50,90,99",
+      "num_prompts": 32,
+      "percentile_metrics": "ttft,tpot,itl,e2el",
+      "prefill": {
+        "input_len": 2048,
+        "name": "prefill",
+        "output_len": 64
+      },
+      "repeats": 1,
+      "sweep": {
+        "input_len": 1024,
+        "name": "sweep",
+        "output_len": 256
+      },
+      "sweep_concurrency": [
+        1,
+        4,
+        8
+      ],
+      "throttle_retries": 1,
+      "warmup_max_tokens": 8,
+      "warmup_requests": 4,
+      "warmup_soak_s": 30
+    },
+    "telemetry": {
+      "cool_between_legs": true,
+      "drop_page_cache": true,
+      "idle_timeout_s": 60,
+      "idle_until_cool_c": 55,
+      "interval_s": 1.0,
+      "max_sample_gap_s": 2.5,
+      "min_sample_ratio": 0.8,
+      "poll_s": 5,
+      "spec_bandwidth_gbps": 273,
+      "spec_usable_gb": 115,
+      "sw_power_cap_invalidates": false
+    },
+    "timeouts": {
+      "bench_s": 7200,
+      "command_s": 120,
+      "docker_s": 300,
+      "eval_s": 14400,
+      "health_poll_s": 2,
+      "health_request_s": 5,
+      "image_pull_s": 3600,
+      "logprob_request_s": 600,
+      "metrics_s": 10,
+      "server_start_s": 900
+    }
+  },
+  "dispatch_concurrency": 8,
+  "engine": {
+    "batch_invariant_quality": false,
+    "batch_invariant_supported": true,
+    "batch_invariant_warning": null,
+    "bench_image": null,
+    "build_info": null,
+    "clock_cap_mhz": null,
+    "context_per_stream": 40960,
+    "deterministic_quality": {
+      "attention_backend": "flashinfer",
+      "determinism_backend": "flashinfer",
+      "prefix_cache": false,
+      "radix_cache": false
+    },
+    "env_quality": {
+      "SGLANG_ENABLE_DETERMINISTIC_INFERENCE": "1",
+      "SGLANG_ENABLE_JIT_DEEPGEMM": "0"
+    },
+    "env_speed": {
+      "SGLANG_ENABLE_JIT_DEEPGEMM": "0"
+    },
+    "flags_quality": [
+      "python3",
+      "-m",
+      "sglang.launch_server",
+      "--model-path",
+      "/model",
+      "--host",
+      "0.0.0.0",
+      "--port",
+      "8000",
+      "--served-model-name",
+      "Qwen/Qwen3-0.6B",
+      "--tp-size",
+      "1",
+      "--mem-fraction-static",
+      "0.9",
+      "--context-length",
+      "40960",
+      "--max-total-tokens",
+      "1490944",
+      "--kv-cache-dtype",
+      "fp8_e4m3",
+      "--attention-backend",
+      "flashinfer",
+      "--max-running-requests",
+      "64",
+      "--random-seed",
+      "0",
+      "--enable-metrics",
+      "--disable-radix-cache",
+      "--enable-deterministic-inference"
+    ],
+    "flags_speed": [
+      "python3",
+      "-m",
+      "sglang.launch_server",
+      "--model-path",
+      "/model",
+      "--host",
+      "0.0.0.0",
+      "--port",
+      "8000",
+      "--served-model-name",
+      "Qwen/Qwen3-0.6B",
+      "--tp-size",
+      "1",
+      "--mem-fraction-static",
+      "0.9",
+      "--context-length",
+      "40960",
+      "--max-total-tokens",
+      "1490944",
+      "--kv-cache-dtype",
+      "fp8_e4m3",
+      "--attention-backend",
+      "flashinfer",
+      "--max-running-requests",
+      "64",
+      "--random-seed",
+      "0",
+      "--enable-metrics"
+    ],
+    "flashinfer_autotune_quality": true,
+    "image": "lmsysorg/sglang:v0.5.10.post1-cu130",
+    "image_digest": "sha256:53505dbf98d3ed1ef3b36721d3b91e4314a31b0b35beaa9a7472277f5e8cd7a7",
+    "kv_cache_reported": {
+      "quality": {
+        "kv_type": "torch.float8_e4m3fn",
+        "kv_type_line": "[2026-10-27 21:13:36] Using KV cache dtype: torch.float8_e4m3fn",
+        "pool_tokens": 1490944,
+        "scale_1_0": true
+      },
+      "speed": {
+        "kv_type": "torch.float8_e4m3fn",
+        "kv_type_line": "[2026-10-27 21:15:01] Using KV cache dtype: torch.float8_e4m3fn",
+        "pool_tokens": 1490944,
+        "scale_1_0": true
+      }
+    },
+    "kv_cache_scales": "engine default (scale 1.0, not calibrated)",
+    "kv_cache_type": "fp8",
+    "linear_backend": null,
+    "logprobs_mode": "sglang_input_top_logprobs",
+    "max_logprobs": 64,
+    "moe_backend_chain": [
+      "flashinfer_b12x",
+      "marlin"
+    ],
+    "moe_backend_config": "flashinfer_b12x",
+    "moe_backend_fallback": false,
+    "moe_backend_quality": null,
+    "moe_backend_quality_fallback": false,
+    "moe_backend_speed": null,
+    "moe_backend_speed_fallback": false,
+    "moe_backend_used": null,
+    "name": "sglang",
+    "no_async_scheduling_quality": false,
+    "resolved_backend_note": "[2026-10-27 21:14:49] server_args=ServerArgs(model_path='/model', tokenizer_path='/model', tokenizer_mode='auto', tokenizer_worker_num=1, skip_tokenizer_init=False, load_format='auto', model_loader_extra_config='{}', trust_remote_code=False | [2026-10-27 21:14:53] SM120 (Blackwell) detected: auto-selecting fp4-gemm-backend=flashinfer_cudnn",
+    "seed": 0,
+    "selected_by": "flag",
+    "selection_reason": null,
+    "tensor_parallel_size": 1,
+    "tool_call_parser": null
+  },
+  "file_hashes": {
+    "config.json": "sha256:660db3b73d788119c04535e48cf9be5f55bc3100841a718637ae695b442f27dd",
+    "model.safetensors": "sha256:f47f71177f32bcd101b7573ec9171e6a57f4f4d31148d38e382306f42996874b"
+  },
+  "gguf": null,
+  "host_alias": "gpu-host-1",
+  "is_moe": false,
+  "large_files": {
+    "logprobs/dump.json": {
+      "bytes": 298819351,
+      "sha256": "sha256:475ed48652b4d3c19e96fad6ead1dc69e99e2a4d042de8aed37bf7eb69083a26"
+    }
+  },
+  "logprobs_reference_file": null,
+  "memory_plan": {
+    "benchmarks": {
+      "determinism": 16384,
+      "logprobs": 40960,
+      "quality": 40960,
+      "speed": 40960
+    },
+    "budget_bytes": 100000000000,
+    "budget_gb": 100.0,
+    "context": 40960,
+    "context_reason": "native maximum 40,960 tokens fits",
+    "footprint_bytes": 100000000000,
+    "footprint_gb": 100.0,
+    "kv_bytes_per_token": 57344,
+    "kv_type": "fp8",
+    "ladder": [
+      40960,
+      32768,
+      16384,
+      8192,
+      4096,
+      2048,
+      1024
+    ],
+    "layout_notes": [],
+    "notes": [],
+    "overhead_bytes": 13000000000,
+    "overhead_gb": 13.0,
+    "pool_bytes": 85496699672,
+    "pool_gb": 85.5,
+    "pool_overhead_fraction": 0.0,
+    "pool_tokens": 1490944,
+    "stream_bytes": 2348810240,
+    "stream_gb": 2.35,
+    "streams_32k": 45,
+    "streams_full_context": 36,
+    "weights_bytes": 1503300328,
+    "weights_gb": 1.5
+  },
+  "model_repo": "Qwen/Qwen3-0.6B",
+  "model_slug": "Qwen_Qwen3-0.6B",
+  "pair_job_id": null,
+  "params": {
+    "active": 751632384,
+    "active_b": 0.8,
+    "method": "dense: active = total, embeddings included, from safetensors shapes",
+    "size_class": "<1B",
+    "source": "safetensors shapes",
+    "total": 751632384,
+    "total_b": 0.8
+  },
+  "quant_composition": null,
+  "quant_detail": "no quantization_config; dtype bfloat16",
+  "quant_detected": "bf16",
+  "quant_flag": "bf16",
+  "quant_label": "bf16",
+  "quant_producer": null,
+  "reference_run_id": null,
+  "revision_requested": null,
+  "revision_sha": "c1899de289a04d12100db370d81485cdf75e47ca",
+  "run_id": "20261027T211309Z-7b158bb5",
+  "schema_version": 2,
+  "sma_git_commit": "2e6fec65aaa43da933c6c3fff55cfaf10446930a",
+  "sma_git_dirty": true,
+  "sma_version": "0.1.0",
+  "steps": {
+    "cleanup": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-27T21:20:51Z",
+      "started": "2026-10-27T21:20:51Z",
+      "status": "done"
+    },
+    "determinism": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-27T21:14:03Z",
+      "started": "2026-10-27T21:13:58Z",
+      "status": "done"
+    },
+    "fetch": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-27T21:13:18Z",
+      "started": "2026-10-27T21:13:09Z",
+      "status": "done"
+    },
+    "logprobs": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-27T21:14:25Z",
+      "started": "2026-10-27T21:14:03Z",
+      "status": "done"
+    },
+    "quality": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-27T21:14:40Z",
+      "started": "2026-10-27T21:14:25Z",
+      "status": "done"
+    },
+    "serve_quality": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-27T21:13:58Z",
+      "started": "2026-10-27T21:13:18Z",
+      "status": "done"
+    },
+    "serve_speed": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-27T21:15:36Z",
+      "started": "2026-10-27T21:14:40Z",
+      "status": "done"
+    },
+    "speed": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-27T21:20:47Z",
+      "started": "2026-10-27T21:15:36Z",
+      "status": "done"
+    },
+    "teardown": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-27T21:20:51Z",
+      "started": "2026-10-27T21:20:51Z",
+      "status": "done"
+    },
+    "telemetry": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-27T21:20:47Z",
+      "started": "2026-10-27T21:20:47Z",
+      "status": "done"
+    }
+  },
+  "subject": {
+    "engine": "sglang",
+    "hardware_alias": "gpu-host-1",
+    "model_repo": "Qwen/Qwen3-0.6B",
+    "quant": "bf16",
+    "revision_sha": "c1899de289a04d12100db370d81485cdf75e47ca"
+  },
+  "timestamps": {
+    "created": "2026-10-27T21:13:09Z",
+    "finished": "2026-10-27T21:20:47Z",
+    "started": "2026-10-27T21:13:09Z"
+  },
+  "tokenizer_fingerprint": "sha256:aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
+  "warnings": [
+    "Page cache was not dropped. The next model may see leftover file cache."
+  ]
+}

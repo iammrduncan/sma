@@ -1,0 +1,8 @@
+{
+  "completed_benchmarks": {
+    "lm-eval://ifeval": {
+      "bundle_path": "attempt-1/lm-eval___ifeval"
+    }
+  },
+  "failed_benchmarks": {}
+}
