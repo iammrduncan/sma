@@ -90,3 +90,25 @@ def test_a_suite_where_every_request_was_answered_keeps_its_score_and_interval(t
     scores = normalize_suite(tmp_path, tmp_path / "attempt-1", "gpqa_diamond", bench="gpqa", limit=20)
     assert (scores["primary_score"], scores["ci_lower"], scores["ci_upper"]) == (0.3, 0.0, 0.25)
     assert (scores["error"], scores["pass_at_1_failures_as_wrong"]) == (None, None)
+
+
+def test_a_refusal_is_an_answer_and_stays_in_the_score(tmp_path: Path) -> None:
+    # The shape nel 0.3.0 wrote on a Spark: one IFEval reply categorized as a refusal.
+    bundle = _bundle(tmp_path / "attempt-1" / "gpqa", value=0.6)
+    data = json.loads(bundle.read_text(encoding="utf-8"))
+    data["benchmark"]["scores"]["failures"] = {
+        "total_steps": 10, "total_failures": 1, "failure_rate": 0.1,
+        "categories": {"refusal": {"count": 1, "percentage": 0.1}},
+    }
+    bundle.write_text(json.dumps(data), encoding="utf-8")
+    scores = normalize_suite(tmp_path, tmp_path / "attempt-1", "ifeval", bench="lm-eval://ifeval", limit=10)
+    assert (scores["primary_score"], scores["error"]) == (0.6, None)
+
+
+def test_timeouts_and_failed_calls_are_unanswered() -> None:
+    from sma.qualityout import unanswered_count
+
+    spark = {"total_failures": 8, "categories": {"infra_error": {"count": 8}}}
+    assert unanswered_count(spark) == 8
+    assert unanswered_count({"total_failures": 3, "categories": {"graceful": {"count": 2}, "refusal": {"count": 1}}}) == 2
+    assert unanswered_count({"total_failures": 2}) == 2

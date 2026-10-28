@@ -1,0 +1,10 @@
+{
+  "run_id": "20261027_205156_79ed7946",
+  "executor": "local",
+  "output_dir": "/home/<host>/github/sma/runs/unsloth_Qwen3-0.6B-GGUF/llamacpp/gguf-UD-Q4_K_XL/20261027T205056Z-11068cfd/quality/gsm8k/attempt-1",
+  "started_at": "2026-10-27T20:51:56.515185+00:00",
+  "config_summary": "gsm8k.py",
+  "details": {
+    "pid": 3750969
+  }
+}

@@ -79,11 +79,11 @@ memory:
   # that fits the streams it runs at once. The KV cache is always 8-bit: FP8, or Q8_0 on llama.cpp.
   start_context: 262144
   # Run memory beyond weights and KV pool, in GB: the engine's activations, CUDA graphs, and server
-  # processes, plus SMA's tools beside it (nel, the bench client). Measured on a Spark: vLLM with
-  # Qwen3-0.6B peaked 8.9 GB above weights + pool during quality (docs/first-spark-run.md).
+  # processes, plus SMA's tools beside it (nel, the bench client). Measured on a Spark: vLLM peaked
+  # 8.9 GB above weights + pool with Qwen3-0.6B and 11.4 GB with Qwen3-8B NVFP4 (docs/first-spark-run.md).
   overhead_gb:
-    vllm: 10.0
-    sglang: 10.0
+    vllm: 13.0
+    sglang: 13.0
     llamacpp: 3.0
   # Engine memory that grows with the KV pool, as a share of it. llama.cpp's buffers sized by its
   # context measured 0.9 GB plus 11.7% of the pool on a Spark. Its prompt cache

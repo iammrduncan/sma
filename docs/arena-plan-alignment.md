@@ -18,7 +18,7 @@ This maps the arena plan page ("Multi-quant benchmark and small model arena plan
 | NVFP4 fallback chain, step 1 | If `flashinfer_b12x` never becomes healthy, SMA tries `marlin` and records that backend. This is the plan's first fallback step, not a deviation. SMA does not quantize, does not switch engines on failure, and does not relabel another quant as NVFP4 | `sma/pipeline.py` `_start_server` |
 | Dense NVFP4 linear backend recorded | `VLLM_NVFP4_GEMM_BACKEND=flashinfer-b12x` (from `engine.linear_backend`) for dense NVFP4 on vLLM, in `engine.env_quality` / `env_speed`. vLLM 0.21 refuses a `--linear-backend` flag | `sma/backends.py` |
 | FlashInfer autotune off for quality | `--no-enable-flashinfer-autotune` on the vLLM quality server | `sma/backends.py` |
-| `VLLM_BATCH_INVARIANT=1` for quality and logprobs | Set when the architecture is not a known gated delta-net. Also `--no-async-scheduling` | `sma/backends.py`, `sma/quant.py` |
+| `VLLM_BATCH_INVARIANT=1` for quality and logprobs | Set when the architecture is not a known gated delta-net and the checkpoint is not quantized (deviation 18). Also `--no-async-scheduling` | `sma/backends.py`, `sma/quant.py` |
 | Determinism probe at batch 1, 8, 64. Record pass or fail. Do not abort | `determinism.json`. A failure is a warning. Prefix caching is off for this server | `sma/probe.py` |
 | Quality packed, concurrency recorded | `quality.concurrency`, copied to `dispatch_concurrency` | `sma.yaml`, manifest |
 | Speed and energy solo, batch invariance off | Speed server is a second container with the flag unset. One server at a time. Warm-up runs again whenever that speed container is a fresh start, including resume | `sma/pipeline.py` |
@@ -62,7 +62,7 @@ These plan sections are intentionally not implemented. They belong to the arena 
 - The GGUF ladder as a grid: one model's every quant file × a benchmark set, shown as a heatmap. Single GGUF runs exist (extension 6); the grid runner and view do not
 - Installing a checkpoint's custom wheel (including `sglang/flint_sglang-0.1.4-py3-none-any.whl`). `FlintForCausalLM` fails preflight on stock vLLM and on the pinned stock SGLang image
 - Joules per correct answer, dollars from `rates.yaml`, and tokens per correct answer
-- Workload-track benchmarks (KernelBench, BigCodeBench, MuSiQue, JSONSchemaBench, and the custom sets)
+- Workload-track benchmarks (KernelBench, BigCodeBench, MuSiQue, JSONSchemaBench, and the custom sets). KernelBench's GB10 baseline and SWE-bench Verified-mini's gold-patch baseline are recorded, with how to call each service, under `runs/gb10/baseline/` and `runs/cpu/baseline/`; SMA does not run either yet
 - Automatic fallback from a failed NVFP4 server into self-quantization, W4A16, MXFP4, or SGLang
 
 ## Deviations from the arena plan
@@ -86,3 +86,4 @@ The brief wins on these. Marlin-as-the-next-MoE-backend is step 1 of the page's 
 15. **The bandwidth ceiling is the configured 273 GB/s spec constant,** not a measurement. Mixed checkpoints leave it null.
 16. **The corpus is vendored, and the scored length is the tokenizer's.** The page asks for about 100k tokens of natural text, pinned by revision and hashed. SMA ships the public-domain Gutenberg 1342 novel text (sha256 `a09bbe27eade79c728f69f22f8e0bee90ef75c3e28ee99d396533de4733fb2ed`, 77,566 words) after removing the illustrated edition's illustration list and page numbers. The default asks for 48 windows of 2048 tokens (98,304). A tokenizer that yields fewer tokens fails the logprob step instead of scoring a shorter slice. SMA does not re-download the book on each run.
 17. **An architecture is refused from the container registry, not from the built-in list alone.** Preflight pulls the image and queries `image@digest`. If that query cannot be run, SMA warns and continues unless the architecture is a known-unsupported case. Flint is always refused. SMA does not install a Flint wheel or plugin.
+18. **Batch invariance is for unquantized checkpoints only** (owner decision, 2026-10-27). On the pinned vLLM image, batch-invariant mode serves NVFP4 linear layers by emulation, FP8 through DeepGEMM or a BF16 dequant, and excludes MoE kernels that do not declare batch invariance. A quantized run's quality and KL would then not measure the kernels users run (NVFP4 Qwen3-8B generated about 2 tokens per second per request that way on a Spark). NVFP4, MXFP4, mixed, and FP8 checkpoints run with batch invariance off; the determinism probe still records the noise.

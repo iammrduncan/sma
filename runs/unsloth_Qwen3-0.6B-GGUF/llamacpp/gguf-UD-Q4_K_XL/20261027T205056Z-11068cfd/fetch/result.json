@@ -1,0 +1,54 @@
+{
+  "architecture": "qwen3",
+  "architectures": [
+    "qwen3"
+  ],
+  "batch_invariant_reason": "llama.cpp has no batch-invariant mode. The determinism probe still runs and records what it sees.",
+  "batch_invariant_supported": false,
+  "dtype": null,
+  "experts_per_tok": null,
+  "file_hashes": {
+    "Qwen3-0.6B-UD-Q4_K_XL.gguf": "sha256:ed2dd561f8aa5651cfb198be583269779e26ca6e28c40dba94fc2da4432bde2a"
+  },
+  "file_sizes": {
+    "Qwen3-0.6B-UD-Q4_K_XL.gguf": 405372608
+  },
+  "gguf": {
+    "architecture": "qwen3",
+    "file_type": "MOSTLY_Q4_K_M",
+    "file_type_id": 15,
+    "files": [
+      "Qwen3-0.6B-UD-Q4_K_XL.gguf"
+    ],
+    "model_file": "Qwen3-0.6B-UD-Q4_K_XL.gguf",
+    "name": "Qwen3-0.6B",
+    "native_context": 40960,
+    "notes": [],
+    "split_count": 1
+  },
+  "is_moe": false,
+  "num_experts": null,
+  "params_active": 596049920,
+  "params_active_b": 0.6,
+  "params_method": "GGUF tensor shapes; dense: active = total, embeddings included, from safetensors shapes",
+  "params_total": 596049920,
+  "params_total_b": 0.6,
+  "quant_detail": "GGUF MOSTLY_Q4_K_M; tensors 113 F32, 20 IQ4_XS, 110 Q4_K, 30 Q5_K, 37 Q6_K",
+  "quant_detected": "gguf",
+  "quant_flag": "gguf",
+  "quant_label": "UD-Q4_K_XL",
+  "quant_producer": null,
+  "repo": "unsloth/Qwen3-0.6B-GGUF",
+  "revision_requested": null,
+  "revision_sha": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+  "size_class": "<1B",
+  "snapshot_path": "/data/models/sma/hf/unsloth_Qwen3-0.6B-GGUF/50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+  "sources": {
+    "gguf_file_type": "MOSTLY_Q4_K_M",
+    "kv_cache_quant_algo": null,
+    "quant_method": "gguf"
+  },
+  "tokenizer_fingerprint": "sha256:1268c8a00ef6c8046a544a162d7be4c944f0327045a660e5d1368c904e44bdda",
+  "warnings": [],
+  "weights_bytes": 405372608
+}

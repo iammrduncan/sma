@@ -1,0 +1,10 @@
+{
+  "run_id": "20261027_210710_13713ae9",
+  "executor": "local",
+  "output_dir": "/home/<host>/github/sma/runs/Qwen_Qwen3-0.6B/vllm/bf16/20261027T210457Z-68e59d1a/quality/gsm8k/attempt-1",
+  "started_at": "2026-10-27T21:07:10.739453+00:00",
+  "config_summary": "gsm8k.py",
+  "details": {
+    "pid": 3762366
+  }
+}

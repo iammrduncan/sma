@@ -1,0 +1,10 @@
+{
+  "run_id": "20261027_204417_a0637c8b",
+  "executor": "local",
+  "output_dir": "/home/<host>/github/sma/runs/unsloth_Qwen3-0.6B-GGUF/llamacpp/gguf-BF16/20261027T204345Z-27873964/quality/ifeval/attempt-1",
+  "started_at": "2026-10-27T20:44:17.149073+00:00",
+  "config_summary": "lm-eval://ifeval",
+  "details": {
+    "pid": 3745314
+  }
+}

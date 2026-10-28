@@ -76,7 +76,14 @@ uv run sma run Qwen/Qwen3-8B --bf16 --dry-run         # prints the plan; no GPU,
   bench, a GGUF repo), `fake_vllm.py` (an HTTP server), `gguf_writer.py` (small GGUF files), and
   `harness.py` (`make_config`, `make_services`). `tests/data/configs` holds real config.json files and
   `tests/data/llamacpp` real llama-perplexity output.
-- `runs/`, `queue/`, and `.sma/` are output. They are git-ignored. Do not commit them.
+- `runs/` holds the run records, and they are committed: they are the data SMA submits (owner
+  decision 2026-10-27). Git ignores `runs/.env` (machine names), the catalog SMA rebuilds, and the
+  files too big for git (`records.LARGE_FILES`; the manifest keeps their sha256 and size). Before a
+  run folder is committed, check it for hostnames, lab names, and keys.
+- `runs/gb10/baseline/kernelbench/` and `runs/cpu/baseline/sweverified/` hold the KernelBench and
+  SWE-bench Verified-mini baselines and how to call each service. Machine names there are `${NAME}`
+  placeholders whose values are in `runs/.env`.
+- `queue/` and `.sma/` are local state. They are git-ignored. Do not commit them.
 
 ## How to work
 

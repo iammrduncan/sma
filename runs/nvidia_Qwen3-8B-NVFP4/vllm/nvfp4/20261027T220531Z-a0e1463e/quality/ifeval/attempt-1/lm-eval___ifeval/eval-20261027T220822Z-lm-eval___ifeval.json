@@ -1,0 +1,69 @@
+{
+  "run_id": "eval-20261027T220822Z-lm-eval___ifeval",
+  "config_hash": "sha256:5892063a6ea1de59386c57e2980d25c4a340036f5e1e2d0b1806e2393d49c1fb",
+  "sdk_version": "0.3.0",
+  "timestamp": "2026-10-27T22:08:22.038340+00:00",
+  "config": {
+    "benchmark": "lm-eval://ifeval",
+    "model": "nvidia/Qwen3-8B-NVFP4",
+    "base_url": "http://127.0.0.1:4000",
+    "repeats": 1,
+    "max_problems": 10,
+    "scorers": null,
+    "_sandbox_config": "capture_cmd=None verify_timeout=600.0 stateful=False type='none'",
+    "shuffle_seed": 0,
+    "shuffle": {
+      "seed": 0,
+      "applied": true,
+      "ds_full_size": 541,
+      "ds_effective_size": 10
+    }
+  },
+  "benchmark": {
+    "name": "lm-eval://ifeval",
+    "samples": 10,
+    "repeats": 1,
+    "scores": {
+      "pass@1": {
+        "value": 0.9,
+        "bootstrap_ci_lower": 0.7,
+        "bootstrap_ci_upper": 1.0
+      },
+      "summary": {
+        "mean": 0.9,
+        "std": 0.31622776601683794,
+        "min": 0.0,
+        "max": 1.0,
+        "median": 1.0,
+        "n": 10
+      },
+      "runtime": {
+        "total_steps": 10,
+        "total_tokens": 2028,
+        "total_prompt_tokens": 624,
+        "total_completion_tokens": 1404,
+        "total_reasoning_tokens": 0,
+        "elapsed_seconds": 7.82,
+        "latency_percentiles_ms": {
+          "p50": 4208.72,
+          "p90": 5311.82,
+          "p99": 7543.88
+        },
+        "tokens_per_second": 259.42,
+        "steps_per_second": 1.28,
+        "model_errors": 0,
+        "total_retries": 0,
+        "finish_reason_counts": {
+          "stop": 10
+        }
+      },
+      "failures": {
+        "total_steps": 10,
+        "total_failures": 0,
+        "failure_rate": 0.0,
+        "categories": {}
+      }
+    }
+  },
+  "n_results": 10
+}

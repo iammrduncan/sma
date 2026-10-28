@@ -87,7 +87,7 @@ class MemoryConfig:
     # Run memory beyond weights and KV pool, in GB: the engine's activations, CUDA graphs, and server
     # processes, plus SMA's tools beside it (nel, the bench client). Measured per engine on the Spark
     # (docs/first-spark-run.md).
-    overhead_gb: dict[str, float] = field(default_factory=lambda: {"vllm": 10.0, "sglang": 10.0, "llamacpp": 3.0})
+    overhead_gb: dict[str, float] = field(default_factory=lambda: {"vllm": 13.0, "sglang": 13.0, "llamacpp": 3.0})
     # Engine memory that grows with the KV pool, as a share of it. llama.cpp's buffers sized by its
     # context measured 0.9 GB plus 11.7% of the pool on a Spark (Qwen3-0.6B, -c 372,578 and 1,490,313).
     pool_overhead_fraction: dict[str, float] = field(default_factory=lambda: {"vllm": 0.0, "sglang": 0.0, "llamacpp": 0.12})

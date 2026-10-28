@@ -1,0 +1,11 @@
+{
+  "chunks": 8,
+  "corpus_dataset": "project-gutenberg-1342",
+  "corpus_license": "public-domain",
+  "corpus_revision": "1342-0.txt",
+  "corpus_sha256": "a09bbe27eade79c728f69f22f8e0bee90ef75c3e28ee99d396533de4733fb2ed",
+  "corpus_version": "sma-corpus-v3",
+  "method": "llama-perplexity: the text is tokenized by the GGUF's own tokenizer and cut into chunks of window_tokens; the second half of each chunk is scored",
+  "tokenizer_fingerprint": "sha256:1268c8a00ef6c8046a544a162d7be4c944f0327045a660e5d1368c904e44bdda",
+  "window_tokens": 2048
+}

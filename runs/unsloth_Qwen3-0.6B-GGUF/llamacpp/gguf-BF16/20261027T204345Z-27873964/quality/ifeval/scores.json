@@ -1,0 +1,21 @@
+{
+  "bench": "lm-eval://ifeval",
+  "bundle": "attempt-1/lm-eval___ifeval/eval-20261027T204424Z-lm-eval___ifeval.json",
+  "categories": null,
+  "ci_lower": 0.3,
+  "ci_upper": 0.9,
+  "concurrency": 8,
+  "context_per_stream": 40960,
+  "dataset_size": 541,
+  "error": null,
+  "failures": 1,
+  "limit": 10,
+  "n": 10,
+  "pass_at_1_failures_as_wrong": null,
+  "primary_metric": "pass@1",
+  "primary_score": 0.6,
+  "repeats": 1,
+  "scorer": "nemo-evaluator 0.3.0",
+  "shuffle_seed": 0,
+  "suite": "ifeval"
+}

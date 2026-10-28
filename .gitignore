@@ -6,7 +6,15 @@ __pycache__/
 .ruff_cache/
 dist/
 *.egg-info/
-runs/
+# Run records are committed: they are the data SMA submits (owner decision 2026-10-27).
+# These stay out: machine names, the catalog SMA rebuilds from the manifests, and files
+# too big for git (records.LARGE_FILES; each manifest keeps their sha256 and size).
+runs/.env
+runs/catalog.sqlite
+runs/index.json
+runs/.catalog.lock
+runs/**/logprobs/dump.json
+runs/**/logprobs/kld-base.bin
 queue/
 .sma/
 *.tmp

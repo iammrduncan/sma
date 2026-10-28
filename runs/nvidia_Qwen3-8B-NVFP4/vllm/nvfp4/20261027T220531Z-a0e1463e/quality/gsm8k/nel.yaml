@@ -1,0 +1,26 @@
+services:
+  sma:
+    type: api
+    url: http://127.0.0.1:8000/v1/chat/completions
+    protocol: chat_completions
+    model: nvidia/Qwen3-8B-NVFP4
+    generation:
+      temperature: 0.0
+      seed: 0
+      max_tokens: 1024
+    proxy:
+      interceptors:
+      - name: reasoning
+      request_timeout: 900
+      max_retries: 2
+      extra_body:
+        chat_template_kwargs:
+          enable_thinking: false
+benchmarks:
+- name: gsm8k.py
+  max_problems: 10
+  max_concurrent: 8
+  shuffle_seed: 0
+  solver:
+    type: simple
+    service: sma

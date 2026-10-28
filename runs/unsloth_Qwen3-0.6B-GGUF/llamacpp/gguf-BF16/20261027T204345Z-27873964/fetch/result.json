@@ -1,0 +1,54 @@
+{
+  "architecture": "qwen3",
+  "architectures": [
+    "qwen3"
+  ],
+  "batch_invariant_reason": "llama.cpp has no batch-invariant mode. The determinism probe still runs and records what it sees.",
+  "batch_invariant_supported": false,
+  "dtype": null,
+  "experts_per_tok": null,
+  "file_hashes": {
+    "Qwen3-0.6B-BF16.gguf": "sha256:f9c9f1d3c1e21755b82d4e165f88dbbbd4355646d632fb5d6cef7c66ed4ee04e"
+  },
+  "file_sizes": {
+    "Qwen3-0.6B-BF16.gguf": 1198182848
+  },
+  "gguf": {
+    "architecture": "qwen3",
+    "file_type": "MOSTLY_BF16",
+    "file_type_id": 32,
+    "files": [
+      "Qwen3-0.6B-BF16.gguf"
+    ],
+    "model_file": "Qwen3-0.6B-BF16.gguf",
+    "name": "Qwen3-0.6B",
+    "native_context": 40960,
+    "notes": [],
+    "split_count": 1
+  },
+  "is_moe": false,
+  "num_experts": null,
+  "params_active": 596049920,
+  "params_active_b": 0.6,
+  "params_method": "GGUF tensor shapes; dense: active = total, embeddings included, from safetensors shapes",
+  "params_total": 596049920,
+  "params_total_b": 0.6,
+  "quant_detail": "GGUF MOSTLY_BF16; tensors 197 BF16, 113 F32",
+  "quant_detected": "gguf",
+  "quant_flag": "gguf",
+  "quant_label": "BF16",
+  "quant_producer": null,
+  "repo": "unsloth/Qwen3-0.6B-GGUF",
+  "revision_requested": null,
+  "revision_sha": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+  "size_class": "<1B",
+  "snapshot_path": "/data/models/sma/hf/unsloth_Qwen3-0.6B-GGUF/50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+  "sources": {
+    "gguf_file_type": "MOSTLY_BF16",
+    "kv_cache_quant_algo": null,
+    "quant_method": "gguf"
+  },
+  "tokenizer_fingerprint": "sha256:1268c8a00ef6c8046a544a162d7be4c944f0327045a660e5d1368c904e44bdda",
+  "warnings": [],
+  "weights_bytes": 1198182848
+}

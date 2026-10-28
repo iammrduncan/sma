@@ -94,10 +94,18 @@ For a later MoE NVFP4 or MXFP4 run, `engine.moe_backend_quality` and `engine.moe
 - `engine.kv_cache_type` is `fp8`, and `engine.flags_quality` and `engine.flags_speed` contain `--kv-cache-dtype fp8`, `--kv-cache-memory-bytes` equal to `memory_plan.pool_bytes`, and `--max-model-len` equal to `memory_plan.context`.
 - `engine.kv_cache_reported.quality.kv_type_line` is vLLM's own line, "Using fp8 data type to store kv cache", and `pool_tokens` is within a few tokens of `memory_plan.pool_tokens`.
 - `engine.kv_cache_scales` is `engine default (scale 1.0, not calibrated)` for a BF16 checkpoint. For a checkpoint that declares FP8 KV scales it starts with `checkpoint (FP8)`, and adds "the engine log says it used a KV scale of 1.0" when vLLM logs `Using KV cache scaling factor 1.0`. `nvidia/Qwen3-8B-NVFP4` declares them, and all 72 are 1.0.
-- An NVFP4 quality server with batch invariance on logs `VLLM_BATCH_INVARIANT forces NVFP4 linear to use the emulation backend` and `Using EmulationNvFp4LinearKernel for NVFP4 GEMM`. On 2026-10-27 it generated about 3.5 tokens per second for `nvidia/Qwen3-8B-NVFP4`. The speed server uses the real kernel (`VLLM_NVFP4_GEMM_BACKEND=flashinfer-b12x`).
+- An NVFP4 run's quality server has batch invariance off (`engine.batch_invariant_quality` false, with `engine.batch_invariant_warning` saying why), and its log does not contain `Using EmulationNvFp4LinearKernel`. With batch invariance on, vLLM forced that emulation kernel and generated about 2 tokens per second per request for `nvidia/Qwen3-8B-NVFP4` (2026-10-27).
 - `summary.json` `deployment.measured.peak_memory_gb` is under `memory.budget_gb` (100). If it is over, see where in `memory.csv` (the `phase` column) and raise `memory.overhead_gb` for that engine to the measured overhead: peak, minus weights, minus the pool.
 
-Measured on a Spark on 2026-10-27, vLLM with Qwen3-0.6B: with the server up, memory sat 5 GB above weights plus pool; during quality (nel beside the server) 8.9 GB; during speed (the bench client in the container) 6.9 GB. `memory.overhead_gb.vllm` is 10 for that reason. The logprob step peaked at 13.4 GB until SMA streamed its dump to disk one window at a time.
+Measured on a Spark on 2026-10-27, as memory above weights plus pool:
+
+| Model on vLLM | Server up | Quality (nel beside it) | Speed (bench client in the container) |
+| --- | --- | --- | --- |
+| `Qwen/Qwen3-0.6B` BF16 | 5 GB | 8.9 GB | 6.9 GB |
+| `nvidia/Qwen3-8B-NVFP4` | 8.1 GB | 11.4 GB (NVFP4 emulation under batch invariance) | 8.3 GB |
+| `Qwen/Qwen3-0.6B` BF16 on SGLang | | 12.3 GB at the run's peak | |
+
+`memory.overhead_gb.vllm` and `memory.overhead_gb.sglang` are 13 for that reason; SGLang's margin is under 1 GB. The overhead grows with the model, so measure again with a larger one. The logprob step peaked 13.4 GB above weights plus pool until SMA streamed its dump to disk one window at a time. A run whose measured peak passes the budget gets a warning that names the setting to raise.
 
 ## llama.cpp and GGUF
 

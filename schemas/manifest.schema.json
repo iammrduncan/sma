@@ -39,7 +39,8 @@
     "config_snapshot",
     "memory_plan",
     "gguf",
-    "logprobs_reference_file"
+    "logprobs_reference_file",
+    "large_files"
   ],
   "properties": {
     "schema_version": { "const": 2 },
@@ -76,7 +77,19 @@
     "config_snapshot": { "type": "object" },
     "memory_plan": { "type": ["object", "null"] },
     "gguf": { "type": ["object", "null"] },
-    "logprobs_reference_file": { "type": ["string", "null"] }
+    "logprobs_reference_file": { "type": ["string", "null"] },
+    "large_files": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sha256", "bytes"],
+        "properties": {
+          "sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+          "bytes": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
   },
   "$defs": {
     "params": {

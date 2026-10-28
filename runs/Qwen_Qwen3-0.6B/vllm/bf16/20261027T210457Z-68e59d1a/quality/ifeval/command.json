@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "nel",
+    "eval",
+    "run",
+    "nel.yaml",
+    "-o",
+    "attempt-1"
+  ],
+  "concurrency": 8,
+  "cwd": "quality/ifeval"
+}

@@ -93,7 +93,10 @@ class Catalog:
 
     def list_runs(self) -> list[dict[str, Any]]:
         if not self.db_path.exists():
-            return self._index_rows()
+            if self.index_path.exists() or not self.runs_dir.is_dir():
+                return self._index_rows()
+            # A fresh clone has the committed run folders but not the catalog, which git ignores.
+            self.rebuild()
         with self._lock:
             with _connect(self.db_path) as conn:
                 _ensure(conn)

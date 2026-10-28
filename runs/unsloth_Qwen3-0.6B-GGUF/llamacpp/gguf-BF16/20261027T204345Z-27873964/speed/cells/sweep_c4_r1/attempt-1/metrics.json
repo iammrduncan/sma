@@ -1,0 +1,36 @@
+{
+  "after": "# HELP llamacpp:prompt_tokens_total Number of prompt tokens processed, excluding cached tokens\n# TYPE llamacpp:prompt_tokens_total counter\nllamacpp:prompt_tokens_total 69796\n# HELP llamacpp:prompt_tokens_cached_total Number of prompt tokens reused from the cache\n# TYPE llamacpp:prompt_tokens_cached_total counter\nllamacpp:prompt_tokens_cached_total 65380\n# HELP llamacpp:prompt_seconds_total Total time spent processing prompts\n# TYPE llamacpp:prompt_seconds_total counter\nllamacpp:prompt_seconds_total 3.68444\n# HELP llamacpp:tokens_predicted_total Number of generation tokens processed\n# TYPE llamacpp:tokens_predicted_total counter\nllamacpp:tokens_predicted_total 34848\n# HELP llamacpp:tokens_predicted_seconds_total Total time spent generating tokens\n# TYPE llamacpp:tokens_predicted_seconds_total counter\nllamacpp:tokens_predicted_seconds_total 279.877\n# HELP llamacpp:n_decode_total Total number of llama_decode() calls, excluding speculative decoding and multimodal decoding\n# TYPE llamacpp:n_decode_total counter\nllamacpp:n_decode_total 28704\n# HELP llamacpp:n_tokens_max Largest observed sequence length (prompt + generation)\n# TYPE llamacpp:n_tokens_max counter\nllamacpp:n_tokens_max 2111\n# HELP llamacpp:spec_decode_num_draft_tokens_total Speculative: Total draft tokens generated\n# TYPE llamacpp:spec_decode_num_draft_tokens_total counter\nllamacpp:spec_decode_num_draft_tokens_total 0\n# HELP llamacpp:spec_decode_num_accepted_tokens_total Speculative: Total draft tokens accepted by the target model\n# TYPE llamacpp:spec_decode_num_accepted_tokens_total counter\nllamacpp:spec_decode_num_accepted_tokens_total 0\n# HELP llamacpp:spec_decode_num_drafts_total Speculative: Total speculative decoding verification steps\n# TYPE llamacpp:spec_decode_num_drafts_total counter\nllamacpp:spec_decode_num_drafts_total 0\n# HELP llamacpp:prompt_tokens_seconds Average prompt throughput in tokens/s\n# TYPE llamacpp:prompt_tokens_seconds gauge\nllamacpp:prompt_tokens_seconds 0\n# HELP llamacpp:predicted_tokens_seconds Average generation throughput in tokens/s\n# TYPE llamacpp:predicted_tokens_seconds gauge\nllamacpp:predicted_tokens_seconds 0\n# HELP llamacpp:requests_processing Number of requests processing\n# TYPE llamacpp:requests_processing gauge\nllamacpp:requests_processing 0\n# HELP llamacpp:requests_deferred Number of requests deferred\n# TYPE llamacpp:requests_deferred gauge\nllamacpp:requests_deferred 0\n# HELP llamacpp:n_busy_slots_per_decode Average number of busy slots per llama_decode() call\n# TYPE llamacpp:n_busy_slots_per_decode gauge\nllamacpp:n_busy_slots_per_decode 1.21405\n",
+  "before": "# HELP llamacpp:prompt_tokens_total Number of prompt tokens processed, excluding cached tokens\n# TYPE llamacpp:prompt_tokens_total counter\nllamacpp:prompt_tokens_total 69764\n# HELP llamacpp:prompt_tokens_cached_total Number of prompt tokens reused from the cache\n# TYPE llamacpp:prompt_tokens_cached_total counter\nllamacpp:prompt_tokens_cached_total 32644\n# HELP llamacpp:prompt_seconds_total Total time spent processing prompts\n# TYPE llamacpp:prompt_seconds_total counter\nllamacpp:prompt_seconds_total 3.57047\n# HELP llamacpp:tokens_predicted_total Number of generation tokens processed\n# TYPE llamacpp:tokens_predicted_total counter\nllamacpp:tokens_predicted_total 26656\n# HELP llamacpp:tokens_predicted_seconds_total Total time spent generating tokens\n# TYPE llamacpp:tokens_predicted_seconds_total counter\nllamacpp:tokens_predicted_seconds_total 172.713\n# HELP llamacpp:n_decode_total Total number of llama_decode() calls, excluding speculative decoding and multimodal decoding\n# TYPE llamacpp:n_decode_total counter\nllamacpp:n_decode_total 26656\n# HELP llamacpp:n_tokens_max Largest observed sequence length (prompt + generation)\n# TYPE llamacpp:n_tokens_max counter\nllamacpp:n_tokens_max 2111\n# HELP llamacpp:spec_decode_num_draft_tokens_total Speculative: Total draft tokens generated\n# TYPE llamacpp:spec_decode_num_draft_tokens_total counter\nllamacpp:spec_decode_num_draft_tokens_total 0\n# HELP llamacpp:spec_decode_num_accepted_tokens_total Speculative: Total draft tokens accepted by the target model\n# TYPE llamacpp:spec_decode_num_accepted_tokens_total counter\nllamacpp:spec_decode_num_accepted_tokens_total 0\n# HELP llamacpp:spec_decode_num_drafts_total Speculative: Total speculative decoding verification steps\n# TYPE llamacpp:spec_decode_num_drafts_total counter\nllamacpp:spec_decode_num_drafts_total 0\n# HELP llamacpp:prompt_tokens_seconds Average prompt throughput in tokens/s\n# TYPE llamacpp:prompt_tokens_seconds gauge\nllamacpp:prompt_tokens_seconds 0\n# HELP llamacpp:predicted_tokens_seconds Average generation throughput in tokens/s\n# TYPE llamacpp:predicted_tokens_seconds gauge\nllamacpp:predicted_tokens_seconds 0\n# HELP llamacpp:requests_processing Number of requests processing\n# TYPE llamacpp:requests_processing gauge\nllamacpp:requests_processing 0\n# HELP llamacpp:requests_deferred Number of requests deferred\n# TYPE llamacpp:requests_deferred gauge\nllamacpp:requests_deferred 0\n# HELP llamacpp:n_busy_slots_per_decode Average number of busy slots per llama_decode() call\n# TYPE llamacpp:n_busy_slots_per_decode gauge\nllamacpp:n_busy_slots_per_decode 1\n",
+  "diff": {
+    "counters": {
+      "llamacpp:n_busy_slots_per_decode": 0.21405000000000007,
+      "llamacpp:n_decode_total": 2048.0,
+      "llamacpp:n_tokens_max": 0.0,
+      "llamacpp:predicted_tokens_seconds": 0.0,
+      "llamacpp:prompt_seconds_total": 0.11397000000000013,
+      "llamacpp:prompt_tokens_cached_total": 32736.0,
+      "llamacpp:prompt_tokens_seconds": 0.0,
+      "llamacpp:prompt_tokens_total": 32.0,
+      "llamacpp:requests_deferred": 0.0,
+      "llamacpp:requests_processing": 0.0,
+      "llamacpp:spec_decode_num_accepted_tokens_total": 0.0,
+      "llamacpp:spec_decode_num_draft_tokens_total": 0.0,
+      "llamacpp:spec_decode_num_drafts_total": 0.0,
+      "llamacpp:tokens_predicted_seconds_total": 107.16400000000002,
+      "llamacpp:tokens_predicted_total": 8192.0
+    },
+    "missing_reason": null,
+    "watched": {
+      "llamacpp:n_decode_total": 2048.0,
+      "llamacpp:prompt_seconds_total": 0.11397000000000013,
+      "llamacpp:prompt_tokens_cached_total": 32736.0,
+      "llamacpp:prompt_tokens_total": 32.0,
+      "llamacpp:requests_deferred": 0.0,
+      "llamacpp:requests_processing": 0.0,
+      "llamacpp:tokens_predicted_seconds_total": 107.16400000000002,
+      "llamacpp:tokens_predicted_total": 8192.0
+    }
+  },
+  "metrics_note": "Watched names are llama-server counters (it runs with --metrics). A name absent from /metrics is null. vLLM counter names are not copied in.",
+  "scrape_error": null
+}

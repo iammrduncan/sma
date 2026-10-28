@@ -47,6 +47,8 @@ from sma.prom import diff_samples, parse_prometheus
 from sma.qualityout import normalize_eval_factory, normalize_suite, scrub_output
 from sma.records import (
     STEP_NAMES,
+    large_file_hashes,
+    large_file_problem,
     load_manifest,
     marker_path,
     new_manifest,
@@ -476,6 +478,7 @@ def _backfill(manifest: dict[str, Any], run_dir: Path) -> None:
     """A run from before the memory plan: add the new fields, and plan again by re-running fetch."""
     for key in ("memory_plan", "gguf", "logprobs_reference_file"):
         manifest.setdefault(key, None)
+    manifest.setdefault("large_files", {})
     engine = manifest.setdefault("engine", {})
     defaults = {
         "selected_by": "default",
@@ -699,6 +702,18 @@ def _step_fetch(ctx: Ctx) -> None:
     ctx.manifest["engine"]["batch_invariant_supported"] = detected.batch_invariant_supported
     ctx.manifest["engine"]["batch_invariant_warning"] = detected.batch_invariant_reason
     ctx.batch_invariant = bool(ctx.cfg.engine.batch_invariant and detected.batch_invariant_supported)
+    if ctx.batch_invariant and ctx.manifest["engine"]["name"] == "vllm" and detected.format in _REAL_KERNELS_ONLY:
+        # Owner decision 2026-10-27: quantized checkpoints run their real kernels. vLLM's batch-invariant
+        # mode serves NVFP4 linear layers by emulation (BF16 dequant), sends FP8 through DeepGEMM or a
+        # BF16 dequant, and excludes MoE kernels that do not declare batch invariance.
+        ctx.batch_invariant = False
+        reason = (
+            f"Batch invariance is off for this {detected.format} checkpoint: vLLM's batch-invariant mode replaces "
+            "its quantized kernels (NVFP4 by emulation), so the quality server would not run what users run. "
+            "The determinism probe still measures run-to-run batching noise."
+        )
+        ctx.manifest["engine"]["batch_invariant_warning"] = reason
+        _warn(ctx, reason)
     ctx.manifest["engine"]["batch_invariant_quality"] = ctx.batch_invariant
     for warning in result.warnings:
         _warn(ctx, warning)
@@ -767,7 +782,13 @@ def _step_determinism(ctx: Ctx) -> None:
 def _step_logprobs(ctx: Ctx) -> None:
     if ctx.manifest["engine"]["name"] == "llamacpp":
         _llamacpp_logprobs(ctx)
-        return
+    else:
+        _server_logprobs(ctx)
+    # The dump and the logits stay out of git; their hashes go into the committed manifest.
+    ctx.manifest["large_files"] = large_file_hashes(ctx.run_dir)
+
+
+def _server_logprobs(ctx: Ctx) -> None:
     _ensure_server(ctx, "quality")
     encode = ctx.services.encode or _load_encoder(ctx)
     windows, _text, corpus_meta = build_windows(
@@ -838,6 +859,9 @@ def _step_logprobs(ctx: Ctx) -> None:
     if reference:
         _write_reference_kl(ctx, reference)
 
+
+# Quantized formats whose real kernels vLLM's batch-invariant mode replaces (owner decision 2026-10-27).
+_REAL_KERNELS_ONLY = {"nvfp4", "mxfp4", "mixed", "fp8"}
 
 # GGUF file types that hold full-precision weights. Their runs write the logits a quant's KL reads.
 _REFERENCE_FILE_TYPES = {"ALL_F32", "MOSTLY_F16", "MOSTLY_BF16"}
@@ -936,6 +960,8 @@ def _kld_reference(ctx: Ctx) -> tuple[str, Path] | None:
         problem = "has a different tokenizer"
     elif (ref.get("config_snapshot") or {}).get("logprobs", {}).get("llamacpp_chunks") != ctx.cfg.logprobs.llamacpp_chunks:
         problem = "scored a different number of chunks (logprobs.llamacpp_chunks)"
+    elif mismatch := large_file_problem(ref_dir, ref, "logprobs/kld-base.bin"):
+        problem = f"has a logits file that fails its check: {mismatch}"
     if problem:
         _warn(ctx, f"Reference run {reference_id} {problem}. KL was not computed.")
         return None

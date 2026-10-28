@@ -36,6 +36,26 @@ def newest_bundle(attempt_dir: Path) -> Path | None:
     return found[-1] if found else None
 
 
+# nel's failure categories for a request whose model call failed, so it has no answer to score
+# (nemo_evaluator/engine/eval_loop.py, "solve_failed"). Other categories, such as refusal, are answers.
+_UNANSWERED = ("infra_error", "graceful")
+
+
+def unanswered_count(failures: dict[str, Any]) -> int:
+    """Requests with no answer, from nel's failure block. Without a category breakdown, every failure counts."""
+    categories = failures.get("categories")
+    if isinstance(categories, dict):
+        total = 0
+        for name in _UNANSWERED:
+            entry = categories.get(name)
+            count = entry.get("count") if isinstance(entry, dict) else None
+            if isinstance(count, int) and not isinstance(count, bool):
+                total += count
+        return total
+    failed = failures.get("total_failures")
+    return failed if isinstance(failed, int) and not isinstance(failed, bool) else 0
+
+
 def normalize_suite(suite_dir: Path, attempt_dir: Path, suite_name: str, *, bench: str, limit: int | None) -> dict[str, Any]:
     """Read one suite's nel bundle into scores.json, and its per-question rows into samples.jsonl."""
     bundle_path = newest_bundle(attempt_dir)
@@ -49,10 +69,11 @@ def normalize_suite(suite_dir: Path, attempt_dir: Path, suite_name: str, *, benc
     pass_at_1 = scores.get("pass@1") if isinstance(scores.get("pass@1"), dict) else {}
     failures = scores.get("failures") if isinstance(scores.get("failures"), dict) else {}
     shuffle = (bundle.get("config") or {}).get("shuffle") or {}
-    failed = failures.get("total_failures")
+    failed = unanswered_count(failures)
     # nel counts a request that never got an answer (a timeout, a server error) as a wrong answer.
-    # SMA never fills a missing score with zero, so a suite with failed requests has no score.
-    incomplete = isinstance(failed, int) and not isinstance(failed, bool) and failed > 0
+    # SMA never fills a missing score with zero, so a suite with unanswered requests has no score.
+    # A refusal or another scored failure is an answer, and stays in the score.
+    incomplete = failed > 0
     payload = {
         "scorer": f"nemo-evaluator {bundle.get('sdk_version') or 'unknown'}",
         "suite": suite_name,
@@ -63,8 +84,8 @@ def normalize_suite(suite_dir: Path, attempt_dir: Path, suite_name: str, *, benc
         "ci_upper": None if incomplete else pass_at_1.get("bootstrap_ci_upper"),
         "pass_at_1_failures_as_wrong": pass_at_1.get("value") if incomplete else None,
         "error": (
-            f"{failed} of {benchmark.get('samples')} requests got no answer (nel's failure count), and nel scores "
-            "those as wrong. The score is null. See the trajectories for each failure's category."
+            f"{failed} of {benchmark.get('samples')} requests got no answer (nel's infra_error and graceful "
+            "failures), and nel scores those as wrong. The score is null. See the trajectories for each failure."
             if incomplete
             else None
         ),
