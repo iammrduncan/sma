@@ -502,3 +502,75 @@ sma queue add unsloth/Qwen3.8-Flash-Next-GGUF --gguf UD-Q2_K_XL
 #
 # SMA runs these and LiquidAI's table does not: GSM8K, MMLU-Pro, MuSiQue, KernelBench Level 1,
 # perplexity and KL, determinism, speed, energy, and the memory plan.
+#
+# ==== What each candidate needs to run ===============================================================
+# From a web lookup on 2026-10-28 of each benchmark's repo, paper, or dataset card. None of it was run
+# or checked further. "(inferred)" marks what the lookup reasoned rather than read. The LFM3 card names
+# no splits, judges, or links, so which version LiquidAI ran is a guess where noted. LiveCodeBench v6
+# was not looked up. Agent environments that ship only amd64 images go on the x86_64 runner, the way
+# SWE-bench runs today; the model stays on the Spark behind the SSH forward.
+#
+# Cheapest: rule-scored, single-turn, Python only, no judge, Docker, or keys.
+#   IFStruct (LiquidAI)  2,000 prompts; parse, shape, and JSON-schema checks; Apache-2.0. Its defaults are
+#                        temperature 0 and 16,000 tokens.
+#   IFBench (AllenAI)    300 prompts, 58 constraint types; rule verifiers; Apache-2.0 code, ODC-BY data.
+#   Multi-IF (Meta)      4,501 conversations of 3 turns, 8 languages; IFEval's verifiers. Its data is
+#                        CC-BY-NC-2.0 (non-commercial): check that before committing per-question rows.
+#                        Its script's default of 1,024 new tokens is too low for thinking models.
+#   IFEval               all 541 prompts instead of 50 (SMA already runs it).
+#
+# Next: no judge, little setup.
+#   AutomationBench      Zapier. 600 public tasks (6 domains); 600+ harder ones held out. Simulated REST
+#                        APIs for 47 apps in Python, no Docker or keys; native tool calls; final-state
+#                        assertions; up to 50 steps by default. MIT.
+#   SciCode              65 main problems, 288 subproblems; executed against reference outputs in
+#                        test_data.h5 (a Google Drive download). Apache-2.0. Runs on arm64.
+#   RULER                13 tasks x 500 samples at 131,072 tokens by default (6,500 long prompts; fewer
+#                        samples would be cheaper). Data is generated with the model's own tokenizer.
+#                        Run through NeMo-Skills; its old Docker image is deprecated. Rule-scored.
+#
+# Lab judge, single-turn. The published judges are hosted models, so these scores compare only within
+# SMA (as with BrowseComp-Plus).
+#   AA-Omniscience       v1.1 (October 2026): 300 public of 3,000, judge GPT-5.6 Luna. v1.0: 600 public,
+#                        judge Gemini 2.5 Flash. The card does not say which. No official harness; only
+#                        the prompts are published. Apache-2.0.
+#   AA-LCR               100 questions over about 100K-token document sets; needs 128K of context. v1.0's
+#                        judge is open weights (Qwen3-235B-A22B-2507). NeMo-Skills implements it (aalcr).
+#   HLE, no tools        2,158 text-only of 2,500 public questions; HF-gated (auto-approve). The official
+#                        judge is o3-mini.
+#
+# x86_64 runner, like SWE-bench today.
+#   SWE-bench Multilingual  300 tasks, 9 languages, amd64 images; executed tests. OpenCode through
+#                        Harbor, as LiquidAI ran it. MIT.
+#   SWE-bench Verified   the full 500 (SMA runs 50) with OpenCode, to match LiquidAI's harness.
+#   Terminal-Bench 2.1   89 tasks; its README asks for 5 or more trials. 85 of 89 images are amd64-only.
+#                        OpenCode runs inside the task container, so the container must reach the
+#                        model server (inferred). Apache-2.0.
+#   EnterpriseOps-Gym    ServiceNow. 649 public of 1,150 tasks, 8 domains. One MCP server container per
+#                        domain (amd64-only, no source); SQL checks on the final state; about 89K tokens
+#                        of context per task. Apache-2.0.
+#   WebArena-Verified    ServiceNow. 812 tasks (258 hard). Six site containers (gitlab alone is 22 GB),
+#                        amd64-only. Deterministic checks on the answer and the HAR trace. No agent is
+#                        shipped: SMA would need its own Playwright browser agent.
+#
+# Costly or unclear.
+#   BFCL V4              V4 adds web search (needs a paid SerpAPI key), memory, and format sensitivity.
+#                        Rule-scored. Apache-2.0.
+#   MCP-Atlas            Scale AI. 500 public of 1,000 tasks, 36 MCP servers in one image (amd64 and
+#                        arm64). 16 servers need third-party keys. LLM judge (Gemini; the repo and the
+#                        leaderboard name different versions).
+#   tau3-bench           Sierra, the tau2-bench repo v1.0.x. Rule-scored, but needs an LLM user simulator
+#                        (the lab judge could play it, inferred). Domains are likely airline, retail,
+#                        telecom, banking_knowledge (inferred). tau-bench 2.0 shipped 2026-10-19 and is
+#                        not comparable.
+#   ToolSandbox          Apple. 1,032 scenarios. Its user simulator is hard-coded to OpenAI's GPT-4o API
+#                        and needs a patch to point elsewhere.
+#   Claw-Eval            101 English General tasks (300 in all); rule checks plus a Gemini-3-Flash judge
+#                        through OpenRouter; 3 trials (pass^3). Docker with Playwright. MIT.
+#   LiveClaw             Most likely LiveClawBench (inferred; no source uses the name "LiveClaw"): 134
+#                        tasks through OpenClaw in Harbor, one image per task (arm64 OK); 20 tasks use a
+#                        DeepSeek-V3.2 judge. MIT.
+#   HLE, with tools      The LFM3 card names no tools. The CAIS protocol (written for HLE-Diamond) allows
+#                        web search, fetch, and a Python sandbox, and needs your own search backend.
+#   LiveCodeBench Pro    167 problems in the 2025 Q2 split (inferred); HF-gated; C++ judged in a Docker
+#                        judge that is AGPL-3.0.
