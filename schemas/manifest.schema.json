@@ -253,8 +253,11 @@
         "determinism": { "$ref": "#/$defs/step" },
         "logprobs": { "$ref": "#/$defs/step" },
         "quality": { "$ref": "#/$defs/step" },
+        "kernelbench": { "$ref": "#/$defs/step" },
+        "swebench": { "$ref": "#/$defs/step" },
         "serve_speed": { "$ref": "#/$defs/step" },
         "speed": { "$ref": "#/$defs/step" },
+        "kernelbench_results": { "$ref": "#/$defs/step" },
         "telemetry": { "$ref": "#/$defs/step" },
         "teardown": { "$ref": "#/$defs/step" },
         "cleanup": { "$ref": "#/$defs/step" }

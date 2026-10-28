@@ -181,6 +181,57 @@ class QualityConfig:
 
 
 @dataclass
+class KernelBenchConfig:
+    """KernelBench Level 1 (docs/serving-design.md). The model writes kernels; a remote GB10 service times them.
+
+    The service is at the URL in KERNELBENCH_URL (the root .env). Requests use the model's own sampling
+    and thinking mode (owner decision 2026-10-27), not KernelBench's temperature 0.
+    """
+
+    enabled: bool = True
+    level: int = 1
+    # Requests in flight while the model writes kernels.
+    concurrency: int = 8
+    # Output budget per answer, reasoning included. Qwen asks for 32,768 in thinking mode.
+    max_tokens: int = 32768
+    request_timeout_s: float = 3600.0
+    # Evaluation options for the service; empty uses its defaults (KernelBench's own).
+    options: dict[str, Any] = field(default_factory=dict)
+    poll_s: float = 60.0
+    # How long kernelbench_results waits for the service to finish the job.
+    wait_s: float = 6 * 3600.0
+
+
+@dataclass
+class SweBenchConfig:
+    """SWE-bench Verified-mini with mini-swe-agent on the x86_64 runner (runs/cpu/baseline/sweverified).
+
+    SMA reaches the runner over SSH (SWE_RUNNER_HOST, SWE_RUNNER_USER, SWE_RUNNER_SSH_KEY in the root
+    .env) and forwards the model server's port to the runner's loopback while the agents run.
+    """
+
+    enabled: bool = True
+    # Agents at once (owner decision 2026-10-27). The memory plan gives each one a stream.
+    workers: int = 4
+    step_limit: int = 250
+    # The least context each agent's stream must get; each gets the largest step of the ladder that fits.
+    min_context: int = 32768
+    # On the runner, relative to the SSH user's home: the venv, the dataset, and the harness folder.
+    remote_dir: str = "sma-swe"
+    subset: str = "data/verified-mini"
+    dataset_file: str = "data/verified-mini.jsonl"
+    split: str = "test"
+    # mini-swe-agent's own SWE-bench config (bash tool calls); SMA adds the model and the step limit.
+    agent_config: str = "swebench.yaml"
+    grade_workers: int = 4
+    grade_timeout_s: int = 1800
+    poll_s: float = 60.0
+    # The agents' whole run, then the grading.
+    agent_wait_s: float = 12 * 3600.0
+    grade_wait_s: float = 2 * 3600.0
+
+
+@dataclass
 class SpeedShape:
     name: str
     input_len: int
@@ -266,6 +317,8 @@ class Config:
     determinism: DeterminismConfig = field(default_factory=DeterminismConfig)
     logprobs: LogprobConfig = field(default_factory=LogprobConfig)
     quality: QualityConfig = field(default_factory=QualityConfig)
+    kernelbench: KernelBenchConfig = field(default_factory=KernelBenchConfig)
+    swebench: SweBenchConfig = field(default_factory=SweBenchConfig)
     speed: SpeedConfig = field(default_factory=SpeedConfig)
     telemetry: TelemetryConfig = field(default_factory=TelemetryConfig)
     queue: QueueConfig = field(default_factory=QueueConfig)
@@ -300,6 +353,8 @@ _NESTED = {
     "determinism": DeterminismConfig,
     "logprobs": LogprobConfig,
     "quality": QualityConfig,
+    "kernelbench": KernelBenchConfig,
+    "swebench": SweBenchConfig,
     "speed": SpeedConfig,
     "telemetry": TelemetryConfig,
     "queue": QueueConfig,
@@ -396,6 +451,42 @@ def config_from_mapping(raw: dict[str, Any] | None) -> Config:
     return _build(Config, raw or {}, "config")
 
 
+def load_env_file(path: str | Path | None = None) -> list[str]:
+    """Put a git-ignored .env's KEY=VALUE lines into the environment. A variable already set wins.
+
+    Machine settings that never change live there: the HF token and the cache path (owner decision
+    2026-10-27). The default is .env in the folder sma runs from; SMA_ENV_FILE names another file, and
+    an empty SMA_ENV_FILE reads none. Returns the names it set, never the values.
+    """
+    if path is None:
+        path = os.environ.get("SMA_ENV_FILE", ".env")
+    if not path:
+        return []
+    env_file = Path(path).expanduser()
+    if not env_file.is_file():
+        return []
+    loaded = []
+    for number, raw in enumerate(env_file.read_text(encoding="utf-8").splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export ") :].lstrip()
+        key, sep, value = line.partition("=")
+        key, value = key.strip(), value.strip()
+        if not sep or not key.isidentifier():
+            # The line may hold a secret, so the message names the line, not its text.
+            raise SmaError(f"{env_file} line {number} is not KEY=VALUE. Fix or remove that line.")
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+            value = value[1:-1]
+        else:
+            value = value.split(" #", 1)[0].rstrip()
+        if key not in os.environ:
+            os.environ[key] = value
+            loaded.append(key)
+    return loaded
+
+
 def load_config(path: Path | None = None) -> Config:
     chosen = path
     if chosen is None:
@@ -417,6 +508,9 @@ def load_config(path: Path | None = None) -> Config:
         if not isinstance(loaded, dict):
             raise SmaError(f"Config {chosen} must be a mapping")
         cfg = config_from_mapping(loaded)
+    # A machine's own cache path, from its .env, so the shared sma.yaml stays the same everywhere.
+    if os.environ.get("SMA_HF_CACHE_DIR"):
+        cfg.hf.cache_dir = os.environ["SMA_HF_CACHE_DIR"]
     validate_config(cfg)
     return cfg
 
@@ -429,6 +523,22 @@ def validate_config(cfg: Config) -> None:
         )
     if cfg.quality.concurrency > cfg.engine.max_num_seqs:
         raise SmaError("quality.concurrency cannot exceed engine.max_num_seqs")
+    if cfg.kernelbench.level != 1:
+        raise SmaError("kernelbench.level must be 1. SMA ships KernelBench's Level 1 problems only.")
+    for name, value in (
+        ("kernelbench.concurrency", cfg.kernelbench.concurrency),
+        ("kernelbench.max_tokens", cfg.kernelbench.max_tokens),
+        ("swebench.workers", cfg.swebench.workers),
+        ("swebench.step_limit", cfg.swebench.step_limit),
+        ("swebench.min_context", cfg.swebench.min_context),
+        ("swebench.grade_workers", cfg.swebench.grade_workers),
+    ):
+        if not isinstance(value, int) or value < 1:
+            raise SmaError(f"{name} must be a positive integer")
+    if max(cfg.kernelbench.concurrency, cfg.swebench.workers) > cfg.engine.max_num_seqs:
+        raise SmaError("kernelbench.concurrency and swebench.workers cannot exceed engine.max_num_seqs")
+    if not isinstance(cfg.kernelbench.options, dict):
+        raise SmaError("kernelbench.options must be a mapping")
     if cfg.quality.concurrency < 1:
         raise SmaError("quality.concurrency must be >= 1")
     if cfg.logprobs.top_k < 1:

@@ -1,6 +1,6 @@
 # KernelBench on the GB10: baseline and how to call it
 
-Written by hack-lab on 2026-10-27. Machine identifiers are `${NAME}` placeholders. Their values are in `runs/.env`; load them with `set -a; . runs/.env; set +a`.
+Written by hack-lab on 2026-10-27. Machine identifiers are `${NAME}` placeholders. Their values are in the repository root's `.env` (git-ignored); from the root, load them with `set -a; . ./.env; set +a`.
 
 SMA generates kernels on `${SMA_HOST}`. A separate DGX Spark, `${KERNELBENCH_HOST}`, compiles each one, checks it against KernelBench's PyTorch reference and times both on its GB10, so evaluation never competes with SMA's own model serving. The service is reached at `${KERNELBENCH_URL}`, from `${SMA_HOST}` only, and needs no key.
 
@@ -39,7 +39,7 @@ The baselines' `problems[].stats` are what `baseline_ref_runtime_ms` in a job's 
 2. **Send a batch**, one job per model and level:
 
    ```sh
-   set -a; . runs/.env; set +a
+   set -a; . ./.env; set +a
    curl -s -X POST "$KERNELBENCH_URL/v1/jobs" -H 'Content-Type: application/json' -d @job.json
    # job.json: {"level": 1, "name": "<run-id>", "kernels": [{"problem_id": 19, "label": "<model>/<quant>/sample-0", "kernel_src": "..."}], "options": {}}
    # -> 202 {"job_id": "kb-...", "status": "queued", "position": 0, "total": N, "poll": "/v1/jobs/kb-..."}

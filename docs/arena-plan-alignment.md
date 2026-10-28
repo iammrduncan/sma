@@ -49,6 +49,7 @@ The page's default is one engine (vLLM) and two quants (BF16 or native, and NVFP
 4. **AI judges are allowed** (owner decision, 2026-10-27). The judge is `lfm2.5-24b` on the lab's LiteLLM endpoint, served on a V100, so it does not share the Spark with the model under test. No suite uses a judge yet. When one does, the key comes from the environment (`SMA_JUDGE_API_KEY`), never from `sma.yaml` or a run folder, the score names its judge, and only scores from the same judge are compared.
 5. **BFCL v3 with native tool calling.** `bfcl_v3` runs NVIDIA's eval-factory container (task `bfclv3_ast`) directly, because nel deletes its per-question files. The quality server gets the model's tool-call parser from `--tool-parser`, recorded in the manifest.
 6. **Serving design: three engines, an 8-bit KV cache, and a memory plan** (owner decision, 2026-10-27). The checkpoint format picks the engine before launch: safetensors on vLLM, or SGLang with `--engine sglang` or when preflight shows vLLM's registry lacks the architecture; GGUF (`--gguf QUANT`) on llama.cpp (`ghcr.io/ggml-org/llama.cpp:full-cuda13-b11913`). The KV cache is always 8-bit: FP8, or Q8_0 on llama.cpp. Context per stream starts at 256K or the native maximum and steps down to fit a 100 GB budget, computed before launch; each benchmark gets the largest step that fits its streams. Every summary has deployment notes. llama.cpp's logprobs are llama-perplexity's, with full-vocabulary KL against the repo's full-precision GGUF. The GGUF quant grid for one model is future work; nothing blocks it. See [serving-design.md](serving-design.md).
+7. **KernelBench Level 1 and SWE-bench Verified-mini in every run** (owner decision, 2026-10-27). KernelBench's kernels are timed on a separate GB10 service and SWE-bench's tasks run on an x86_64 runner over SSH; both machines' names come from the root `.env`. Both use the model's own thinking mode and sampling, which departs from KernelBench's temperature 0. SWE-bench is mini-swe-agent with 4 agents and 250 steps, a 50-task subset rather than the arena's full SWE-bench. See [serving-design.md](serving-design.md).
 
 ## Not in this version
 
@@ -62,7 +63,7 @@ These plan sections are intentionally not implemented. They belong to the arena 
 - The GGUF ladder as a grid: one model's every quant file × a benchmark set, shown as a heatmap. Single GGUF runs exist (extension 6); the grid runner and view do not
 - Installing a checkpoint's custom wheel (including `sglang/flint_sglang-0.1.4-py3-none-any.whl`). `FlintForCausalLM` fails preflight on stock vLLM and on the pinned stock SGLang image
 - Joules per correct answer, dollars from `rates.yaml`, and tokens per correct answer
-- Workload-track benchmarks (KernelBench, BigCodeBench, MuSiQue, JSONSchemaBench, and the custom sets). KernelBench's GB10 baseline and SWE-bench Verified-mini's gold-patch baseline are recorded, with how to call each service, under `runs/gb10/baseline/` and `runs/cpu/baseline/`; SMA does not run either yet
+- Workload-track benchmarks other than KernelBench Level 1 (BigCodeBench, MuSiQue, JSONSchemaBench, and the custom sets)
 - Automatic fallback from a failed NVFP4 server into self-quantization, W4A16, MXFP4, or SGLang
 
 ## Deviations from the arena plan

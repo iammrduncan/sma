@@ -33,7 +33,7 @@ def _manifest(run_dir: Path) -> dict:
 def test_gitignore_keeps_run_records_and_leaves_out_only_the_large_files_and_machine_names() -> None:
     lines = {line.strip() for line in (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()}
     assert "runs/" not in lines and "runs" not in lines
-    assert "runs/.env" in lines
+    assert ".env" in lines
     for rel in LARGE_FILES:
         assert f"runs/**/{rel}" in lines
 

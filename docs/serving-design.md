@@ -136,9 +136,11 @@ These were build details, not owner decisions.
   logits, and a quant run with `--reference` reports llama.cpp's full-vocabulary KL against them. The
   determinism probe runs and records what it sees; the record says llama.cpp has no batch-invariant
   mode.
-- **A benchmark's context.** SMA's current suites need at most `memory.quality_min_context` (8,192)
-  per request, so the server's context is the only limit and each suite records its step. A future
-  long-context suite (SWE-bench) has to cap its context in its own client.
+- **A benchmark's context.** The quality suites need at most `memory.quality_min_context` (8,192)
+  per request, so the server's context is the only limit and each suite records its step. KernelBench
+  (8 streams) and SWE-bench (4 agents, at least 32,768 each) record theirs the same way. mini-swe-agent
+  has no client-side cap, so an agent that outgrows its step still runs; the server may then queue
+  others behind it.
 - **vLLM batch invariance with an FP8 KV cache.** It starts on the GB10 (checked 2026-10-27,
   Qwen3-0.6B, TRITON_ATTN backend).
 - **SGLang's pool.** `--max-total-tokens` sets it in tokens. Deterministic SGLang also needs
@@ -162,9 +164,14 @@ These were build details, not owner decisions.
   were released for long context. Treating a release config's own stretching as native would plan
   them at their advertised length; SMA would still never add stretching.
 
-## Not decided here
+## KernelBench and SWE-bench (decided 2026-10-27)
 
-SWE-bench Verified-mini's agent settings: step limit, sampling, and thinking mode. The
-recommendation so far is 250 steps (mini-swe-agent's default), each model's recommended sampling,
-and the model's default thinking mode. The runner's gold-patch baseline and how to call it are in
-[`runs/cpu/baseline/sweverified/`](../runs/cpu/baseline/sweverified/README.md).
+- Both run in every `sma run`, after the quality suites, on the quality server. `kernelbench.enabled`
+  and `swebench.enabled` turn them off.
+- Both use the model's own thinking mode (the chat template's default) and sampling (the
+  checkpoint's `generation_config.json`), not greedy decoding.
+- KernelBench: Level 1 only, one answer per problem, KernelBench's own prompt and scoring at the
+  service's commit. The headline is fast_1.
+- SWE-bench Verified-mini: mini-swe-agent's `swebench.yaml`, 4 agents, 250 steps. The runner's
+  gold-patch baseline is in
+  [`runs/cpu/baseline/sweverified/`](../runs/cpu/baseline/sweverified/README.md).

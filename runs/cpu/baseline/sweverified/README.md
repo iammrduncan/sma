@@ -1,6 +1,6 @@
 # SWE-bench Verified-mini on the CPU runner: gold-patch baseline and how to call it
 
-Written by hack-lab on 2026-10-27. Machine identifiers are `${NAME}` placeholders. Their values are in `runs/.env`; load them with `set -a; . runs/.env; set +a`.
+Written by hack-lab on 2026-10-27. Machine identifiers are `${NAME}` placeholders. Their values are in the repository root's `.env` (git-ignored); from the root, load them with `set -a; . ./.env; set +a`.
 
 SWE-bench's task containers are x86_64, and their arm64 support is experimental, so they don't run on the Spark. `${SWE_RUNNER_HOST}` is an x86_64 Docker host for them. SMA logs in as `${SWE_RUNNER_USER}` with `${SWE_RUNNER_SSH_KEY}`; the user is in the docker group, without sudo. The runner reaches the internet but nothing in the lab, and only `${SMA_HOST}` (and the owner) can reach it, on SSH only.
 
@@ -33,7 +33,7 @@ Every task's image, its tests and the harness work on this runner: a model's pat
 The model server on `${SMA_HOST}` listens on 127.0.0.1 only. SMA reaches it from the runner through its own SSH connection, as a reverse forward to the runner's loopback. Then the agent runs on the runner, with its task containers there, and the harness grades the patches there. That's how SMA's first trial ran (`~/sma-swe`, 2026-10-27).
 
 ```sh
-set -a; . runs/.env; set +a
+set -a; . ./.env; set +a
 R="${SWE_RUNNER_USER}@${SWE_RUNNER_HOST}"
 ssh -i "$SWE_RUNNER_SSH_KEY" "$R" docker info --format '{{.ServerVersion}}'          # reachable
 

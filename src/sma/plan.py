@@ -24,7 +24,9 @@ from sma.commands import (
 from sma.backends import BenchMounts, get_backend
 from sma.commands import perplexity_argv
 from sma.config import Config
-from sma.engines import configured_digest, image_for
+from sma.engines import batch_invariance_replaces_kernels, configured_digest, image_for
+from sma.kernelbench import COMMIT as KB_COMMIT
+from sma.swebench import agent_command, grade_command
 from sma.runplan import describe, serve_plan
 
 
@@ -50,7 +52,8 @@ def render_plan(
     model_dir = Path("<snapshot>")
     served = repo
     is_moe = assume_moe
-    batch_invariant = cfg.engine.batch_invariant
+    real_kernels = batch_invariance_replaces_kernels(engine, quant_flag)
+    batch_invariant = cfg.engine.batch_invariant and not real_kernels
     backend = None
     if engine == "vllm" and is_moe and quant_flag in {"nvfp4", "mxfp4", "mixed"}:
         backend = cfg.engine.moe_backend
@@ -125,7 +128,12 @@ def render_plan(
         "  " + shlex.join(docker_pull_argv(cfg, engine=engine)),
         "  " + shlex.join(docker_inspect_argv(cfg, engine=engine)),
         "",
-        "3 serve quality (batch invariance on when the architecture allows it)",
+        "3 serve quality "
+        + (
+            f"(batch invariance off: a {quant_flag} checkpoint runs its real kernels, which vLLM's batch-invariant mode replaces)"
+            if real_kernels
+            else "(batch invariance on when the architecture allows it)"
+        ),
         "quality-server: "
         + shlex.join(
             docker_argv(
@@ -169,6 +177,22 @@ def render_plan(
             continue
         size = "all questions" if suite.limit is None else f"{suite.limit} questions (seeded shuffle)"
         lines.append(f"  {suite.name}: {suite.bench or suite.name}, {size}")
+    if cfg.kernelbench.enabled:
+        lines += [
+            "",
+            f"6a kernelbench: KernelBench {KB_COMMIT[:8]} Level 1, 100 problems, its one-shot CUDA prompt as a chat, "
+            f"{cfg.kernelbench.concurrency} in flight, up to {cfg.kernelbench.max_tokens} output tokens, with the model's own "
+            "sampling and thinking mode. The kernels go to $KERNELBENCH_URL as one job; 8a collects the results.",
+        ]
+    if cfg.swebench.enabled:
+        lines += [
+            "",
+            f"6b swebench: mini-swe-agent on the runner ($SWE_RUNNER_HOST over SSH), {cfg.swebench.workers} agents, "
+            f"{cfg.swebench.step_limit} steps, the model's own sampling and thinking mode, with port {cfg.engine.port} "
+            "forwarded to the runner's loopback. Needs --tool-parser.",
+            "  agent: " + agent_command(cfg, run_id),
+            "  grade: " + grade_command(cfg, run_id),
+        ]
     lines.extend(
         [
             "",
@@ -230,6 +254,11 @@ def render_plan(
                 else "  quant/engine pair is checked before the snapshot download."
             ),
             "",
+            *(
+                ["8a kernelbench_results: wait for the service's job, then score it with KernelBench's fast_p.", ""]
+                if cfg.kernelbench.enabled
+                else []
+            ),
             "9 telemetry",
             "  " + shlex.join(nvidia_smi_query(cfg.doctor.gpu_index)),
             f"  Sampled every {cfg.telemetry.interval_s}s for the whole run (SM clock, temperature, power, throttle reasons).",

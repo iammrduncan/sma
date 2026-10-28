@@ -6,15 +6,17 @@ __pycache__/
 .ruff_cache/
 dist/
 *.egg-info/
+# Machine settings and secrets: the HF token and the cache path (.env.example lists them).
+.env
 # Run records are committed: they are the data SMA submits (owner decision 2026-10-27).
 # These stay out: machine names, the catalog SMA rebuilds from the manifests, and files
 # too big for git (records.LARGE_FILES; each manifest keeps their sha256 and size).
-runs/.env
 runs/catalog.sqlite
 runs/index.json
 runs/.catalog.lock
 runs/**/logprobs/dump.json
 runs/**/logprobs/kld-base.bin
+runs/**/quality/swebench_verified_mini/trajectories.jsonl.gz
 queue/
 .sma/
 *.tmp

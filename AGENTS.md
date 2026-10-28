@@ -31,7 +31,8 @@ These are owner decisions. Do not change them without an explicit owner decision
 - `null` means not measured. Never invent a number, digest, backend, or percentile. Never fill a
   missing score with zero.
 - No hostname and no Hugging Face token in a run record, log, or stored error. The token comes from
-  the environment only.
+  the environment or the git-ignored root `.env`, never `sma.yaml`. Lab machines' names from `.env`
+  appear in records only as `${NAME}` (`scrub.LAB_ENV`).
 - Do not claim hardware results. The test environment has no GPU. See the README section "What this
   environment did not verify".
 
@@ -60,15 +61,15 @@ uv run sma run Qwen/Qwen3-8B --bf16 --dry-run         # prints the plan; no GPU,
 | Area | Modules in `src/sma/` |
 | --- | --- |
 | Entry points | `cli.py` (argparse; `SmaError` exits 2), `plan.py` (dry-run), `doctor.py` |
-| Orchestration | `pipeline.py` (steps, markers, teardown), `queue.py` (filesystem queue, worker), `locks.py` |
+| Orchestration | `pipeline.py` (steps, markers, teardown), `agentic.py` (the KernelBench and SWE-bench steps), `queue.py` (filesystem queue, worker), `locks.py` |
 | Commands | `commands.py`, `backends.py` (`EngineBackend` for vLLM and SGLang), `engines.py`, `runtime.py` (Docker) |
 | Checkpoint | `fetch.py`, `quant.py`, `gguf.py` (GGUF header reader), `preflight.py`, `params.py`, `safetensors.py`, `hashing.py` |
 | Memory plan | `memplan.py` (KV layout, context ladder, budget; pure), `runplan.py` (SMA's benchmarks as needs, serve plan) |
-| Measurement | `probe.py`, `kl.py`, `corpus.py`, `speedmath.py`, `prom.py`, `telemetry.py`, `qualityout.py`, `compare.py`, `cleanup.py` |
+| Measurement | `probe.py`, `kl.py`, `corpus.py`, `speedmath.py`, `prom.py`, `telemetry.py`, `qualityout.py`, `compare.py`, `cleanup.py`, `kernelbench.py` (problems, prompt, extraction, scoring; offline), `kbservice.py` (the service's client), `swebench.py` (the runner over SSH), `thinking.py` (the chat template's thinking default) |
 | Records | `records.py`, `catalog.py`, `atomic.py`, `schemautil.py`, and `schemas/*.json` at the root |
 | Shared helpers | `config.py`, `errors.py`, `proc.py`, `httpapi.py`, `retry.py`, `scrub.py`, `identity.py`, `logsetup.py` |
 
-- `src/sma/data/` holds the pinned corpus and the SGLang bench dataset. `load_corpus` checks the
+- `src/sma/data/` holds the pinned corpus, the SGLang bench dataset, and KernelBench's Level 1 problems and prompt at the service's commit (`kernelbench/manifest.json` hashes them). `load_corpus` checks the
   corpus hash. Do not edit these files.
 - `src/sma/nel_benchmarks/` holds graders that NeMo Evaluator loads by path (`sma:<name>` in a
   quality suite). They import `nemo_evaluator`, so SMA's own code never imports them.
@@ -77,12 +78,12 @@ uv run sma run Qwen/Qwen3-8B --bf16 --dry-run         # prints the plan; no GPU,
   `harness.py` (`make_config`, `make_services`). `tests/data/configs` holds real config.json files and
   `tests/data/llamacpp` real llama-perplexity output.
 - `runs/` holds the run records, and they are committed: they are the data SMA submits (owner
-  decision 2026-10-27). Git ignores `runs/.env` (machine names), the catalog SMA rebuilds, and the
+  decision 2026-10-27). Git ignores the catalog SMA rebuilds and the
   files too big for git (`records.LARGE_FILES`; the manifest keeps their sha256 and size). Before a
   run folder is committed, check it for hostnames, lab names, and keys.
 - `runs/gb10/baseline/kernelbench/` and `runs/cpu/baseline/sweverified/` hold the KernelBench and
   SWE-bench Verified-mini baselines and how to call each service. Machine names there are `${NAME}`
-  placeholders whose values are in `runs/.env`.
+  placeholders whose values are in the root `.env`.
 - `queue/` and `.sma/` are local state. They are git-ignored. Do not commit them.
 
 ## How to work
