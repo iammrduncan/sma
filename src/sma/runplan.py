@@ -18,17 +18,25 @@ _DETERMINISM_MIN_CONTEXT = 1024
 def needs(cfg: Config) -> list[Need]:
     """Each benchmark SMA runs: the streams it runs at once, and the least context each stream needs."""
     shapes = (cfg.speed.prefill, cfg.speed.decode, cfg.speed.sweep)
-    return [
+    found = [
         Need("determinism", max(cfg.determinism.batch_sizes), _DETERMINISM_MIN_CONTEXT),
         Need("logprobs", 1, cfg.logprobs.window_tokens),
         Need("quality", cfg.quality.concurrency, cfg.memory.quality_min_context),
         Need("speed", max(cfg.speed.sweep_concurrency), max(shape.input_len + shape.output_len for shape in shapes)),
     ]
+    if cfg.kernelbench.enabled:
+        # A longer answer than its step still runs; the server may then queue it behind the others.
+        found.append(Need("kernelbench", cfg.kernelbench.concurrency, cfg.memory.quality_min_context))
+    if cfg.swebench.enabled:
+        found.append(Need("swebench", cfg.swebench.workers, cfg.swebench.min_context))
+    return found
 
 
 def slots(cfg: Config) -> int:
     """llama.cpp's parallel slots: the most requests SMA sends at once, outside the determinism probe."""
-    return max(cfg.quality.concurrency, *cfg.speed.sweep_concurrency)
+    agents = [cfg.kernelbench.concurrency] if cfg.kernelbench.enabled else []
+    agents += [cfg.swebench.workers] if cfg.swebench.enabled else []
+    return max(cfg.quality.concurrency, *cfg.speed.sweep_concurrency, *agents)
 
 
 def plan_run(cfg: Config, *, engine: str, layout: KvLayout, weights_bytes: int) -> MemoryPlan:

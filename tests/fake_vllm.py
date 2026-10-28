@@ -16,6 +16,8 @@ class FakeVLLM:
         self.port = port
         self.nondeterministic = False
         self.counter = 0
+        # Chat requests as sent (KernelBench), for tests to check sampling and thinking fields.
+        self.chat_requests: list[dict[str, Any]] = []
         self._httpd: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
 
@@ -56,6 +58,15 @@ class FakeVLLM:
                     return
                 if not isinstance(payload, dict):
                     self._send(400, b'{"error":"bad payload"}')
+                    return
+                if self.path.startswith("/v1/chat/completions"):
+                    owner.chat_requests.append(payload)
+                    content = "<think>\nPlan the kernel.\n</think>\n\n```python\nclass ModelNew:\n    pass\n```\n"
+                    body = {
+                        "choices": [{"message": {"role": "assistant", "content": content}, "finish_reason": "stop"}],
+                        "usage": {"prompt_tokens": 100, "completion_tokens": 20},
+                    }
+                    self._send(200, json.dumps(body).encode())
                     return
                 if self.path.startswith("/generate"):
                     ids = payload.get("input_ids") or []

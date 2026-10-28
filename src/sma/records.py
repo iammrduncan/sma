@@ -28,8 +28,11 @@ STEP_NAMES = [
     "determinism",
     "logprobs",
     "quality",
+    "kernelbench",
+    "swebench",
     "serve_speed",
     "speed",
+    "kernelbench_results",
     "telemetry",
     "teardown",
     "cleanup",
@@ -39,7 +42,7 @@ _SLUG = re.compile(r"[^A-Za-z0-9._-]+")
 
 # Files too big for git. .gitignore lists the same paths. The manifest keeps each one's sha256 and
 # size, so a copy kept elsewhere can be checked against the committed record.
-LARGE_FILES = ("logprobs/dump.json", "logprobs/kld-base.bin")
+LARGE_FILES = ("logprobs/dump.json", "logprobs/kld-base.bin", "quality/swebench_verified_mini/trajectories.jsonl.gz")
 
 
 def utc_now() -> str:
@@ -82,7 +85,7 @@ def git_identity() -> tuple[str | None, bool]:
     return sha or None, dirty
 
 
-def _blank_step() -> dict[str, Any]:
+def blank_step() -> dict[str, Any]:
     return {
         "status": "pending",
         "started": None,
@@ -199,7 +202,7 @@ def new_manifest(
         "sma_git_dirty": dirty,
         "host_alias": cfg.host_alias,
         "timestamps": {"created": now, "started": None, "finished": None},
-        "steps": {name: _blank_step() for name in STEP_NAMES},
+        "steps": {name: blank_step() for name in STEP_NAMES},
         "warnings": [],
         "reference_run_id": reference_run_id,
         "pair_job_id": pair_job_id,

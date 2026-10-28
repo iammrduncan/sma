@@ -176,6 +176,44 @@ quality:
       task: bfclv3_ast
       tools: true
 
+# KernelBench Level 1 (owner decision 2026-10-27). The model writes a kernel for each of the 100
+# problems with KernelBench's own one-shot CUDA prompt. A separate GB10 compiles, checks, and times them
+# (services/kernelbench); its URL is KERNELBENCH_URL in the root .env. The headline is fast_1: correct
+# and faster than eager PyTorch. Requests use the model's own sampling and thinking mode, not
+# KernelBench's temperature 0. Off: the run has no KernelBench suite.
+kernelbench:
+  enabled: true
+  level: 1
+  concurrency: 8
+  # Output tokens per answer, reasoning included. Capped at the server's context minus 4,096.
+  max_tokens: 32768
+  request_timeout_s: 3600
+  # The service's evaluation options; empty uses its defaults, which match its stored baselines.
+  options: {}
+  poll_s: 60
+  wait_s: 21600
+
+# SWE-bench Verified-mini (50 tasks) with mini-swe-agent's swebench.yaml on the x86_64 runner
+# (services/swe-runner), reached over SSH with SWE_RUNNER_HOST, SWE_RUNNER_USER, and SWE_RUNNER_SSH_KEY
+# from the root .env. 4 agents and 250 steps (owner decision 2026-10-27), the model's own sampling
+# and thinking mode. The agent acts through a bash tool call, so the run needs --tool-parser.
+swebench:
+  enabled: true
+  workers: 4
+  step_limit: 250
+  # Each agent's stream gets the largest step of the context ladder that fits 4 of them, at least this.
+  min_context: 32768
+  remote_dir: sma-swe
+  subset: data/verified-mini
+  dataset_file: data/verified-mini.jsonl
+  split: test
+  agent_config: swebench.yaml
+  grade_workers: 4
+  grade_timeout_s: 1800
+  poll_s: 60
+  agent_wait_s: 43200
+  grade_wait_s: 7200
+
 speed:
   warmup_requests: 4
   warmup_max_tokens: 8

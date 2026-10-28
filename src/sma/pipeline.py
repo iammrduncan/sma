@@ -31,6 +31,7 @@ from sma.commands import (
     serve_argv,
     serve_env,
 )
+from sma import agentic
 from sma.compare import compare_run_dirs
 from sma.config import Config, QualitySuite
 from sma.corpus import build_windows, load_corpus
@@ -47,6 +48,7 @@ from sma.prom import diff_samples, parse_prometheus
 from sma.qualityout import normalize_eval_factory, normalize_suite, scrub_output
 from sma.records import (
     STEP_NAMES,
+    blank_step,
     large_file_hashes,
     large_file_problem,
     load_manifest,
@@ -78,7 +80,15 @@ from sma.speedmath import (
 )
 from sma.telemetry import TelemetryRecorder, throttled_between
 from sma.httpapi import scrape_metrics, wait_until_healthy
-from sma.engines import compatibility_error, configured_digest, engine_name, image_for, image_ref, selected_by
+from sma.engines import (
+    batch_invariance_replaces_kernels,
+    compatibility_error,
+    configured_digest,
+    engine_name,
+    image_for,
+    image_ref,
+    selected_by,
+)
 from sma.preflight import ArchCheck, check_architecture
 from sma.backends import BenchMounts, get_backend
 from sma.runplan import describe, plan_run, serve_plan
@@ -104,6 +114,9 @@ class Services:
     registry: Any = None
     # The GPU's cumulative energy counter in millijoules, or None. Unset means power integration.
     energy_counter: Callable[[], int | None] | None = None
+    # KernelBench's service and SWE-bench's runner. None reads them from the environment (the root .env).
+    kernelbench: Any = None
+    swe_runner: Any = None
 
 
 @dataclass
@@ -386,8 +399,12 @@ def execute(
                 _run_step(ctx, "determinism", _step_determinism)
                 _run_step(ctx, "logprobs", _step_logprobs)
                 _run_step(ctx, "quality", _step_quality)
+                _run_step(ctx, "kernelbench", _step_kernelbench)
+                _run_step(ctx, "swebench", _step_swebench)
                 _run_step(ctx, "serve_speed", _step_serve_speed)
                 _run_step(ctx, "speed", _step_speed)
+                # The service times the kernels on its own GPU while SWE-bench and speed run here.
+                _run_step(ctx, "kernelbench_results", _step_kernelbench_results)
                 ctx.manifest["timestamps"]["finished"] = utc_now()
                 publish(cfg, ctx.run_dir, ctx.manifest)
             except BaseException:
@@ -479,6 +496,9 @@ def _backfill(manifest: dict[str, Any], run_dir: Path) -> None:
     for key in ("memory_plan", "gguf", "logprobs_reference_file"):
         manifest.setdefault(key, None)
     manifest.setdefault("large_files", {})
+    # Steps added since the run started (KernelBench, SWE-bench) run on resume.
+    for name in STEP_NAMES:
+        manifest["steps"].setdefault(name, blank_step())
     engine = manifest.setdefault("engine", {})
     defaults = {
         "selected_by": "default",
@@ -702,10 +722,7 @@ def _step_fetch(ctx: Ctx) -> None:
     ctx.manifest["engine"]["batch_invariant_supported"] = detected.batch_invariant_supported
     ctx.manifest["engine"]["batch_invariant_warning"] = detected.batch_invariant_reason
     ctx.batch_invariant = bool(ctx.cfg.engine.batch_invariant and detected.batch_invariant_supported)
-    if ctx.batch_invariant and ctx.manifest["engine"]["name"] == "vllm" and detected.format in _REAL_KERNELS_ONLY:
-        # Owner decision 2026-10-27: quantized checkpoints run their real kernels. vLLM's batch-invariant
-        # mode serves NVFP4 linear layers by emulation (BF16 dequant), sends FP8 through DeepGEMM or a
-        # BF16 dequant, and excludes MoE kernels that do not declare batch invariance.
+    if ctx.batch_invariant and batch_invariance_replaces_kernels(ctx.manifest["engine"]["name"], detected.format):
         ctx.batch_invariant = False
         reason = (
             f"Batch invariance is off for this {detected.format} checkpoint: vLLM's batch-invariant mode replaces "
@@ -859,9 +876,6 @@ def _server_logprobs(ctx: Ctx) -> None:
     if reference:
         _write_reference_kl(ctx, reference)
 
-
-# Quantized formats whose real kernels vLLM's batch-invariant mode replaces (owner decision 2026-10-27).
-_REAL_KERNELS_ONLY = {"nvfp4", "mxfp4", "mixed", "fp8"}
 
 # GGUF file types that hold full-precision weights. Their runs write the logits a quant's KL reads.
 _REFERENCE_FILE_TYPES = {"ALL_F32", "MOSTLY_F16", "MOSTLY_BF16"}
@@ -1028,6 +1042,18 @@ def _step_quality(ctx: Ctx) -> None:
             _run_nel_suite(ctx, suite, suite_dir, attempt_dir)
         _record_suite_context(ctx, suite_dir)
         atomic_write_json(done, {"suite": suite.name, "finished": utc_now()})
+
+
+def _step_kernelbench(ctx: Ctx) -> None:
+    agentic.kernelbench_step(ctx, ensure_server=_ensure_server, warn=_warn)
+
+
+def _step_swebench(ctx: Ctx) -> None:
+    agentic.swebench_step(ctx, ensure_server=_ensure_server, warn=_warn)
+
+
+def _step_kernelbench_results(ctx: Ctx) -> None:
+    agentic.kernelbench_results_step(ctx, warn=_warn)
 
 
 def _record_suite_context(ctx: Ctx, suite_dir: Path) -> None:

@@ -70,3 +70,6 @@ def test_assume_moe_dry_run_includes_the_backend() -> None:
     quality = next(line for line in completed.stdout.splitlines() if line.startswith("quality-server:"))
     assert "--moe-backend flashinfer_b12x" in quality
     assert "--tensor-parallel-size 1" in quality
+    # A quantized checkpoint runs its real kernels: the dry-run prints what the run starts.
+    assert "VLLM_BATCH_INVARIANT" not in quality
+    assert "batch invariance off: a nvfp4 checkpoint runs its real kernels" in completed.stdout

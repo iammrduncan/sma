@@ -17,6 +17,20 @@ _SECRET_KEY = re.compile(
 )
 
 
+# Lab machines' names and addresses, from the root .env (.env.example lists them). A record names each
+# one by its placeholder, as the baseline READMEs under runs/ do.
+LAB_ENV = (
+    "SMA_HOST",
+    "KERNELBENCH_URL",
+    "KERNELBENCH_HOST",
+    "KERNELBENCH_GPU_PCI",
+    "SWE_RUNNER_HOST",
+    "SWE_RUNNER_USER",
+    "SWE_RUNNER_SSH_KEY",
+    "TAILNET_DOMAIN",
+)
+
+
 def host_names() -> list[str]:
     found: list[str] = []
     for getter in (socket.gethostname, socket.getfqdn):
@@ -52,6 +66,12 @@ def scrub_text(text: str) -> str:
         value = os.environ.get(key)
         if value and len(value) >= 4:
             redacted = redacted.replace(value, "<redacted>")
+    # Longest value first, so a URL is replaced before the host inside it. Short values (a user name
+    # like "sma") are left alone: they identify nothing and would match ordinary words.
+    lab = sorted(((os.environ.get(key) or "", key) for key in LAB_ENV), key=lambda item: len(item[0]), reverse=True)
+    for value, key in lab:
+        if len(value) >= 4:
+            redacted = redacted.replace(value.rstrip("/"), "${" + key + "}")
     return redacted
 
 

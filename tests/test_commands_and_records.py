@@ -211,6 +211,9 @@ def test_repo_config_loads() -> None:
     assert cfg.determinism.batch_sizes == [1, 8, 64]
     assert cfg.logprobs.top_k == 64
     assert cfg.host_alias == "gpu-host-1"
+    # Nested sections load as their dataclasses, not plain mappings.
+    assert (cfg.kernelbench.level, cfg.kernelbench.enabled) == (1, True)
+    assert (cfg.swebench.workers, cfg.swebench.step_limit) == (4, 250)
     assert [suite.name for suite in cfg.quality.suites] == ["ifeval", "gsm8k", "mmlu_pro", "gpqa_diamond", "bfcl_v3"]
     assert [suite.name for suite in cfg.quality.suites] == [suite.name for suite in default_config().quality.suites]
 

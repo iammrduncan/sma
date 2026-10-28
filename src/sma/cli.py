@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 
 from sma import __version__
-from sma.config import Config, load_config
+from sma.config import Config, load_config, load_env_file
 from sma.doctor import default_checks, failed, format_checks
 from sma.errors import SmaError
 from sma.identity import assert_alias_safe
@@ -22,6 +22,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
     try:
+        load_env_file()
         return int(args.func(args))
     except KeyboardInterrupt:
         print("interrupted", file=sys.stderr)

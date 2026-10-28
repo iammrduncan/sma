@@ -14,6 +14,15 @@ ENGINES = ("vllm", "sglang", "llamacpp")
 # Versioned multi-arch CUDA 13 tag used for DGX Spark (arm64). `latest-cu130` moves.
 DEFAULT_SGLANG_IMAGE = "lmsysorg/sglang:v0.5.10.post1-cu130"
 
+# Owner decision 2026-10-27: quantized checkpoints run their real kernels. vLLM's batch-invariant mode
+# replaces them (NVFP4 by emulation, FP8 through DeepGEMM or a BF16 dequant), so it stays off for these.
+REAL_KERNELS_ONLY = frozenset({"nvfp4", "mxfp4", "mixed", "fp8"})
+
+
+def batch_invariance_replaces_kernels(engine: str, quant_format: str | None) -> bool:
+    """True when batch invariance would swap this checkpoint's quantized kernels, so it must stay off."""
+    return engine == "vllm" and quant_format in REAL_KERNELS_ONLY
+
 
 def engine_name(value: str | None, cfg: Config, quant_flag: str | None = None) -> str:
     """The engine for this checkpoint format. --engine may pick SGLang for safetensors, nothing else."""

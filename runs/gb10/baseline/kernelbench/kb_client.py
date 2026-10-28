@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Send kernels to the KernelBench service on the GB10 and wait for the results (standard library only).
 
-    set -a; . runs/.env; set +a                       # KERNELBENCH_URL
+    set -a; . ./.env; set +a                       # KERNELBENCH_URL
     python3 kb_client.py submit --level 1 --kernels kernels.jsonl --out results.json --name run-42
     python3 kb_client.py status <job_id>
     python3 kb_client.py environment
@@ -24,7 +24,7 @@ BASE = os.environ.get("KERNELBENCH_URL", "").rstrip("/")
 
 def call(method: str, path: str, body: dict | None = None, timeout: int = 60):
     if not BASE:
-        sys.exit("KERNELBENCH_URL is not set: set -a; . runs/.env; set +a")
+        sys.exit("KERNELBENCH_URL is not set: set -a; . ./.env; set +a")
     req = urllib.request.Request(BASE + path, method=method,
                                  data=json.dumps(body).encode() if body is not None else None,
                                  headers={"Content-Type": "application/json"})
