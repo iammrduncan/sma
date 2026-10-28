@@ -1,0 +1,20 @@
+# What the BrowseComp-Plus runner installs (README.md). requirements.txt pins these and everything they pull in,
+# with hashes, for Python 3.11 on x86_64 Linux:
+#   uv pip compile requirements.in --generate-hashes --no-annotate --python-version 3.11 \
+#     --python-platform x86_64-unknown-linux-gnu --index-url https://pypi.org/simple \
+#     --extra-index-url https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match -o requirements.txt
+# The versions are BrowseComp-Plus's own uv.lock at 04694903, so search and snippets run as in its runs.
+# Pyserini 1.2.0 bundles Anserini 1.1.1 (Lucene 9.9.1), the version that built the index. It imports torch,
+# so torch is the CPU build: the runner has no GPU. It also builds an OpenAI client with an empty key as it
+# imports, which openai releases after the lock's 1.97.0 refuse.
+pyserini==1.2.0
+torch==2.7.0+cpu
+openai==1.97.0
+numpy==1.26.4
+pyjnius==1.6.1
+# The search server cuts each hit with Qwen3-0.6B's tokenizer, through transformers as the client does.
+transformers==4.53.2
+tokenizers==0.21.2
+# prepare.py: the pinned index, tokenizer, and queries.
+huggingface-hub==0.33.4
+pyarrow==21.0.0

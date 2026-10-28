@@ -22,13 +22,14 @@ def request_json(
     payload: dict[str, Any] | None = None,
     attempts: int = 3,
     backoff_s: float = 0.5,
+    headers: dict[str, str] | None = None,
 ) -> Any:
     from sma.retry import call_with_retry
 
     def _once() -> Any:
         try:
             with httpx.Client(timeout=timeout_s) as client:
-                response = client.request(method, url, json=payload)
+                response = client.request(method, url, json=payload, headers=headers)
         except httpx.TimeoutException as exc:
             raise ApiError(f"timed out calling {url}") from exc
         except httpx.HTTPError as exc:

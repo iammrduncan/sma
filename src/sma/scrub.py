@@ -28,6 +28,7 @@ LAB_ENV = (
     "SWE_RUNNER_USER",
     "SWE_RUNNER_SSH_KEY",
     "TAILNET_DOMAIN",
+    "SMA_JUDGE_URL",
 )
 
 
@@ -62,7 +63,7 @@ def scrub_text(text: str) -> str:
             re.IGNORECASE,
         )
         redacted = pattern.sub("<host>", redacted)
-    for key in ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN", "HUGGINGFACE_TOKEN"):
+    for key in ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN", "HUGGINGFACE_TOKEN", "SMA_JUDGE_API_KEY"):
         value = os.environ.get(key)
         if value and len(value) >= 4:
             redacted = redacted.replace(value, "<redacted>")

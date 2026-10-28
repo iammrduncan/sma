@@ -152,6 +152,9 @@ class QualitySuite:
     task: str | None = None
     # The suite calls tools through the chat API, so the server needs a tool-call parser.
     tools: bool = False
+    # The headline's name in the record, when nel's own name (pass@1, or mean_reward for partial credit)
+    # would not say what it is. MuSiQue's is answer_f1.
+    metric: str | None = None
 
 
 @dataclass
@@ -174,6 +177,8 @@ class QualityConfig:
             QualitySuite("gsm8k", 50, bench="sma:gsm8k"),
             QualitySuite("mmlu_pro", 700),
             QualitySuite("gpqa_diamond", 20, bench="gpqa"),
+            # MuSiQue-Ans: multi-hop questions over their own paragraphs, scored by answer F1. See nel_benchmarks/musique.py.
+            QualitySuite("musique", 100, bench="sma:musique", metric="answer_f1"),
             # Native tool calls through the chat API: needs --tool-parser.
             QualitySuite("bfcl_v3", image="nvcr.io/nvidia/eval-factory/bfcl:26.03", task="bfclv3_ast", tools=True),
         ]
@@ -229,6 +234,56 @@ class SweBenchConfig:
     # The agents' whole run, then the grading.
     agent_wait_s: float = 12 * 3600.0
     grade_wait_s: float = 2 * 3600.0
+
+
+@dataclass
+class BrowseCompConfig:
+    """BrowseComp-Plus: deep research over a fixed set of documents (sma/browsecomp.py, owner decision 2026-10-28).
+
+    The model runs on this Spark; the BM25 search server and its index run on the x86 runner
+    (services/browsecomp-plus), reached over SSH with the SWE_RUNNER_* names in the root .env, so the
+    document store takes nothing from the Spark. The judge is SMA_JUDGE_URL and SMA_JUDGE_API_KEY in .env.
+    Requests use the model's own sampling and thinking mode, as BrowseComp-Plus's chat client sends no
+    sampling field.
+    """
+
+    enabled: bool = True
+    # Questions, picked by a seeded shuffle of all 830, the same ones for every model. None runs all of them.
+    limit: int | None = 100
+    # Questions at once. The memory plan gives each one a stream.
+    workers: int = 4
+    # The least context each question's stream must get; it gets the largest step of the ladder that fits.
+    # 32,768, as for SWE-bench: Qwen3's dense models have 40,960 natively, and SMA never stretches RoPE. A
+    # question that fills its context ends there and counts as wrong.
+    min_context: int = 32768
+    # The client's defaults (glm_zai_client.py): one output budget for the whole conversation, replies per
+    # question, and hits per search, each hit's text cut to its first 512 tokens.
+    max_tokens: int = 20000
+    max_iterations: int = 100
+    k: int = 5
+    snippet_max_tokens: int = 512
+    request_timeout_s: float = 1800.0
+    # On the runner, relative to the SSH user's home.
+    remote_dir: str = "sma-bcp"
+    # The search server's port on the runner's loopback, and this machine's end of SMA's SSH forward to it.
+    search_port: int = 8790
+    local_port: int = 8790
+    # Starting the search server loads its 2.2 GB index.
+    search_start_s: float = 600.0
+    # The judge model's name on SMA_JUDGE_URL. Scores are compared only within one judge. Owner decision
+    # 2026-10-28, after a test on 99 published BrowseComp-Plus answers: Ornith 1.5 122B with thinking off read
+    # 98 correctly; LFM 2.5 24B left out its verdict on 10 of 32. BrowseComp-Plus's own judge also runs with
+    # thinking off. The grader's token limit is the repo's (4096). judge-info.md describes the deployment.
+    judge_model: str = "ornith-1.5-122b"
+    judge_max_tokens: int = 4096
+    judge_temperature: float | None = 0.0
+    # Merged into every judge request. llama.cpp is not batch-invariant, so judge-info.md asks for no prompt
+    # cache and one request at a time; on 2026-10-28 three identical requests then gave identical replies.
+    judge_extra_body: dict[str, Any] = field(
+        default_factory=lambda: {"chat_template_kwargs": {"enable_thinking": False}, "cache_prompt": False}
+    )
+    judge_concurrency: int = 1
+    judge_timeout_s: float = 900.0
 
 
 @dataclass
@@ -319,6 +374,7 @@ class Config:
     quality: QualityConfig = field(default_factory=QualityConfig)
     kernelbench: KernelBenchConfig = field(default_factory=KernelBenchConfig)
     swebench: SweBenchConfig = field(default_factory=SweBenchConfig)
+    browsecomp: BrowseCompConfig = field(default_factory=BrowseCompConfig)
     speed: SpeedConfig = field(default_factory=SpeedConfig)
     telemetry: TelemetryConfig = field(default_factory=TelemetryConfig)
     queue: QueueConfig = field(default_factory=QueueConfig)
@@ -355,6 +411,7 @@ _NESTED = {
     "quality": QualityConfig,
     "kernelbench": KernelBenchConfig,
     "swebench": SweBenchConfig,
+    "browsecomp": BrowseCompConfig,
     "speed": SpeedConfig,
     "telemetry": TelemetryConfig,
     "queue": QueueConfig,
@@ -414,7 +471,7 @@ def _suites(value: Any, path: str) -> list[QualitySuite]:
     for index, item in enumerate(value):
         if not isinstance(item, dict) or "name" not in item:
             raise SmaError(f"{path}[{index}] needs a name")
-        unknown = set(item) - {"name", "limit", "bench", "image", "task", "tools"}
+        unknown = set(item) - {"name", "limit", "bench", "image", "task", "tools", "metric"}
         if unknown:
             raise SmaError(f"{path}[{index}] has unknown keys: {sorted(unknown)}")
         limit = item.get("limit")
@@ -426,6 +483,7 @@ def _suites(value: Any, path: str) -> list[QualitySuite]:
                 image=_optional_str(item.get("image")),
                 task=_optional_str(item.get("task")),
                 tools=bool(item.get("tools", False)),
+                metric=_optional_str(item.get("metric")),
             )
         )
     return suites
@@ -532,11 +590,25 @@ def validate_config(cfg: Config) -> None:
         ("swebench.step_limit", cfg.swebench.step_limit),
         ("swebench.min_context", cfg.swebench.min_context),
         ("swebench.grade_workers", cfg.swebench.grade_workers),
+        ("browsecomp.workers", cfg.browsecomp.workers),
+        ("browsecomp.min_context", cfg.browsecomp.min_context),
+        ("browsecomp.max_tokens", cfg.browsecomp.max_tokens),
+        ("browsecomp.max_iterations", cfg.browsecomp.max_iterations),
+        ("browsecomp.k", cfg.browsecomp.k),
+        ("browsecomp.snippet_max_tokens", cfg.browsecomp.snippet_max_tokens),
+        ("browsecomp.judge_max_tokens", cfg.browsecomp.judge_max_tokens),
+        ("browsecomp.judge_concurrency", cfg.browsecomp.judge_concurrency),
     ):
         if not isinstance(value, int) or value < 1:
             raise SmaError(f"{name} must be a positive integer")
-    if max(cfg.kernelbench.concurrency, cfg.swebench.workers) > cfg.engine.max_num_seqs:
-        raise SmaError("kernelbench.concurrency and swebench.workers cannot exceed engine.max_num_seqs")
+    if max(cfg.kernelbench.concurrency, cfg.swebench.workers, cfg.browsecomp.workers) > cfg.engine.max_num_seqs:
+        raise SmaError("kernelbench.concurrency, swebench.workers, and browsecomp.workers cannot exceed engine.max_num_seqs")
+    if cfg.browsecomp.limit is not None and (not isinstance(cfg.browsecomp.limit, int) or cfg.browsecomp.limit < 1):
+        raise SmaError("browsecomp.limit must be a positive integer, or empty to run all 830 questions")
+    if not cfg.browsecomp.judge_model:
+        raise SmaError("browsecomp.judge_model must name the judge model on SMA_JUDGE_URL")
+    if not isinstance(cfg.browsecomp.judge_extra_body, dict):
+        raise SmaError("browsecomp.judge_extra_body must be a mapping")
     if not isinstance(cfg.kernelbench.options, dict):
         raise SmaError("kernelbench.options must be a mapping")
     if cfg.quality.concurrency < 1:

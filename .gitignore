@@ -17,6 +17,10 @@ runs/.catalog.lock
 runs/**/logprobs/dump.json
 runs/**/logprobs/kld-base.bin
 runs/**/quality/swebench_verified_mini/trajectories.jsonl.gz
+# BrowseComp-Plus's questions and answers must never be published as plain text: the bundle and the
+# per-question files that become it hold them.
+runs/**/quality/browsecomp_plus/trajectories.jsonl.gz
+runs/**/quality/browsecomp_plus/queries/
 queue/
 .sma/
 *.tmp

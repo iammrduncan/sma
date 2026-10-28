@@ -21,7 +21,9 @@ from sma.commands import (
     serve_argv,
     serve_env,
 )
+from sma.agentic import search_command
 from sma.backends import BenchMounts, get_backend
+from sma.browsecomp import COMMIT as BCP_COMMIT
 from sma.commands import perplexity_argv
 from sma.config import Config
 from sma.engines import batch_invariance_replaces_kernels, configured_digest, image_for
@@ -193,6 +195,19 @@ def render_plan(
             "  agent: " + agent_command(cfg, run_id),
             "  grade: " + grade_command(cfg, run_id),
         ]
+    if cfg.browsecomp.enabled:
+        bc = cfg.browsecomp
+        size = "all 830 questions" if bc.limit is None else f"{bc.limit} of 830 questions (seeded shuffle)"
+        lines += [
+            "",
+            f"6c browsecomp_plus: BrowseComp-Plus {BCP_COMMIT[:8]}, {size}, {bc.workers} at once, as its chat client asks: "
+            f"one search tool, top {bc.k}, {bc.snippet_max_tokens}-token snippets, {bc.max_tokens} output tokens per question, "
+            f"up to {bc.max_iterations} replies, the model's own sampling and thinking mode. Needs --tool-parser.",
+            f"  The BM25 index and its search server run on the runner ($SWE_RUNNER_HOST, folder {bc.remote_dir}), "
+            f"forwarded over SSH to 127.0.0.1:{bc.local_port} here.",
+            "  search: " + search_command(cfg, run_id),
+            f"  8b grades the answers with the judge {bc.judge_model} at $SMA_JUDGE_URL.",
+        ]
     lines.extend(
         [
             "",
@@ -257,6 +272,15 @@ def render_plan(
             *(
                 ["8a kernelbench_results: wait for the service's job, then score it with KernelBench's fast_p.", ""]
                 if cfg.kernelbench.enabled
+                else []
+            ),
+            *(
+                [
+                    "8b browsecomp_plus_results: the judge grades each final answer with BrowseComp-Plus's grader prompt; "
+                    "accuracy over every picked question, evidence recall, and search calls.",
+                    "",
+                ]
+                if cfg.browsecomp.enabled
                 else []
             ),
             "9 telemetry",

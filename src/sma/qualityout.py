@@ -56,8 +56,14 @@ def unanswered_count(failures: dict[str, Any]) -> int:
     return failed if isinstance(failed, int) and not isinstance(failed, bool) else 0
 
 
-def normalize_suite(suite_dir: Path, attempt_dir: Path, suite_name: str, *, bench: str, limit: int | None) -> dict[str, Any]:
-    """Read one suite's nel bundle into scores.json, and its per-question rows into samples.jsonl."""
+def normalize_suite(
+    suite_dir: Path, attempt_dir: Path, suite_name: str, *, bench: str, limit: int | None, metric: str | None = None
+) -> dict[str, Any]:
+    """Read one suite's nel bundle into scores.json, and its per-question rows into samples.jsonl.
+
+    The headline is nel's pass@1 for right-or-wrong scorers, or its mean_reward when a scorer gives
+    partial credit (MuSiQue's answer F1). metric names it in the record when the suite config does.
+    """
     bundle_path = newest_bundle(attempt_dir)
     if bundle_path is None:
         raise SmaError(f"nemo-evaluator did not write a result bundle for {suite_name} under {attempt_dir}")
@@ -67,6 +73,13 @@ def normalize_suite(suite_dir: Path, attempt_dir: Path, suite_name: str, *, benc
         raise SmaError(f"{bundle_path} has no benchmark block")
     scores = benchmark.get("scores") if isinstance(benchmark.get("scores"), dict) else {}
     pass_at_1 = scores.get("pass@1") if isinstance(scores.get("pass@1"), dict) else {}
+    # nel reports mean_reward instead when any reward is between 0 and 1.
+    mean_reward = scores.get("mean_reward") if isinstance(scores.get("mean_reward"), dict) else {}
+    headline = pass_at_1 or mean_reward
+    if pass_at_1:
+        lower, upper = pass_at_1.get("bootstrap_ci_lower"), pass_at_1.get("bootstrap_ci_upper")
+    else:
+        lower, upper = mean_reward.get("ci_lower"), mean_reward.get("ci_upper")
     failures = scores.get("failures") if isinstance(scores.get("failures"), dict) else {}
     shuffle = (bundle.get("config") or {}).get("shuffle") or {}
     failed = unanswered_count(failures)
@@ -78,11 +91,11 @@ def normalize_suite(suite_dir: Path, attempt_dir: Path, suite_name: str, *, benc
         "scorer": f"nemo-evaluator {bundle.get('sdk_version') or 'unknown'}",
         "suite": suite_name,
         "bench": bench,
-        "primary_metric": "pass@1" if pass_at_1 else None,
-        "primary_score": None if incomplete else pass_at_1.get("value"),
-        "ci_lower": None if incomplete else pass_at_1.get("bootstrap_ci_lower"),
-        "ci_upper": None if incomplete else pass_at_1.get("bootstrap_ci_upper"),
-        "pass_at_1_failures_as_wrong": pass_at_1.get("value") if incomplete else None,
+        "primary_metric": (metric or ("pass@1" if pass_at_1 else "mean_reward")) if headline else None,
+        "primary_score": None if incomplete else headline.get("value"),
+        "ci_lower": None if incomplete else lower,
+        "ci_upper": None if incomplete else upper,
+        "pass_at_1_failures_as_wrong": headline.get("value") if incomplete else None,
         "error": (
             f"{failed} of {benchmark.get('samples')} requests got no answer (nel's infra_error and graceful "
             "failures), and nel scores those as wrong. The score is null. See the trajectories for each failure."
@@ -98,8 +111,8 @@ def normalize_suite(suite_dir: Path, attempt_dir: Path, suite_name: str, *, benc
         "categories": benchmark.get("categories"),
         "bundle": str(bundle_path.relative_to(suite_dir)),
     }
-    atomic_write_json(suite_dir / "scores.json", payload)
     rows: list[str] = []
+    details: list[dict[str, Any]] = []
     results = bundle_path.parent / "results.jsonl"
     if results.is_file():
         for line in results.read_text(encoding="utf-8").splitlines():
@@ -109,9 +122,23 @@ def normalize_suite(suite_dir: Path, attempt_dir: Path, suite_name: str, *, benc
             if isinstance(row, dict):
                 # The full conversation stays in nel's trajectories.jsonl.
                 row.pop("trajectory", None)
+                details.append(row.get("scoring_details") if isinstance(row.get("scoring_details"), dict) else {})
             rows.append(json.dumps(row, sort_keys=True))
+    payload["scorer_shares"] = None if incomplete else boolean_shares(details)
+    atomic_write_json(suite_dir / "scores.json", payload)
     atomic_write_text(suite_dir / "samples.jsonl", "".join(row + "\n" for row in rows))
     return payload
+
+
+def boolean_shares(details: list[dict[str, Any]]) -> dict[str, float]:
+    """For each true-or-false field every row's scorer reported, the share of rows where it is true.
+
+    MuSiQue's exact match is one: its headline is answer F1, and nel reports exact match only as a breakdown.
+    """
+    if not details:
+        return {}
+    names = set.intersection(*(set(key for key, value in row.items() if isinstance(value, bool)) for row in details))
+    return {name: sum(1 for row in details if row[name]) / len(details) for name in sorted(names)}
 
 
 def wilson_interval(correct: int, total: int, z: float = 1.959964) -> tuple[float | None, float | None]:

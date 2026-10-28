@@ -214,7 +214,11 @@ def test_repo_config_loads() -> None:
     # Nested sections load as their dataclasses, not plain mappings.
     assert (cfg.kernelbench.level, cfg.kernelbench.enabled) == (1, True)
     assert (cfg.swebench.workers, cfg.swebench.step_limit) == (4, 250)
-    assert [suite.name for suite in cfg.quality.suites] == ["ifeval", "gsm8k", "mmlu_pro", "gpqa_diamond", "bfcl_v3"]
+    assert (cfg.browsecomp.limit, cfg.browsecomp.judge_model, cfg.browsecomp.judge_concurrency) == (100, "ornith-1.5-122b", 1)
+    assert cfg.browsecomp.judge_extra_body == {"chat_template_kwargs": {"enable_thinking": False}, "cache_prompt": False}
+    assert cfg.browsecomp == default_config().browsecomp
+    assert [suite.name for suite in cfg.quality.suites] == ["ifeval", "gsm8k", "mmlu_pro", "gpqa_diamond", "musique", "bfcl_v3"]
+    assert next(suite for suite in cfg.quality.suites if suite.name == "musique").metric == "answer_f1"
     assert [suite.name for suite in cfg.quality.suites] == [suite.name for suite in default_config().quality.suites]
 
 

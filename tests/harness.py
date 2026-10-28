@@ -50,9 +50,11 @@ def make_config(tmp_path: Path, *, port: int | None = None):
     cfg.quality.suites = [QualitySuite("ifeval", 2, bench="lm-eval://ifeval")]
     cfg.quality.concurrency = 2
     cfg.quality.max_tokens = 16
-    # KernelBench and SWE-bench call lab machines; tests turn them on with fakes (test_agentic.py).
+    # KernelBench, SWE-bench, and BrowseComp-Plus call lab machines; tests turn them on with fakes
+    # (test_agentic.py, test_browsecomp.py).
     cfg.kernelbench.enabled = False
     cfg.swebench.enabled = False
+    cfg.browsecomp.enabled = False
     validate_config(cfg)
     return cfg
 

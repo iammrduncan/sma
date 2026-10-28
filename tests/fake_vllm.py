@@ -59,6 +59,22 @@ class FakeVLLM:
                 if not isinstance(payload, dict):
                     self._send(400, b'{"error":"bad payload"}')
                     return
+                if self.path.startswith("/v1/chat/completions") and payload.get("tools"):
+                    # BrowseComp-Plus's agent: one search, then an answer in its format.
+                    owner.chat_requests.append(payload)
+                    searched = any(m.get("role") == "tool" for m in payload.get("messages") or [])
+                    if searched:
+                        message = {"role": "assistant", "reasoning": "The hits name the city.",
+                                   "content": "Explanation: It is Paris [11].\nExact Answer: Paris\nConfidence: 90%"}
+                        finish = "stop"
+                    else:
+                        message = {"role": "assistant", "reasoning": "Search first.", "content": None, "tool_calls": [
+                            {"id": "call-1", "type": "function", "function": {"name": "search", "arguments": '{"query": "capital city"}'}}]}
+                        finish = "tool_calls"
+                    body = {"choices": [{"message": message, "finish_reason": finish}],
+                            "usage": {"prompt_tokens": 300, "completion_tokens": 40}}
+                    self._send(200, json.dumps(body).encode())
+                    return
                 if self.path.startswith("/v1/chat/completions"):
                     owner.chat_requests.append(payload)
                     content = "<think>\nPlan the kernel.\n</think>\n\n```python\nclass ModelNew:\n    pass\n```\n"

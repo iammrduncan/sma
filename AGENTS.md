@@ -61,20 +61,21 @@ uv run sma run Qwen/Qwen3-8B --bf16 --dry-run         # prints the plan; no GPU,
 | Area | Modules in `src/sma/` |
 | --- | --- |
 | Entry points | `cli.py` (argparse; `SmaError` exits 2), `plan.py` (dry-run), `doctor.py` |
-| Orchestration | `pipeline.py` (steps, markers, teardown), `agentic.py` (the KernelBench and SWE-bench steps), `queue.py` (filesystem queue, worker), `locks.py` |
+| Orchestration | `pipeline.py` (steps, markers, teardown), `agentic.py` (the KernelBench, SWE-bench, and BrowseComp-Plus steps), `queue.py` (filesystem queue, worker), `locks.py` |
 | Commands | `commands.py`, `backends.py` (`EngineBackend` for vLLM and SGLang), `engines.py`, `runtime.py` (Docker) |
 | Checkpoint | `fetch.py`, `quant.py`, `gguf.py` (GGUF header reader), `preflight.py`, `params.py`, `safetensors.py`, `hashing.py` |
 | Memory plan | `memplan.py` (KV layout, context ladder, budget; pure), `runplan.py` (SMA's benchmarks as needs, serve plan) |
-| Measurement | `probe.py`, `kl.py`, `corpus.py`, `speedmath.py`, `prom.py`, `telemetry.py`, `qualityout.py`, `compare.py`, `cleanup.py`, `kernelbench.py` (problems, prompt, extraction, scoring; offline), `kbservice.py` (the service's client), `swebench.py` (the runner over SSH), `thinking.py` (the chat template's thinking default) |
+| Measurement | `probe.py`, `kl.py`, `corpus.py`, `speedmath.py`, `prom.py`, `telemetry.py`, `qualityout.py`, `compare.py`, `cleanup.py`, `kernelbench.py` (problems, prompt, extraction, scoring; offline), `kbservice.py` (the service's client), `swebench.py` (the runner over SSH), `browsecomp.py` (BrowseComp-Plus's prompt, search loop, grader, and scoring; offline), `judge.py` (the lab judge's client), `thinking.py` (the chat template's thinking default) |
 | Records | `records.py`, `catalog.py`, `atomic.py`, `schemautil.py`, and `schemas/*.json` at the root |
 | Shared helpers | `config.py`, `errors.py`, `proc.py`, `httpapi.py`, `retry.py`, `scrub.py`, `identity.py`, `logsetup.py` |
 
 - `src/sma/data/` holds the pinned corpus, the SGLang bench dataset, and KernelBench's Level 1 problems and prompt at the service's commit (`kernelbench/manifest.json` hashes them). `load_corpus` checks the
   corpus hash. Do not edit these files.
-- `src/sma/nel_benchmarks/` holds graders that NeMo Evaluator loads by path (`sma:<name>` in a
-  quality suite). They import `nemo_evaluator`, so SMA's own code never imports them.
-- `services/` holds what runs on other machines: the KernelBench evaluation service and the SWE-bench
-  runner's setup (services/README.md). They are not part of the `sma` package.
+- `src/sma/nel_benchmarks/` holds benchmarks that NeMo Evaluator loads by path (`sma:<name>` in a
+  quality suite): GSM8K's grader and MuSiQue. They import `nemo_evaluator`, so SMA's own code never imports them.
+- `services/` holds what runs on other machines: the KernelBench evaluation service, the SWE-bench
+  runner's setup, and BrowseComp-Plus's search server and its setup (services/README.md). The judge is
+  described in `judge-info.md`. They are not part of the `sma` package.
   `tests/test_services.py` tests them offline.
 - `tests/` uses in-process fakes: `fakes.py` (Docker, Hugging Face, NeMo Evaluator, llama-perplexity,
   bench, a GGUF repo), `fake_vllm.py` (an HTTP server), `gguf_writer.py` (small GGUF files), and
