@@ -47,7 +47,14 @@ def agent_overlay(*, served_name: str, port: int, step_limit: int, enable_thinki
         kwargs["extra_body"] = {"chat_template_kwargs": {"enable_thinking": enable_thinking}}
     return {
         "agent": {"step_limit": step_limit},
-        "model": {"model_name": f"hosted_vllm/{served_name}", "model_kwargs": kwargs},
+        "model": {
+            "model_name": f"hosted_vllm/{served_name}",
+            "model_kwargs": kwargs,
+            # LiteLLM prices each call, and it has no price for a checkpoint served here: mini-swe-agent's
+            # default then raises on the first call, and every task ends with no answer (all 50 for
+            # LFM3-1.7B, 2026-10-29). SMA records no cost, so a missing price is no error.
+            "cost_tracking": "ignore_errors",
+        },
     }
 
 
@@ -129,6 +136,10 @@ class SshRunner:
         if result.returncode not in ok_codes:
             require_ok(result, what=what)
         return result
+
+    def machine_facts(self, script: str, *, timeout_s: float) -> str:
+        """The output of a read-only script that prints machine facts. SmaError when it does not answer."""
+        return str(self._run(script, what=f"{self.label} facts", timeout_s=timeout_s).stdout)
 
     def check(self, cfg: Any) -> None:
         sw = cfg.swebench

@@ -10,6 +10,7 @@ from typing import Any
 
 import yaml
 
+from sma.errors import SmaError
 from sma.fetch import FetchResult, inspect_snapshot
 from sma.runtime import StartSpec
 from sma.telemetry import TelemetryRecorder
@@ -150,6 +151,15 @@ class FixtureFetcher:
         self.quant_flag = quant_flag
         self.sha = sha
         self.calls = 0
+        self.tokenizers: dict[str, Path] = {}
+        self.tokenizer_requests: list[tuple[str, str | None]] = []
+
+    def tokenizer_snapshot(self, repo: str, revision: str | None = None) -> tuple[Path, str]:
+        """A repo's tokenizer files: from tokenizers[repo], a folder a test fills."""
+        self.tokenizer_requests.append((repo, revision))
+        if repo not in self.tokenizers:
+            raise SmaError(f"no tokenizer fixture for {repo}")
+        return self.tokenizers[repo], "b" * 40
 
     def fetch(self, repo: str, revision: str | None, quant_flag: str, gguf: str | None = None) -> FetchResult:
         self.calls += 1
@@ -169,6 +179,7 @@ class FixtureFetcher:
 class FakeRuntime:
     def __init__(self) -> None:
         self.fail_backends: set[str] = set()
+        self.gguf_archs: set[str] | None = None
         self.specs: list[StartSpec] = []
         self.running: set[str] = set()
         self.stop_count = 0
@@ -234,6 +245,10 @@ class FakeRuntime:
     def is_running(self, name: str) -> bool:
         return name in self.running
 
+    def gguf_architectures(self, image: str) -> set[str] | None:
+        """What the bench image's transformers reads. None (unknown) keeps the GGUF's own tokenizer."""
+        return self.gguf_archs
+
     def list_sma(self) -> list[str]:
         return sorted(self.running | self.exited)
 
@@ -256,9 +271,13 @@ class FakeEvaluator:
     def __init__(self) -> None:
         self.calls: list[list[str]] = []
         self.configs: list[dict[str, Any]] = []
+        self.client_timeouts: list[float | None] = []
 
-    def run(self, argv: list[str], output_dir: Path, timeout_s: float, log_path: Path) -> None:
+    def run(
+        self, argv: list[str], output_dir: Path, timeout_s: float, log_path: Path, client_timeout_s: float | None = None
+    ) -> None:
         self.calls.append(list(argv))
+        self.client_timeouts.append(client_timeout_s)
         log_path.parent.mkdir(parents=True, exist_ok=True)
         if "/app/llama-perplexity" in argv:
             self._perplexity(argv, log_path)

@@ -88,9 +88,6 @@ class MemoryConfig:
     # processes, plus SMA's tools beside it (nel, the bench client). Measured per engine on the Spark
     # (docs/first-spark-run.md).
     overhead_gb: dict[str, float] = field(default_factory=lambda: {"vllm": 13.0, "sglang": 13.0, "llamacpp": 3.0})
-    # Engine memory that grows with the KV pool, as a share of it. llama.cpp's buffers sized by its
-    # context measured 0.9 GB plus 11.7% of the pool on a Spark (Qwen3-0.6B, -c 372,578 and 1,490,313).
-    pool_overhead_fraction: dict[str, float] = field(default_factory=lambda: {"vllm": 0.0, "sglang": 0.0, "llamacpp": 0.12})
     # The least context per stream a quality request needs: prompt plus quality.max_tokens.
     quality_min_context: int = 8192
 
@@ -155,6 +152,9 @@ class QualitySuite:
     # The headline's name in the record, when nel's own name (pass@1, or mean_reward for partial credit)
     # would not say what it is. MuSiQue's is answer_f1.
     metric: str | None = None
+    # How many questions the dataset has, when the harness does not say before it ends (BFCL's is in its
+    # container). Only `sma watch` reads it, to show progress as answered/total. It changes nothing that runs.
+    questions: int | None = None
 
 
 @dataclass
@@ -180,7 +180,7 @@ class QualityConfig:
             # MuSiQue-Ans: multi-hop questions over their own paragraphs, scored by answer F1. See nel_benchmarks/musique.py.
             QualitySuite("musique", 100, bench="sma:musique", metric="answer_f1"),
             # Native tool calls through the chat API: needs --tool-parser.
-            QualitySuite("bfcl_v3", image="nvcr.io/nvidia/eval-factory/bfcl:26.03", task="bfclv3_ast", tools=True),
+            QualitySuite("bfcl_v3", image="nvcr.io/nvidia/eval-factory/bfcl:26.03", task="bfclv3_ast", tools=True, questions=4441),
         ]
     )
 
@@ -320,6 +320,8 @@ class SpeedConfig:
 @dataclass
 class TelemetryConfig:
     interval_s: float = 1.0
+    # Seconds between scrapes of the engine's /metrics counters into engine_metrics.jsonl.
+    engine_metrics_interval_s: float = 15.0
     idle_until_cool_c: float = 55.0
     idle_timeout_s: float = 600.0
     poll_s: float = 5.0
@@ -471,10 +473,12 @@ def _suites(value: Any, path: str) -> list[QualitySuite]:
     for index, item in enumerate(value):
         if not isinstance(item, dict) or "name" not in item:
             raise SmaError(f"{path}[{index}] needs a name")
-        unknown = set(item) - {"name", "limit", "bench", "image", "task", "tools", "metric"}
+        unknown = set(item) - {"name", "limit", "bench", "image", "task", "tools", "metric", "questions"}
         if unknown:
             raise SmaError(f"{path}[{index}] has unknown keys: {sorted(unknown)}")
-        limit = item.get("limit")
+        limit, questions = item.get("limit"), item.get("questions")
+        if questions is not None and (not isinstance(questions, int) or isinstance(questions, bool) or questions < 1):
+            raise SmaError(f"{path}[{index}].questions must be a whole number of questions, 1 or more")
         suites.append(
             QualitySuite(
                 name=str(item["name"]),
@@ -484,6 +488,7 @@ def _suites(value: Any, path: str) -> list[QualitySuite]:
                 task=_optional_str(item.get("task")),
                 tools=bool(item.get("tools", False)),
                 metric=_optional_str(item.get("metric")),
+                questions=questions,
             )
         )
     return suites
@@ -629,10 +634,6 @@ def validate_config(cfg: Config) -> None:
         overhead = cfg.memory.overhead_gb.get(name) if isinstance(cfg.memory.overhead_gb, dict) else None
         if not isinstance(overhead, (int, float)) or isinstance(overhead, bool) or overhead < 0:
             raise SmaError(f"memory.overhead_gb.{name} must be a number of GB, 0 or more")
-    for name in ("vllm", "sglang", "llamacpp"):
-        share = cfg.memory.pool_overhead_fraction.get(name) if isinstance(cfg.memory.pool_overhead_fraction, dict) else None
-        if not isinstance(share, (int, float)) or isinstance(share, bool) or not 0 <= share < 1:
-            raise SmaError(f"memory.pool_overhead_fraction.{name} must be a share from 0 to below 1")
     if cfg.engine.llamacpp_cache_ram_mib < 0:
         raise SmaError("engine.llamacpp_cache_ram_mib must be 0 (off) or more")
     if cfg.logprobs.llamacpp_chunks < 1:
@@ -700,6 +701,8 @@ def validate_config(cfg: Config) -> None:
         pass
     if cfg.telemetry.interval_s <= 0:
         raise SmaError("telemetry.interval_s must be > 0")
+    if cfg.telemetry.engine_metrics_interval_s <= 0:
+        raise SmaError("telemetry.engine_metrics_interval_s must be > 0")
     if cfg.telemetry.max_sample_gap_s <= 0:
         raise SmaError("telemetry.max_sample_gap_s must be > 0")
     if not 0 < cfg.telemetry.min_sample_ratio <= 1:

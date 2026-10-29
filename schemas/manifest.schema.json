@@ -166,6 +166,19 @@
         "selection_reason": { "type": ["string", "null"] },
         "build_info": { "type": ["string", "null"] },
         "bench_image": { "type": ["string", "null"] },
+        "bench_tokenizer": {
+          "description": "llama.cpp runs: the tokenizer vLLM's bench client loaded. The GGUF's own, or the source model's when the bench image cannot read the GGUF's architecture and every token matches.",
+          "type": ["object", "null"],
+          "properties": {
+            "source": { "enum": ["gguf", "repo"] },
+            "file": { "type": ["string", "null"] },
+            "repo": { "type": "string" },
+            "revision": { "type": "string" },
+            "reason": { "type": "string" },
+            "check": { "type": "string" }
+          },
+          "required": ["source"]
+        },
         "kv_cache_type": { "enum": ["fp8", "q8_0"] },
         "kv_cache_scales": { "type": ["string", "null"] },
         "kv_cache_reported": { "type": "object" },

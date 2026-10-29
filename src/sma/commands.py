@@ -340,6 +340,45 @@ def nel_config(cfg: Config, *, served_name: str, base_url: str, suite: QualitySu
     }
 
 
+# nemo-evaluator 0.3.0 builds a simple solver's model client with a fixed 120 s timeout that no config
+# reaches: quality.request_timeout_s sets only its proxy's. An answer that takes longer (4,096 tokens at
+# 33 tok/s, LFM3-1.7B on a Spark) was dropped at 2 minutes, retried the same way, and lost. This code runs
+# nel's own console script after raising the client's floor. A nel whose client lacks these names fails
+# loudly here rather than keep the 2-minute cutoff.
+NEL_CLIENT_TIMEOUT = """
+import runpy, sys
+from nemo_evaluator.engine import model_client
+floor = float(sys.argv[1])
+original = model_client.ModelClient.__post_init__
+def __post_init__(self):
+    original(self)
+    self.timeout = max(self.timeout, floor)
+model_client.ModelClient.__post_init__ = __post_init__
+sys.argv = sys.argv[2:]
+runpy.run_path(sys.argv[0], run_name="__main__")
+"""
+
+
+def nel_with_client_timeout(argv: list[str], *, interpreter: str, script: str, timeout_s: float) -> list[str]:
+    """nel's argv run under its own Python, with its model client's timeout raised to timeout_s."""
+    return [interpreter, "-c", NEL_CLIENT_TIMEOUT, f"{timeout_s:g}", script, *argv[1:]]
+
+
+def script_interpreter(path: Path) -> str | None:
+    """The Python a console script runs under, from its #! line. None when it is not a Python script."""
+    try:
+        with path.open("rb") as handle:
+            first = handle.readline(4096).decode("utf-8", "replace").strip()
+    except OSError:
+        return None
+    if not first.startswith("#!"):
+        return None
+    words = first[2:].split()
+    if words and Path(words[0]).name == "env" and len(words) > 1:
+        words = words[1:]
+    return words[0] if words and "python" in Path(words[0]).name else None
+
+
 def nel_argv(cfg: Config, *, output_name: str) -> list[str]:
     """Run from the suite folder, which holds nel.yaml. Results go to <suite>/<output_name>."""
     return [cfg.quality.executable, "eval", "run", NEL_CONFIG, "-o", output_name]

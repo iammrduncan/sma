@@ -79,6 +79,21 @@ def _parser() -> argparse.ArgumentParser:
     _add_common(status)
     status.set_defaults(func=_cmd_status)
 
+    watching = sub.add_parser(
+        "watch", help="Live view: the queue, the current run's steps and benchmarks, and finished runs"
+    )
+    watching.add_argument("--interval", type=float, default=5.0, help="Seconds between redraws (default 5)")
+    watching.add_argument("--once", action="store_true", help="Print one screen and exit")
+    watching.add_argument(
+        "--plan",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="Runs a script will start, one 'REPO QUANT' per line, in order; 'since TIME' skips older runs",
+    )
+    _add_common(watching)
+    watching.set_defaults(func=_cmd_watch)
+
     listing = sub.add_parser("list", help="List runs from the catalog")
     _add_common(listing)
     listing.add_argument("--rebuild", action="store_true", help="Rebuild the catalog by scanning run folders")
@@ -458,6 +473,49 @@ def _cmd_status(args: argparse.Namespace) -> int:
     pending = sum(1 for job in jobs if job.get("state") == "pending")
     claimed = sum(1 for job in jobs if job.get("state") == "claimed")
     print(f"queue: {pending} pending, {claimed} claimed")
+    return 0
+
+
+def _cmd_watch(args: argparse.Namespace) -> int:
+    cfg = _cfg(args)
+    from sma.httpapi import scrape_metrics
+    from sma.machines import gather
+    from sma.telemetry import meminfo
+    from sma.watch import watch
+
+    if args.interval <= 0:
+        raise SmaError("--interval must be more than 0 seconds")
+    runtime = DockerRuntime(cfg)
+
+    def containers() -> list[str]:
+        try:
+            return [name for name in runtime.list_sma() if runtime.is_running(name)]
+        except SmaError:
+            return []
+
+    def started_at(name: str):
+        try:
+            return runtime.started_at(name)
+        except SmaError:
+            return None
+
+    def scrape(base_url: str, path: str) -> str:
+        try:
+            return scrape_metrics(base_url, cfg.timeouts.metrics_s, path=path)
+        except SmaError:
+            return ""
+
+    watch(
+        cfg,
+        plan=args.plan,
+        interval_s=args.interval,
+        once=args.once,
+        containers=containers,
+        memory=meminfo,
+        scrape=scrape,
+        machines=lambda: gather(cfg),
+        started_at=started_at,
+    )
     return 0
 
 

@@ -12,7 +12,9 @@ from sma.config import config_from_mapping, default_config, validate_config
 from sma.engines import engine_name
 from sma.errors import SmaError
 from sma.kl import parse_perplexity_log
+from sma.memplan import KvLayout
 from sma.pipeline import RunSpec, execute
+from sma.runplan import describe
 from sma.schemautil import validate_instance
 from sma.telemetry import TelemetryRecorder, peak_memory_bytes, read_memory
 from tests.fakes import FixtureFetcher, telemetry_factory, write_gguf_snapshot
@@ -437,22 +439,79 @@ def test_a_gguf_run_resumes_with_its_quant_file(tmp_path: Path, monkeypatch: pyt
     assert seen == {"gguf": "UD-Q4_K_XL", "engine": "llamacpp", "quant": "gguf"}
 
 
-def test_llama_cpp_plans_its_pool_sized_buffers_and_its_prompt_cache() -> None:
-    # Measured on a Spark: llama-server used 0.9 GB plus 11.7% of its KV pool beyond weights and pool,
-    # plus its host-RAM prompt cache (8 GiB by default) once prompts arrive. Unplanned, a run peaked at 110.6 GB.
+def test_llama_cpp_plans_its_buffers_and_its_prompt_cache() -> None:
+    # llama-server's compute buffers grow with its whole KV cache, about 6 KB per token for Qwen3 on a
+    # Spark, and its host-RAM prompt cache (8 GiB by default) grows once prompts arrive. Unplanned, a
+    # run peaked at 110.6 GB.
     from sma.memplan import kv_layout_from_hf_config
-    from sma.runplan import plan_run
+    from sma.runplan import llamacpp_buffer_bytes_per_token, plan_run
 
     cfg = default_config()
     layout = kv_layout_from_hf_config(_json(Path(__file__).resolve().parent / "data" / "configs" / "qwen3-8b.json"))
     llama = plan_run(cfg, engine="llamacpp", layout=layout, weights_bytes=1_200_000_000)
     vllm = plan_run(cfg, engine="vllm", layout=layout, weights_bytes=1_200_000_000)
     assert llama.overhead_bytes == 3_000_000_000 + 8192 * 2**20
-    assert llama.pool_overhead_fraction == 0.12 and vllm.pool_overhead_fraction == 0.0
-    assert llama.pool_bytes == int((100e9 - 1.2e9 - llama.overhead_bytes) / 1.12)
-    assert llama.footprint_bytes <= 100e9 + 1
+    # Qwen3's 8 KV heads of 128 measured 6,164 bytes per token (Qwen3-0.6B, same per-layer K and V).
+    assert llamacpp_buffer_bytes_per_token(layout) == llama.buffer_bytes_per_token == 6144
+    assert llama.buffer_bytes == llama.pool_tokens * 6144
+    assert llama.footprint_bytes == 1_200_000_000 + llama.overhead_bytes + llama.pool_bytes + llama.buffer_bytes
+    assert (vllm.buffer_bytes, vllm.pool_streams) == (0, None)
+    assert vllm.footprint_bytes == 100e9
     argv = _serve_llama(cfg)
     assert argv[argv.index("--cache-ram") + 1] == "8192"
+
+
+# LFM3-1.7B-GGUF's layout, as SMA reads it from the GGUF metadata.
+_LFM3_1_7B = KvLayout(
+    total_layers=24,
+    full_attention_layers=6,
+    full_values_per_token=6144,
+    sliding_attention_layers=5,
+    sliding_values_per_token=5120,
+    sliding_window=256,
+    state_bytes_per_stream=638_976,
+    native_context=262_144,
+    native_source="lfm3.context_length",
+    rope_stretched=False,
+)
+
+
+def test_llama_cpp_pool_holds_its_slots_not_the_rest_of_the_budget() -> None:
+    # On a Spark (2026-10-28), LFM3-1.7B BF16 got the rest of the 100 GB budget as its pool: -c 11,618,008
+    # for 8 slots of 262,144, 5.5 times what they can use. llama.cpp sized its compute buffers by that
+    # cache, 4,100 bytes per token, 47.6 GB the plan did not count. The run peaked at 127 GB of 130.7 GB,
+    # and the next run's server took the machine down.
+    from sma.memplan import stream_kv_bytes
+    from sma.runplan import llamacpp_buffer_bytes_per_token, plan_run, slots
+
+    cfg = default_config()
+    assert llamacpp_buffer_bytes_per_token(_LFM3_1_7B) == 4096
+    plan = plan_run(cfg, engine="llamacpp", layout=_LFM3_1_7B, weights_bytes=3_470_000_000)
+    assert (plan.kv_bytes_per_token, plan.context) == (6528, 262_144)
+    assert plan.pool_streams == slots(cfg) == 8
+    assert plan.pool_bytes == 8 * stream_kv_bytes(_LFM3_1_7B, 262_144, "q8_0")
+    assert 8 * 262_144 <= plan.pool_tokens < 8 * 262_144 * 1.01
+    assert plan.streams_full_context == 8
+    assert plan.buffer_bytes == plan.pool_tokens * 4096
+    assert plan.footprint_bytes == 3_470_000_000 + plan.overhead_bytes + plan.pool_bytes + plan.buffer_bytes
+    assert plan.footprint_bytes < 40e9
+    # Determinism's 64 prompts share the 8 slots' pool at a shorter step (each stream also keeps its
+    # convolution state, so 64 at 32,768 just miss).
+    assert plan.benchmarks["determinism"] == 16_384
+    assert any(line.startswith("KV pool: 8 slots at 262,144 tokens") for line in describe(plan.to_json()))
+
+
+def test_llama_cpp_pool_is_the_budget_when_its_slots_need_more() -> None:
+    # Qwen3-30B-A3B-2507 at 262,144: 8 slots would need 109 GB of Q8_0 cache, so the budget sets the pool.
+    from sma.memplan import kv_layout_from_hf_config
+    from sma.runplan import plan_run
+
+    layout = kv_layout_from_hf_config(_json(Path(__file__).resolve().parent / "data" / "configs" / "qwen3-30b-a3b-instruct-2507.json"))
+    plan = plan_run(default_config(), engine="llamacpp", layout=layout, weights_bytes=17_000_000_000)
+    assert plan.pool_streams is None
+    assert plan.pool_bytes < 8 * plan.stream_bytes
+    assert plan.buffer_bytes == plan.pool_tokens * plan.buffer_bytes_per_token > 0
+    assert 99e9 < plan.footprint_bytes <= 100e9
 
 
 def _serve_llama(cfg) -> list[str]:
