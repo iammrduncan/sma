@@ -1,8 +1,9 @@
-"""1 Hz GPU samples and throttle detection from the CSV log."""
+"""1 Hz GPU samples and throttle detection from the CSV log, and the engine's /metrics counters."""
 
 from __future__ import annotations
 
 import csv
+import json
 import threading
 import time
 from dataclasses import dataclass
@@ -12,8 +13,14 @@ from typing import IO, Any
 from sma.atomic import atomic_write_text
 from sma.commands import nvidia_smi_query, nvidia_smi_query_legacy
 from sma.config import Config
+from sma.errors import SmaError
+from sma.httpapi import scrape_metrics
 from sma.logsetup import log_event
 from sma.proc import run_command
+from sma.prom import metric_name, parse_prometheus
+
+# One JSON row per engine scrape: {"ts", "iso", "phase", "values": {name: number}}.
+ENGINE_METRICS_FILE = "engine_metrics.jsonl"
 
 _HEADER = (
     "ts_unix,iso,sm_clock_mhz,temp_c,power_w,"
@@ -292,6 +299,10 @@ class TelemetryRecorder:
         self.end_temp: float | None = None
         self._query = nvidia_smi_query(cfg.doctor.gpu_index)
         self.failures = 0
+        self._sampling = False
+        # (base URL, metrics path, names) of the engine whose counters are sampled, once known.
+        self._engine: tuple[str, str, tuple[str, ...]] | None = None
+        self._engine_thread: threading.Thread | None = None
 
     def start(self, sampler: bool = True) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -303,8 +314,38 @@ class TelemetryRecorder:
         self._stop.clear()
         if not sampler:
             return
+        self._sampling = True
         self._thread = threading.Thread(target=self._loop, name="sma-telemetry", daemon=True)
         self._thread.start()
+
+    def watch_engine(self, base_url: str, path: str, names: tuple[str, ...]) -> None:
+        """Sample the engine's counters into engine_metrics.jsonl every telemetry.engine_metrics_interval_s
+        while a server answers. Its own thread, so a slow scrape never delays the 1 Hz GPU samples."""
+        self._engine = (base_url, path, names)
+        if self._sampling and self._engine_thread is None:
+            self._engine_thread = threading.Thread(target=self._engine_loop, name="sma-engine-metrics", daemon=True)
+            self._engine_thread.start()
+
+    def sample_engine(self, *, now: float | None = None, text: str | None = None) -> bool:
+        """Append one engine_metrics.jsonl row from a scrape, or from text a test passes. False, and no
+        row, when no server answers or it reports none of the names."""
+        if self._engine is None:
+            return False
+        base_url, path, names = self._engine
+        if text is None:
+            try:
+                text = scrape_metrics(base_url, self.cfg.timeouts.metrics_s, path=path)
+            except SmaError:
+                return False
+        totals = engine_values(text, names)
+        if not totals:
+            return False
+        stamp = time.time() if now is None else now
+        iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(stamp))
+        row = {"ts": round(stamp, 3), "iso": iso, "phase": self.phase, "values": totals}
+        with self.path.with_name(ENGINE_METRICS_FILE).open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(row, sort_keys=True) + "\n")
+        return True
 
     def set_phase(self, phase: str) -> None:
         self.phase = phase
@@ -313,6 +354,9 @@ class TelemetryRecorder:
         self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=self.cfg.telemetry.interval_s + 5)
+        if self._engine_thread is not None:
+            self._engine_thread.join(timeout=self.cfg.timeouts.metrics_s + 5)
+            self._engine_thread = None
         if self._handle is not None:
             self._handle.flush()
             self._handle.close()
@@ -393,6 +437,25 @@ class TelemetryRecorder:
             elapsed = time.time() - started
             wait = max(0.0, self.cfg.telemetry.interval_s - elapsed)
             self._stop.wait(wait)
+
+
+    def _engine_loop(self) -> None:
+        while not self._stop.is_set():
+            try:
+                self.sample_engine()
+            except Exception as exc:  # A sampler error must never stop the run.
+                log_event("engine_metrics_error", error=str(exc)[-200:])
+            self._stop.wait(self.cfg.telemetry.engine_metrics_interval_s)
+
+
+def engine_values(text: str, names: tuple[str, ...]) -> dict[str, float]:
+    """The named series from a /metrics scrape, labels stripped and summed. Names it lacks are left out."""
+    totals: dict[str, float] = {}
+    for key, value in parse_prometheus(text).items():
+        name = metric_name(key)
+        if name in names:
+            totals[name] = totals.get(name, 0.0) + value
+    return totals
 
 
 def write_note(path: Path, payload: dict[str, Any]) -> None:

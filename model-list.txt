@@ -32,19 +32,28 @@
 
 
 # ==== LFM3 (LiquidAI, released 2026-10-27) ===========================================================
-# Every LFM3 checkpoint is blocked (F9). Lfm3ForCausalLM is in no vLLM or SGLang release (SGLang support
-# is in review, sgl-project/sglang#46858). llama.cpp added it in b11938 (2026-10-27); SMA pins b11913,
-# and ghcr has no full-cuda13 image for b11938 or later yet. The GGUF lines run once the pin moves.
+# Update 2026-10-28 (afternoon): the GGUF lines run. ghcr now has full-cuda13-b11946 and -b11960, both
+# with lfm3. They run with a copy of sma.yaml whose only change is
+#   engine.llamacpp_image: ghcr.io/ggml-org/llama.cpp:full-cuda13-b11960
+# passed as --config sma-lfm3.yaml (on this Spark: .sma/lfm3/sma-lfm3.yaml, git-ignored, beside the
+# driver, watchdog, and logs). sma.yaml's own pin stays b11913; the run's manifest records the
+# image, its digest, and the whole config. A b11960 smoke test on LFM3-1.7B BF16 passed:
+# enable_thinking false turns thinking off, and tool calls come back parsed with thinking on and off.
+# Every BF16 and Q4 file of the four repos has the same tokenizer fingerprint, so each Q4 run takes KL
+# against its BF16 run. Run ids and results: "LFM3 runs" just below this section.
+# The safetensors lines (BF16, NVFP4, FP8, Base) stay blocked: Lfm3ForCausalLM is not in vLLM v0.32.0
+# (2026-10-18) or vLLM main, and SGLang's support is still an open PR (sgl-project/sglang#46858; SGLang
+# v0.5.22 does not have it). LiquidAI's NVFP4 card names SGLang only.
 # All LFM3 models: 24 layers, 6 attend fully, 5 use a sliding window, 13 are convolutions.
 
 # LFM3-1.7B. 262,144 native. Thinking on by default; tool calls use <function=...> XML.
-#   Plan: BF16 GGUF 3.5 GB, 262,144 per stream, 44 streams. QAD-Q4_0 is LiquidAI's
+#   Plan (after F10): BF16 GGUF 3.5 GB, 262,144 per stream, 8 slots, 37.4 GB. QAD-Q4_0 is LiquidAI's
 #   quantization-aware Q4 file; its tokenizer matches the BF16 file.
 #   Gaps: G1 long context (trained to 256K), G2 thinking, G5 multilingual, G6 agentic coding, G7 tool
 #   use, G12 instruction following, G13 hallucination, G14 code generation, G15 agent harnesses. Its
 #   card's benchmark table is mapped onto SMA at the end of this file.
-#BLOCKED sma queue add LiquidAI/LFM3-1.7B-GGUF --gguf BF16
-#BLOCKED sma run LiquidAI/LFM3-1.7B-GGUF --gguf QAD-Q4_0 --reference @LiquidAI/LFM3-1.7B-GGUF:BF16
+sma run LiquidAI/LFM3-1.7B-GGUF --gguf BF16 --config sma-lfm3.yaml
+sma run LiquidAI/LFM3-1.7B-GGUF --gguf QAD-Q4_0 --config sma-lfm3.yaml --reference @LiquidAI/LFM3-1.7B-GGUF:BF16
 #BLOCKED sma queue add-pair --bf16 LiquidAI/LFM3-1.7B --nvfp4 LiquidAI/LFM3-1.7B-NVFP4 --tool-parser qwen3_coder
 # LFM3-1.7B-FP8 (LiquidAI's SGLang build) also needs an --fp8 flag (F3).
 #BLOCKED sma queue add LiquidAI/LFM3-1.7B-FP8 --fp8 --tool-parser qwen3_coder
@@ -53,19 +62,34 @@
 #BLOCKED sma queue add LiquidAI/LFM3-1.7B-Base --bf16
 
 # LFM3-VL-2B. Lfm3VlForConditionalGeneration, 128,000 native. SMA measures its text side only (G3).
-#   Plan: BF16 GGUF 3.5 GB, 128,000 per stream, 90 streams.
-#BLOCKED sma queue add LiquidAI/LFM3-VL-2B-GGUF --gguf BF16
-#BLOCKED sma run LiquidAI/LFM3-VL-2B-GGUF --gguf QAD-Q4_0 --reference @LiquidAI/LFM3-VL-2B-GGUF:BF16
+#   Plan (after F10): BF16 GGUF 3.5 GB, 128,000 per stream, 8 slots, 26.0 GB.
+sma run LiquidAI/LFM3-VL-2B-GGUF --gguf BF16 --config sma-lfm3.yaml
+sma run LiquidAI/LFM3-VL-2B-GGUF --gguf QAD-Q4_0 --config sma-lfm3.yaml --reference @LiquidAI/LFM3-VL-2B-GGUF:BF16
 #BLOCKED sma queue add-pair --bf16 LiquidAI/LFM3-VL-2B --nvfp4 LiquidAI/LFM3-VL-2B-NVFP4 --tool-parser qwen3_coder
 
 # LFM3-Audio-2B and LFM3-Omni-2B. Text and audio in, text and speech out (Omni adds vision). Their GGUF
-#   text model is arch lfm3; llama.cpp's LFM3 change names only the 1.7B and VL-2B, so a text-only
-#   run is unverified even after the pin moves. Audio and speech are not measured at all (G4).
-#BLOCKED sma queue add LiquidAI/LFM3-Audio-2B-GGUF --gguf BF16
-#BLOCKED sma queue add LiquidAI/LFM3-Omni-2B-GGUF --gguf BF16
+#   text model is arch lfm3, 128,000 native; SMA serves the text model only, without the mmproj file.
+#   llama.cpp's LFM3 change names only the 1.7B and VL-2B. Audio and speech are not measured (G4).
+#   Neither repo has a QAD file, so the Q4 leg is plain Q4_0 (the format LiquidAI's speed table uses).
+sma run LiquidAI/LFM3-Audio-2B-GGUF --gguf BF16 --config sma-lfm3.yaml
+sma run LiquidAI/LFM3-Audio-2B-GGUF --gguf Q4_0 --config sma-lfm3.yaml --reference @LiquidAI/LFM3-Audio-2B-GGUF:BF16
+sma run LiquidAI/LFM3-Omni-2B-GGUF --gguf BF16 --config sma-lfm3.yaml
+sma run LiquidAI/LFM3-Omni-2B-GGUF --gguf Q4_0 --config sma-lfm3.yaml --reference @LiquidAI/LFM3-Omni-2B-GGUF:BF16
 
 # d1-2B and d1-Omni-2B are decision models: they return calibrated answers in one forward pass and do
 #   not generate text, so no SMA step applies (G8). No command.
+
+# ---- LFM3 runs (Spark gpu-host-1, llama.cpp b11960) ----
+# First attempt, 2026-10-28 21:22 UTC: the memory plan bug in F10 took the Spark down. The three run
+# folders it left (1.7B BF16 20261028T212249Z-40258161, 1.7B QAD-Q4_0 20261028T220547Z-b14623d2, VL-2B
+# BF16 20261028T223359Z-83f89c9e) hold only the failed server start; nothing was measured.
+# Second attempt, 2026-10-29 02:05 UTC, with F10 fixed in the working tree (uncommitted, so the
+# manifests say sma_git_dirty) and a watchdog that docker-kills SMA containers under 12 GiB free.
+# One run at a time, each BF16 run before its Q4 run. Run ids and results are filled in as each ends.
+# Engine counters (engine_metrics.jsonl, for sma watch's SERVING table) are recorded by each run from
+# the 1.7B QAD-Q4_0 run on. The 1.7B BF16 run (20261029T020534Z-1522375e) started before that code, so
+# .sma/lfm3/sidecar_metrics.py records its counters with the same sampler from 2026-10-29 04:05 UTC (two
+# hours into the run, during MuSiQue) until it finishes: its file covers the rest of the run only.
 
 
 # ==== LFM2.5 (LiquidAI) =============================================================================
@@ -387,10 +411,45 @@ sma queue add unsloth/Qwen3.8-Flash-Next-GGUF --gguf UD-Q2_K_XL
 #     files, RecursiveSI's Flint GGUFs against Unsloth's, XHToken's Spark-X against Mungert's.
 # F8  `sma queue add` has no --reference and there is no GGUF pair job, so GGUF quant legs with KL
 #     cannot be queued.
-# F9  Engine pins (owner decision). llama.cpp b11913 lacks lfm3 (added in b11938; ghcr had no
-#     full-cuda13 image for b11938 or later on 2026-10-28). vLLM 0.21 lacks Gemma4Unified (Gemma-4-12B),
+# F9  Engine pins (owner decision). llama.cpp b11913 lacks lfm3 (added in b11938). By the afternoon of
+#     2026-10-28 ghcr had full-cuda13-b11946 and -b11960; the LFM3 GGUF runs use b11960 through a config
+#     override, and sma.yaml still pins b11913. Moving the pin for every GGUF run is still open: GGUF
+#     runs on b11913 and b11960 differ in engine build. vLLM 0.21 lacks Gemma4Unified (Gemma-4-12B),
 #     FlintForCausalLM, and Qwen4Exp, which vLLM main has. No vLLM or SGLang release has Lfm3 or Spark2_5.
 
+# F10 llama.cpp memory plan (found 2026-10-28, when it took the Spark down; fixed in the working tree,
+#     not yet committed). The KV pool was "the rest of the budget" for llama.cpp too, passed as -c. LFM3
+#     keeps 6,528 bytes per token, so the pool held 11.6M tokens for 8 slots of 262,144 (2.1M usable).
+#     llama-server sizes its compute buffers by the whole cache: the 16-bit attention mask for one
+#     512-token micro-batch on the GPU and on the host, and one layer's K and V in 16 bits for flash
+#     attention, 4,100 bytes per token measured. The plan counted 12% of the pool (9.1 GB); llama.cpp
+#     took 47.6 GB. Peak 127 GB of 130.7. Nothing enforces the budget at runtime: GPU memory is not
+#     charged to the process on the GB10, and earlyoom (-m 8 -s 100) only SIGTERMs because its SIGKILL
+#     also waits for swap under 50% free; llama-server ignored SIGTERM for 3 minutes until the machine
+#     died. Fix: src/sma/runplan.py caps llama.cpp's pool at slots x context and counts the buffers per
+#     token (6,144 for Qwen3, 4,096 for LFM3, within 0.5% of measured); memory.pool_overhead_fraction is
+#     gone. Tests in tests/test_serving_design.py and tests/test_memplan.py. Every GGUF plan changes:
+#     Qwen3-0.6B goes from 31 full-length streams to 8. Open for the owner: earlyoom -s 100,100 (or no
+#     -s) so it can SIGKILL, and whether SMA itself should kill its container past the budget.
+# F11 nel's 120 s model-client timeout (found 2026-10-29; fixed in the working tree, not yet committed).
+#     nemo-evaluator 0.3.0 builds a simple solver's client with a fixed 120 s timeout; quality.request_timeout_s
+#     (900) reached only nel's proxy. LFM3-1.7B BF16's capped MuSiQue answers took about 123 s, so 14 of 100
+#     were dropped and retried the same way, and MuSiQue's score is null in 20261029T020534Z-1522375e. SMA now
+#     runs nel's script after raising the client's floor (commands.NEL_CLIENT_TIMEOUT; tests/test_nel_timeout.py).
+#     The runs after the 1.7B BF16 run pick it up. MMLU-Pro there had no timeouts (its capped answers took ~112 s).
+# F12 mini-swe-agent cost tracking (found 2026-10-29; fixed in the working tree, not yet committed). LiteLLM
+#     has no price for a checkpoint served on a Spark, and mini-swe-agent's default cost_tracking raises on the
+#     first call, so all 50 SWE-bench tasks of 20261029T020534Z-1522375e (LFM3-1.7B BF16) ended RuntimeError and
+#     the score is null. SMA's agent settings now carry cost_tracking: ignore_errors (swebench.agent_overlay;
+#     tests/test_agentic.py). No model has run SWE-bench through SMA before: the committed baseline is gold
+#     patches. .sma/lfm3/driver2.sh resumes the 1.7B BF16 run for MuSiQue (F11) and SWE-bench before its Q4 run.
+# F13 Speed bench tokenizer for LFM3 (found 2026-10-29; fixed in the working tree, not yet committed). vLLM's
+#     bench client loads a GGUF's tokenizer through the vLLM image's transformers 5.6, which cannot read GGUF
+#     architecture lfm3, so the 1.7B BF16 run's speed step failed. SMA now asks the image which architectures
+#     it reads, and otherwise loads the source model's tokenizer (general.base_model.0.repo_url, here
+#     LiquidAI/LFM3-1.7B-Base at a pinned commit) after checking it against the GGUF: 125,033 ids and 293,320
+#     merges equal, the GGUF's other 2,967 ids unused padding. engine.bench_tokenizer records it.
+#     tests/test_bench_tokenizer.py.
 
 # ==== Benchmark gaps =================================================================================
 # What SMA does not measure for these models, most models affected first. SMA today: IFEval 50,

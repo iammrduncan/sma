@@ -14,6 +14,9 @@ from sma.memplan import SHORT_CONTEXT, KvLayout, MemoryPlan, Need, plan_memory
 # Determinism prompts are a few tokens plus determinism.max_tokens. This is the ladder's floor.
 _DETERMINISM_MIN_CONTEXT = 1024
 
+# llama-server's micro-batch (-ub), its default. SMA does not set it.
+_LLAMACPP_UBATCH = 512
+
 
 def needs(cfg: Config) -> list[Need]:
     """Each benchmark SMA runs: the streams it runs at once, and the least context each stream needs."""
@@ -42,12 +45,31 @@ def slots(cfg: Config) -> int:
     return max(cfg.quality.concurrency, *cfg.speed.sweep_concurrency, *agents)
 
 
+def llamacpp_buffer_bytes_per_token(layout: KvLayout) -> int:
+    """llama-server's compute buffers per token of its KV cache. It sizes them by the whole cache (-c):
+    the 16-bit attention mask for one micro-batch, on the GPU and again on the host, and one attention
+    layer's K and V converted to 16 bits for flash attention.
+
+    Measured on a Spark (llama.cpp's memory breakdown, GPU plus host compute buffers over cells):
+    Qwen3-0.6B 6,164 bytes per token (this gives 6,144), LFM3-1.7B BF16 and QAD-Q4_0 4,100 (this gives
+    4,096).
+    """
+    layers = layout.full_attention_layers or layout.sliding_attention_layers
+    values = (layout.full_values_per_token or layout.sliding_values_per_token) // layers if layers else 0
+    return 2 * 2 * _LLAMACPP_UBATCH + 2 * values
+
+
 def plan_run(cfg: Config, *, engine: str, layout: KvLayout, weights_bytes: int) -> MemoryPlan:
     """The plan for one run on one engine. Raises SmaError when it does not fit the budget."""
     overhead = int(cfg.memory.overhead_gb[engine] * 1e9)
+    buffer_bytes_per_token, max_streams = 0, None
     if engine == "llamacpp":
         # llama-server's prompt cache lives in host RAM beside the pool (--cache-ram).
         overhead += cfg.engine.llamacpp_cache_ram_mib * 2**20
+        # Its compute buffers grow with the whole cache, and its slots never use more than slots x
+        # context. A pool of the rest of the budget held 11.6M tokens for LFM3-1.7B, 5.5 times what 8
+        # slots use, and its buffers took 47 GB beyond the plan.
+        buffer_bytes_per_token, max_streams = llamacpp_buffer_bytes_per_token(layout), slots(cfg)
     return plan_memory(
         layout=layout,
         weights_bytes=weights_bytes,
@@ -56,7 +78,8 @@ def plan_run(cfg: Config, *, engine: str, layout: KvLayout, weights_bytes: int) 
         overhead_bytes=overhead,
         needs=needs(cfg),
         start=cfg.memory.start_context,
-        pool_overhead_fraction=float(cfg.memory.pool_overhead_fraction[engine]),
+        buffer_bytes_per_token=buffer_bytes_per_token,
+        max_streams=max_streams,
     )
 
 
@@ -84,8 +107,13 @@ def describe(plan: dict[str, Any]) -> list[str]:
         f"context per stream: {plan['context']:,} tokens ({plan['context_reason']})",
         f"memory: {plan['weights_gb']} GB weights + {plan['overhead_gb']} GB engine overhead + "
         f"{plan['pool_gb']} GB KV pool"
-        + (f" (+{round(plan['pool_overhead_fraction'] * 100)}% engine buffers sized by it)" if plan.get("pool_overhead_fraction") else "")
+        + (f" + {plan['buffer_gb']} GB engine buffers sized by it" if plan.get("buffer_bytes") else "")
         + f" = {plan['footprint_gb']} GB of the {plan['budget_gb']} GB budget",
+        *(
+            [f"KV pool: {plan['pool_streams']} slots at {plan['context']:,} tokens, the most the server runs at once"]
+            if plan.get("pool_streams")
+            else []
+        ),
         f"streams that fit: {plan['streams_full_context']} at {plan['context']:,} tokens, "
         f"{plan['streams_32k']} at {min(SHORT_CONTEXT, plan['context']):,}",
         "per benchmark: "

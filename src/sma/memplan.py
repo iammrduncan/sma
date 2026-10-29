@@ -96,7 +96,8 @@ class MemoryPlan:
     kv_bytes_per_token: int | None
     # One stream at `context`, including the fixed state of linear-attention, conv, or Mamba layers.
     stream_bytes: int
-    # Everything left after weights and overhead becomes the KV pool.
+    # Everything left after weights, overhead, and buffers becomes the KV pool, unless the engine runs a
+    # fixed number of streams (llama.cpp's slots): then it holds those streams at `context` and no more.
     pool_bytes: int
     # Tokens the pool holds, divided by kv_bytes_per_token. It ignores sliding layers and fixed
     # state, so it is an upper bound. None when kv_bytes_per_token is None.
@@ -107,14 +108,19 @@ class MemoryPlan:
     # Benchmark name -> context per stream: the largest step that fits its streams at once.
     benchmarks: dict[str, int]
     notes: tuple[str, ...] = ()
-    # Engine memory that grows with the pool, as a share of it (llama.cpp). Inside footprint_bytes.
-    pool_overhead_fraction: float = 0.0
+    # Engine memory per token the pool holds (llama.cpp sizes its compute buffers by its whole cache),
+    # and that memory for the whole pool. Inside footprint_bytes.
+    buffer_bytes_per_token: int = 0
+    buffer_bytes: int = 0
+    # The streams the pool is capped at, at `context` (llama.cpp's slots). None: the pool is the rest
+    # of the budget.
+    pool_streams: int | None = None
 
     def to_json(self) -> dict:
         """Plain JSON: every field, plus a rounded GB value next to each byte count."""
         data = {field.name: getattr(self, field.name) for field in fields(self)}
         data.update(ladder=list(self.ladder), benchmarks=dict(self.benchmarks), notes=list(self.notes))
-        for name in ("budget", "weights", "overhead", "stream", "pool", "footprint"):
+        for name in ("budget", "weights", "overhead", "stream", "pool", "buffer", "footprint"):
             data[f"{name}_gb"] = round(data[f"{name}_bytes"] / 1e9, 2)
         return data
 
@@ -196,13 +202,15 @@ def plan_memory(
     overhead_bytes: int,
     needs: list[Need],
     start: int = LADDER_START,
-    pool_overhead_fraction: float = 0.0,
+    buffer_bytes_per_token: int = 0,
+    max_streams: int | None = None,
 ) -> MemoryPlan:
     """Pick the context per stream, size the KV pool, and give each benchmark its context.
 
-    `pool_overhead_fraction` is engine memory that grows with the pool: llama.cpp's buffers sized by
-    its context take about 12% of the KV pool again (measured on a Spark). The pool shrinks so that
-    pool plus that share still fits the budget.
+    `buffer_bytes_per_token` is engine memory for each token the pool holds: llama.cpp sizes its
+    compute buffers by its whole cache. The pool shrinks so that pool plus buffers fit the budget.
+    `max_streams` caps the pool at that many streams at the chosen context, for an engine that never
+    runs more at once (llama.cpp's slots). A bigger pool would hold tokens no stream can reach.
     """
     bytes_per_value = _bytes_per_value(kv_type)
     fixed_bytes = weights_bytes + overhead_bytes
@@ -212,7 +220,10 @@ def plan_memory(
             f"{_gb(fixed_bytes)}, more than the {_gb(budget_bytes)} memory budget. "
             "Choose a smaller checkpoint or quant."
         )
-    pool_bytes = int((budget_bytes - fixed_bytes) / (1 + pool_overhead_fraction))
+    token_values = layout.full_values_per_token or layout.sliding_values_per_token
+    kv_bytes_per_token = math.ceil(token_values * bytes_per_value) if token_values else None
+    buffer_share = buffer_bytes_per_token / kv_bytes_per_token if kv_bytes_per_token else 0.0
+    pool_bytes = int((budget_bytes - fixed_bytes) / (1 + buffer_share))
     ladder = context_ladder(layout.native_context, start)
 
     def stream(context: int) -> int:
@@ -238,9 +249,12 @@ def plan_memory(
     else:
         reason = f"{context:,} tokens fits"
 
-    token_values = layout.full_values_per_token or layout.sliding_values_per_token
-    kv_bytes_per_token = math.ceil(token_values * bytes_per_value) if token_values else None
     stream_bytes = stream(context)
+    capped = max_streams is not None and max_streams * stream_bytes < pool_bytes
+    if capped:
+        pool_bytes = max_streams * stream_bytes
+    pool_tokens = pool_bytes // kv_bytes_per_token if kv_bytes_per_token else None
+    buffer_bytes = (pool_tokens or 0) * buffer_bytes_per_token
     benchmarks: dict[str, int] = {}
     for need in needs:
         steps = [step for step in ladder if step <= context]
@@ -260,13 +274,15 @@ def plan_memory(
         kv_bytes_per_token=kv_bytes_per_token,
         stream_bytes=stream_bytes,
         pool_bytes=pool_bytes,
-        pool_tokens=pool_bytes // kv_bytes_per_token if kv_bytes_per_token else None,
+        pool_tokens=pool_tokens,
         streams_full_context=pool_bytes // stream_bytes,
         streams_32k=pool_bytes // stream(min(SHORT_CONTEXT, context)),
-        footprint_bytes=fixed_bytes + math.ceil(pool_bytes * (1 + pool_overhead_fraction)),
+        footprint_bytes=fixed_bytes + pool_bytes + buffer_bytes,
         benchmarks=benchmarks,
         notes=layout.notes,
-        pool_overhead_fraction=pool_overhead_fraction,
+        buffer_bytes_per_token=buffer_bytes_per_token,
+        buffer_bytes=buffer_bytes,
+        pool_streams=max_streams if capped else None,
     )
 
 

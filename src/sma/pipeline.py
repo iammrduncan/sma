@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import signal
 import time
@@ -25,6 +26,8 @@ from sma.commands import (
     eval_factory_config,
     moe_backend_chain,
     nel_argv,
+    nel_with_client_timeout,
+    script_interpreter,
     nel_config,
     packaged_bench,
     perplexity_argv,
@@ -36,7 +39,7 @@ from sma.compare import compare_run_dirs
 from sma.config import Config, QualitySuite
 from sma.corpus import build_windows, load_corpus
 from sma.errors import CompareRefused, SmaError
-from sma.fetch import FetchResult, download_snapshot, inspect_snapshot
+from sma.fetch import TOKENIZER_FILES, FetchResult, download_snapshot, inspect_snapshot
 from sma.identity import assert_alias_safe
 from sma.kl import parse_perplexity_log, perplexity
 from sma.locks import GpuLock
@@ -90,7 +93,7 @@ from sma.engines import (
     selected_by,
 )
 from sma.preflight import ArchCheck, check_architecture
-from sma.backends import BenchMounts, get_backend
+from sma.backends import BENCH_TOKENIZER_DIR, BenchMounts, get_backend
 from sma.runplan import describe, plan_run, serve_plan
 
 PERCENTILES = (50, 90, 99)
@@ -153,6 +156,8 @@ class Ctx:
     closed: bool = False
     # Live server-log copiers by mode. Stopped and joined when that server stops.
     followers: dict[str, Any] = field(default_factory=dict)
+    # The bench's tokenizer folder when it is not the GGUF's own (_bench_tokenizer), fetched once per process.
+    bench_tokenizer_dir: Path | None = None
 
     @property
     def base_url(self) -> str:
@@ -229,6 +234,10 @@ class HubFetcher:
         # vLLM's own refusal comes at fetch, with its message.
         return default, "default", None
 
+    def tokenizer_snapshot(self, repo: str, revision: str | None = None) -> tuple[Path, str]:
+        """A repo's tokenizer files only (fetch.TOKENIZER_FILES), in a plain folder per commit: (folder, sha)."""
+        return download_snapshot(repo, revision, self.cfg, allow_patterns=TOKENIZER_FILES)
+
     def fetch(self, repo: str, revision: str | None, quant_flag: str, gguf: str | None = None) -> FetchResult:
         if quant_flag == "gguf":
             return self._fetch_gguf(repo, revision, gguf or "")
@@ -300,15 +309,27 @@ class HubFetcher:
 
 
 class CommandEvaluator:
-    def run(self, argv: list[str], output_dir: Path, timeout_s: float, log_path: Path) -> None:
+    def run(
+        self, argv: list[str], output_dir: Path, timeout_s: float, log_path: Path, client_timeout_s: float | None = None
+    ) -> None:
+        """Run a command in output_dir. client_timeout_s: argv is nel, and its model client may wait this long."""
         import shutil
 
         output_dir.mkdir(parents=True, exist_ok=True)
-        if shutil.which(argv[0]) is None:
+        found = shutil.which(argv[0])
+        if found is None:
             raise SmaError(
                 f"{argv[0]} is not on PATH. Install the quality extra "
                 "(`uv sync --extra quality`) or set quality.executable."
             )
+        if client_timeout_s:
+            interpreter = script_interpreter(Path(found))
+            if interpreter is None:
+                raise SmaError(
+                    f"{argv[0]} is not a Python console script, so SMA cannot raise nemo-evaluator's 120 s model-client "
+                    f"timeout to quality.request_timeout_s ({client_timeout_s:g} s). Point quality.executable at nel's script."
+                )
+            argv = nel_with_client_timeout(argv, interpreter=interpreter, script=found, timeout_s=client_timeout_s)
         # nel reads nel.yaml and the packaged benchmark file from the suite folder. Python would cache
         # that file's bytecode next to it, and bytecode stores the absolute path, hostname included.
         result = run_command(
@@ -396,6 +417,8 @@ def execute(
             publish(cfg, ctx.run_dir, ctx.manifest)
             ctx.telemetry = services.telemetry_factory(ctx.run_dir, cfg)
             ctx.telemetry.set_phase("startup")
+            backend = get_backend(ctx.manifest["engine"]["name"])
+            ctx.telemetry.watch_engine(ctx.base_url, backend.metrics_path(), backend.serving_metrics())
             try:
                 _run_step(ctx, "fetch", _step_fetch)
                 _run_step(ctx, "serve_quality", _step_serve_quality)
@@ -1092,11 +1115,21 @@ def _run_nel_suite(ctx: Ctx, suite: QualitySuite, suite_dir: Path, attempt_dir: 
     argv = nel_argv(ctx.cfg, output_name=attempt_dir.name)
     atomic_write_json(
         suite_dir / "command.json",
-        {"argv": argv, "cwd": f"quality/{suite.name}", "concurrency": ctx.cfg.quality.concurrency},
+        {
+            "argv": argv,
+            "cwd": f"quality/{suite.name}",
+            "concurrency": ctx.cfg.quality.concurrency,
+            # nel's model client waits this long for one answer (commands.NEL_CLIENT_TIMEOUT).
+            "client_timeout_s": ctx.cfg.quality.request_timeout_s,
+        },
     )
     try:
         ctx.services.evaluator.run(
-            argv, suite_dir, float(ctx.cfg.timeouts.eval_s), ctx.run_dir / "logs" / f"quality-{suite.name}.log"
+            argv,
+            suite_dir,
+            float(ctx.cfg.timeouts.eval_s),
+            ctx.run_dir / "logs" / f"quality-{suite.name}.log",
+            client_timeout_s=float(ctx.cfg.quality.request_timeout_s),
         )
     finally:
         scrub_output(attempt_dir)
@@ -1325,15 +1358,68 @@ def _bench_mounts(ctx: Ctx) -> BenchMounts | None:
         digest = ctx.services.runtime.ensure_image(ctx.cfg.engine.image)
         engine["bench_image"] = image_ref(ctx.cfg.engine.image, digest or ctx.cfg.engine.image_digest)
     assert ctx.snapshot is not None
+    gguf = ctx.manifest.get("gguf") or {}
+    if not engine.get("bench_tokenizer"):
+        engine["bench_tokenizer"] = _bench_tokenizer(ctx, str(engine["bench_image"]), gguf)
+        publish(ctx.cfg, ctx.run_dir, ctx.manifest)
+    chosen = engine["bench_tokenizer"]
+    # vLLM's tokenizer loader reads a GGUF file's own tokenizer, when its transformers knows the architecture.
+    tokenizer, tokenizer_dir = f"/model/{gguf.get('model_file')}", None
+    if chosen.get("repo"):
+        if ctx.bench_tokenizer_dir is None:
+            ctx.bench_tokenizer_dir, _sha = ctx.services.fetcher.tokenizer_snapshot(chosen["repo"], chosen["revision"])
+        tokenizer, tokenizer_dir = BENCH_TOKENIZER_DIR, str(ctx.bench_tokenizer_dir)
     return BenchMounts(
         image=str(engine["bench_image"]),
         model_dir=str(ctx.snapshot),
         run_dir=str(ctx.run_dir),
-        # vLLM's tokenizer loader reads a GGUF file's own tokenizer.
-        tokenizer=f"/model/{(ctx.manifest.get('gguf') or {}).get('model_file')}",
+        tokenizer=tokenizer,
         uid=os.getuid(),
         gid=os.getgid(),
+        tokenizer_dir=tokenizer_dir,
     )
+
+
+def _bench_tokenizer(ctx: Ctx, image: str, gguf: dict[str, Any]) -> dict[str, Any]:
+    """Which tokenizer vLLM's bench client loads for a GGUF, recorded as engine.bench_tokenizer.
+
+    The GGUF's own, unless the bench image's transformers cannot read its architecture (lfm3 on the
+    pinned image's transformers 5.6). Then the tokenizer of the source model the GGUF names, at a pinned
+    commit, if every token and merge matches the GGUF's. The bench only builds prompts of set lengths and
+    counts tokens with it; llama-server tokenizes with the GGUF.
+    """
+    from sma.gguf import base_model_repo, read_header_file, tokenizer_mismatch
+
+    architecture = gguf.get("architecture")
+    readable = ctx.services.runtime.gguf_architectures(image)
+    if readable is None or architecture in readable:
+        return {"source": "gguf", "file": gguf.get("model_file")}
+    assert ctx.snapshot is not None
+    metadata = read_header_file(ctx.snapshot / str(gguf.get("model_file"))).metadata
+    reason = f"the bench image's transformers cannot read GGUF architecture {architecture}"
+    repo = base_model_repo(metadata)
+    if repo is None:
+        raise SmaError(
+            f"Speed cannot run: {reason}, and the GGUF names no source model (general.base_model.0.repo_url) "
+            "whose tokenizer could stand in."
+        )
+    folder, sha = ctx.services.fetcher.tokenizer_snapshot(repo)
+    try:
+        tokenizer_json = json.loads((folder / "tokenizer.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise SmaError(f"Speed cannot run: {reason}, and {repo} has no readable tokenizer.json ({exc}).") from exc
+    problem = tokenizer_mismatch(metadata, tokenizer_json)
+    if problem:
+        raise SmaError(f"Speed cannot run: {reason}, and {repo}'s tokenizer does not match the GGUF's: {problem}.")
+    ctx.bench_tokenizer_dir = folder
+    log_event("bench_tokenizer", run_id=ctx.run_id, repo=repo, revision_sha=sha)
+    return {
+        "source": "repo",
+        "repo": repo,
+        "revision": sha,
+        "reason": reason,
+        "check": "every token id and BPE merge matches the GGUF's; its other ids are unused padding",
+    }
 
 
 def _derive_percentile(cfg_stat: str) -> int:

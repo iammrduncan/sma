@@ -43,6 +43,11 @@ class BenchMounts:
     tokenizer: str
     uid: int
     gid: int
+    # A tokenizer folder mounted at BENCH_TOKENIZER_DIR, when the GGUF's own cannot be read by the bench.
+    tokenizer_dir: str | None = None
+
+
+BENCH_TOKENIZER_DIR = "/bench-tokenizer"
 
 
 class EngineBackend(Protocol):
@@ -90,6 +95,12 @@ class EngineBackend(Protocol):
     def watched_metrics(self) -> tuple[str, ...]: ...
 
     def metrics_note(self) -> str: ...
+
+    def serving_metrics(self) -> tuple[str, ...]: ...
+
+    def serving_rates(
+        self, change: dict[str, float], mean: dict[str, float], seconds: float
+    ) -> dict[str, float | None]: ...
 
     def logprob_positions(
         self,
@@ -302,6 +313,24 @@ class VllmBackend:
             "Watched names are vLLM counters, matched with labels stripped. "
             "A name absent from /metrics is null. Nothing is filled in."
         )
+
+    def serving_metrics(self) -> tuple[str, ...]:
+        return VLLM_WATCHED + (
+            "vllm:request_prefill_time_seconds_sum",
+            "vllm:request_decode_time_seconds_sum",
+            "vllm:num_requests_running",
+        )
+
+    def serving_rates(self, change: dict[str, float], mean: dict[str, float], seconds: float) -> dict[str, float | None]:
+        return {
+            "prefill_tok_s": _ratio(change.get("vllm:prompt_tokens_total"), change.get("vllm:request_prefill_time_seconds_sum")),
+            "decode_tok_s": _ratio(change.get("vllm:generation_tokens_total"), change.get("vllm:request_decode_time_seconds_sum")),
+            "itl_ms": _ratio(change.get("vllm:inter_token_latency_seconds_sum"), change.get("vllm:inter_token_latency_seconds_count"), 1000),
+            "ttft_ms": _ratio(change.get("vllm:time_to_first_token_seconds_sum"), change.get("vllm:time_to_first_token_seconds_count"), 1000),
+            "prompt_tok_s_all": _ratio(change.get("vllm:prompt_tokens_total"), seconds),
+            "generated_tok_s_all": _ratio(change.get("vllm:generation_tokens_total"), seconds),
+            "in_flight": mean.get("vllm:num_requests_running"),
+        }
 
     def logprob_positions(
         self,
@@ -534,6 +563,22 @@ class SglangBackend:
             "the scrape has them, stay under counters."
         )
 
+    def serving_metrics(self) -> tuple[str, ...]:
+        return SGLANG_WATCHED + ("sglang:num_running_reqs",)
+
+    def serving_rates(self, change: dict[str, float], mean: dict[str, float], seconds: float) -> dict[str, float | None]:
+        itl_ms = _ratio(change.get("sglang:inter_token_latency_seconds_sum"), change.get("sglang:inter_token_latency_seconds_count"), 1000)
+        return {
+            # SGLang reports no prefill time, so no per-request prefill rate.
+            "prefill_tok_s": None,
+            "decode_tok_s": _ratio(1000.0, itl_ms),
+            "itl_ms": itl_ms,
+            "ttft_ms": _ratio(change.get("sglang:time_to_first_token_seconds_sum"), change.get("sglang:time_to_first_token_seconds_count"), 1000),
+            "prompt_tok_s_all": _ratio(change.get("sglang:prompt_tokens_total"), seconds),
+            "generated_tok_s_all": _ratio(change.get("sglang:generation_tokens_total"), seconds),
+            "in_flight": mean.get("sglang:num_running_reqs"),
+        }
+
     def logprob_positions(
         self,
         *,
@@ -682,7 +727,10 @@ class LlamaCppBackend:
         ]
         for key, value in BENCH_OFFLINE_ENV.items():
             argv.extend(["-e", f"{key}={value}"])
-        argv.extend(["-v", f"{mounts.model_dir}:/model:ro", "-v", f"{mounts.run_dir}:/sma-run:rw", mounts.image])
+        argv.extend(["-v", f"{mounts.model_dir}:/model:ro", "-v", f"{mounts.run_dir}:/sma-run:rw"])
+        if mounts.tokenizer_dir:
+            argv.extend(["-v", f"{mounts.tokenizer_dir}:{BENCH_TOKENIZER_DIR}:ro"])
+        argv.append(mounts.image)
         argv.extend(
             vllm_bench_command(
                 cfg,
@@ -710,6 +758,23 @@ class LlamaCppBackend:
             "Watched names are llama-server counters (it runs with --metrics). A name absent from /metrics is "
             "null. vLLM counter names are not copied in."
         )
+
+    def serving_metrics(self) -> tuple[str, ...]:
+        return LLAMACPP_WATCHED + ("llamacpp:n_busy_slots_per_decode",)
+
+    def serving_rates(self, change: dict[str, float], mean: dict[str, float], seconds: float) -> dict[str, float | None]:
+        # Prompt and generation seconds are summed over the slots, so these rates are per request.
+        tokens, spent = change.get("llamacpp:tokens_predicted_total"), change.get("llamacpp:tokens_predicted_seconds_total")
+        return {
+            "prefill_tok_s": _ratio(change.get("llamacpp:prompt_tokens_total"), change.get("llamacpp:prompt_seconds_total")),
+            "decode_tok_s": _ratio(tokens, spent),
+            "itl_ms": _ratio(spent, tokens, 1000),
+            # llama-server reports no time to first token and no request count to estimate it from.
+            "ttft_ms": None,
+            "prompt_tok_s_all": _ratio(change.get("llamacpp:prompt_tokens_total"), seconds),
+            "generated_tok_s_all": _ratio(tokens, seconds),
+            "in_flight": mean.get("llamacpp:requests_processing"),
+        }
 
     def logprob_positions(
         self,
@@ -746,6 +811,13 @@ LLAMACPP_WATCHED = (
     "llamacpp:requests_processing",
     "llamacpp:requests_deferred",
 )
+
+
+def _ratio(top: float | None, bottom: float | None, scale: float = 1.0) -> float | None:
+    """top / bottom, or None when either is missing or bottom is not positive. Never a filled-in zero."""
+    if top is None or bottom is None or bottom <= 0:
+        return None
+    return scale * top / bottom
 
 
 def _kv_report(log_text: str, *, type_line: str, tokens: str, scale_one: str | None = None) -> dict[str, Any]:

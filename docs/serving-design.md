@@ -66,7 +66,16 @@ The checkpoint format picks the engine before launch.
 - SMA sizes the KV pool explicitly instead of using `gpu_memory_utilization: 0.90`. vLLM takes
   `--kv-cache-memory-bytes`, which `engine.kv_cache_gib` already sets. On the Spark the GPU shares
   system RAM, and 0.90 reserves 117.6 GB whatever the model.
+- llama.cpp's pool holds its slots (`-np`) at the context per stream and no more. llama-server sizes
+  its compute buffers by its whole cache, about 4 to 6 KB per token, so a pool no request can use
+  still costs memory. The plan counts those buffers per token (`runplan.llamacpp_buffer_bytes_per_token`).
 - The run records its measured peak memory next to the plan.
+- The budget is a plan, not a limit. Nothing stops an engine that allocates more than planned. On the
+  GB10 the GPU's memory is not charged to the process (earlyoom saw llama-server at 20 MiB while the
+  machine had none free), and earlyoom set to `-m 8 -s 100` only sends SIGTERM: its SIGKILL also
+  waits for free swap under 50%. On 2026-10-28 LFM3-1.7B got the rest of the budget as its llama.cpp
+  pool, 11.6 million tokens for 8 slots of 262,144; its buffers took 47 GB the plan did not count,
+  the run peaked at 127 GB, and the next run's server took the Spark down.
 - Why the margin: our Spark runs `earlyoom`, which stops `vllm` and `python` processes when free RAM
   falls under 8% (about 10.5 GB). That stop looks like an engine crash. The 100 GB budget leaves
   about 20 GB free.
@@ -151,9 +160,11 @@ These were build details, not owner decisions.
   checkpoints now run their real kernels with batch invariance off; BF16 keeps it.
 - **Engine overhead.** `memory.overhead_gb` per engine, measured on the Spark
   (docs/first-spark-run.md), covers the engine and SMA's tools beside it (nel, the bench client):
-  10 GB for vLLM. llama.cpp also needs a share of its pool (`memory.pool_overhead_fraction`, 0.12: its
-  compute buffer is sized by the whole context) and its host prompt cache (`--cache-ram`, 8 GiB,
-  llama.cpp's default, counted in the plan).
+  10 GB for vLLM. llama.cpp also needs compute buffers for each token of its cache (the 16-bit
+  attention mask for one 512-token micro-batch, on the GPU and again on the host, and one attention
+  layer's K and V converted to 16 bits for flash attention; measured 6,164 bytes per token for
+  Qwen3-0.6B and 4,100 for LFM3-1.7B against 6,144 and 4,096 computed) and its host prompt cache
+  (`--cache-ram`, 8 GiB, llama.cpp's default, counted in the plan).
 - **SMA's own memory.** The logprob step streams its dump to disk one window at a time; building it
   whole took 7 GB beside the pool and pushed a run to 107 GB.
 

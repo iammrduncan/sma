@@ -494,3 +494,49 @@ def gguf_quant_tags(files: list[str]) -> list[str]:
         if found:
             tags.add(found[-1])
     return sorted(tags)
+
+
+def base_model_repo(metadata: dict[str, Any]) -> str | None:
+    """The Hugging Face repo a GGUF names as its source (general.base_model.0.repo_url), as org/name."""
+    url = metadata.get("general.base_model.0.repo_url")
+    match = re.fullmatch(r"https?://huggingface\.co/([\w.-]+/[\w.-]+)/?", url.strip()) if isinstance(url, str) else None
+    return match.group(1) if match else None
+
+
+# llama.cpp's token type for an id no text maps to: the vocabulary padded to the embedding size.
+_UNUSED_TOKEN = 5
+
+
+def tokenizer_mismatch(metadata: dict[str, Any], tokenizer_json: dict[str, Any]) -> str | None:
+    """Why a Hugging Face tokenizer.json would not tokenize as this GGUF does, or None when it would.
+
+    Every id it has must hold the GGUF's token, the GGUF's other ids must be unused padding, and the BPE
+    merges must be the same. Checked on LFM3-1.7B: 125,033 ids and 293,320 merges equal, 2,967 padding ids.
+    """
+    tokens = metadata.get("tokenizer.ggml.tokens")
+    if not isinstance(tokens, list):
+        return "the GGUF has no token list"
+    model = tokenizer_json.get("model") if isinstance(tokenizer_json.get("model"), dict) else {}
+    vocab = model.get("vocab")
+    if not isinstance(vocab, dict):
+        return "tokenizer.json has no vocabulary"
+    by_id = {int(index): str(token) for token, index in vocab.items()}
+    for added in tokenizer_json.get("added_tokens") or []:
+        by_id[int(added["id"])] = str(added["content"])
+    outside = sorted(index for index in by_id if not 0 <= index < len(tokens))
+    if outside:
+        return f"tokenizer.json has {len(outside):,} ids past the GGUF's {len(tokens):,} tokens"
+    differ = sorted(index for index, token in by_id.items() if tokens[index] != token)
+    if differ:
+        first = differ[0]
+        return f"{len(differ):,} token ids differ, first {first} ({by_id[first]!r}, the GGUF has {tokens[first]!r})"
+    types = metadata.get("tokenizer.ggml.token_type") or []
+    used = [i for i in range(len(tokens)) if i not in by_id and (i >= len(types) or types[i] != _UNUSED_TOKEN)]
+    if used:
+        return f"the GGUF has {len(used):,} tokens tokenizer.json lacks that are not unused padding, first {used[0]} ({tokens[used[0]]!r})"
+    merges, theirs = metadata.get("tokenizer.ggml.merges"), model.get("merges")
+    if merges is not None and theirs is not None:
+        if [" ".join(m) if isinstance(m, list) else str(m) for m in theirs] != list(merges):
+            return "the BPE merges differ"
+    return None
+

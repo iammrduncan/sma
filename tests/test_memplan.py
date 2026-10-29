@@ -269,6 +269,37 @@ def test_plan_steps_down_when_one_stream_does_not_fit() -> None:
     assert plan.streams_full_context == 1
 
 
+def test_buffers_per_token_shrink_the_pool_and_count_in_the_footprint() -> None:
+    layout = _layout("qwen3-30b-a3b-instruct-2507")
+    plan = plan_memory(
+        layout=layout, weights_bytes=26_700_000_000, kv_type="fp8", budget_bytes=BUDGET,
+        overhead_bytes=OVERHEAD, needs=[], buffer_bytes_per_token=49_152,
+    )
+    # Buffers as large as the KV per token halve the pool.
+    assert plan.pool_bytes == (BUDGET - 26_700_000_000 - OVERHEAD) // 2
+    assert plan.buffer_bytes == plan.pool_tokens * 49_152
+    assert plan.footprint_bytes == 26_700_000_000 + OVERHEAD + plan.pool_bytes + plan.buffer_bytes <= BUDGET
+    assert plan.to_json()["buffer_gb"] == round(plan.buffer_bytes / GB, 2)
+
+
+def test_max_streams_caps_the_pool_at_those_streams() -> None:
+    layout = _layout("qwen3-8b")
+    capped = plan_memory(
+        layout=layout, weights_bytes=16 * GB, kv_type="fp8", budget_bytes=BUDGET, overhead_bytes=OVERHEAD,
+        needs=[], max_streams=2,
+    )
+    assert capped.context == 40_960
+    assert capped.pool_bytes == 2 * stream_kv_bytes(layout, 40_960, "fp8")
+    assert (capped.pool_streams, capped.streams_full_context) == (2, 2)
+    # A cap above what the budget holds changes nothing.
+    loose = plan_memory(
+        layout=layout, weights_bytes=16 * GB, kv_type="fp8", budget_bytes=BUDGET, overhead_bytes=OVERHEAD,
+        needs=[], max_streams=1_000,
+    )
+    assert loose.pool_streams is None
+    assert loose.pool_bytes == _plan(layout, 16 * GB).pool_bytes
+
+
 def test_plan_refuses_when_weights_alone_exceed_the_budget() -> None:
     with pytest.raises(SmaError, match=r"\(96 GB\).*\(5 GB\) need 101 GB, more than the 100 GB"):
         _plan(_layout("qwen3-8b"), 96 * GB)

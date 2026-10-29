@@ -210,6 +210,8 @@ def test_swebench_retries_tasks_that_lost_the_model_then_grades_and_scores(tmp_p
     assert [name for name, _ in runner.started] == ["agent", "agent", "grade"]
     overlay = runner.written[next(rel for rel in runner.written if rel.endswith("sma-agent.yaml"))]
     assert "step_limit: 250" in overlay and "temperature" not in overlay
+    # LiteLLM has no price for a local checkpoint; without this every task fails on its first call.
+    assert "cost_tracking: ignore_errors" in overlay
     assert f"127.0.0.1:{cfg.engine.port}/v1" in overlay
 
     suite = run_dir / "quality" / "swebench_verified_mini"

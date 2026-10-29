@@ -141,8 +141,8 @@ These adapt the engineering principles to SMA. All are Review.
 - **DES-8. Design it twice.** Before a new engine, step, quant label, record field group, or queue
   protocol change, sketch two approaches and compare them on simplicity and what they hide. Put the
   comparison in the commit or PR description.
-- **DES-9. Treat concurrency with caution.** Threads today: the telemetry sampler, the queue
-  heartbeat, the stream readers in `proc`, and the server-log follower (`proc.follow_to_file`,
+- **DES-9. Treat concurrency with caution.** Threads today: the telemetry sampler and its engine-metrics
+  sampler (both stopped and joined in `TelemetryRecorder.stop`), the queue heartbeat, the stream readers in `proc`, and the server-log follower (`proc.follow_to_file`,
   stopped and joined in `pipeline._stop_mode`). Queue claims are an atomic `link` on one filesystem,
   and the worker takes the GPU lock before it claims. Keep jobs independent. Do not share mutable
   state between threads. A new thread needs a stop and a join in teardown.

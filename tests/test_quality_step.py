@@ -42,7 +42,7 @@ def test_a_suite_that_failed_is_rerun_into_a_fresh_attempt_folder(tmp_path: Path
     write_output = services.evaluator.run
     calls: list[str] = []
 
-    def fails_once_after_writing(argv, output_dir, timeout_s, log_path):
+    def fails_once_after_writing(argv, output_dir, timeout_s, log_path, client_timeout_s=None):
         calls.append(argv[-1])
         write_output(argv, output_dir, timeout_s, log_path)
         if len(calls) == 1:
@@ -66,7 +66,7 @@ def test_no_file_under_quality_holds_the_hostname_even_when_nel_fails(tmp_path: 
     services, _fetcher, _runtime = make_services(tmp_path, cfg)
     write_output = services.evaluator.run
 
-    def writes_then_fails(argv, output_dir, timeout_s, log_path):
+    def writes_then_fails(argv, output_dir, timeout_s, log_path, client_timeout_s=None):
         write_output(argv, output_dir, timeout_s, log_path)
         raise SmaError("nemo-evaluator failed")
 

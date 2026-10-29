@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 
 from sma.commands import (
@@ -19,6 +21,12 @@ from sma.logsetup import log_event
 from sma.proc import Following, follow_to_file, require_ok, run_command
 from sma.retry import call_with_retry
 from sma.scrub import scrub_text
+
+
+_GGUF_ARCHITECTURES = (
+    "from transformers.modeling_gguf_pytorch_utils import GGUF_SUPPORTED_ARCHITECTURES as names\n"
+    "print(' '.join(sorted(names)))"
+)
 
 
 @dataclass
@@ -117,6 +125,30 @@ class DockerRuntime:
             return int(result.stdout.strip()) if result.ok else None
         except ValueError:
             return None
+
+    def gguf_architectures(self, image: str) -> set[str] | None:
+        """GGUF architectures whose tokenizer the image's transformers reads: vLLM's bench client loads a
+        GGUF's tokenizer through it. None when the image does not say."""
+        result = run_command(
+            ["docker", "run", "--rm", "--network", "none", "--entrypoint", "python3", image, "-c", _GGUF_ARCHITECTURES],
+            timeout_s=self.cfg.timeouts.docker_s,
+            what="transformers GGUF architectures",
+        )
+        lines = result.stdout.strip().splitlines() if result.ok else []
+        return set(lines[-1].split()) if lines else None
+
+    def started_at(self, name: str) -> datetime | None:
+        """When the container last started (docker's State.StartedAt), or None when docker does not say."""
+        result = run_command(
+            ["docker", "inspect", "-f", "{{.State.StartedAt}}", name],
+            timeout_s=self.cfg.timeouts.command_s,
+            what="docker inspect",
+        )
+        match = re.match(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(\.\d+)?Z", result.stdout.strip()) if result.ok else None
+        if not match:
+            return None
+        fraction = (match.group(2) or ".0")[:7]  # Python takes microseconds; docker gives nanoseconds.
+        return datetime.fromisoformat(match.group(1) + fraction).replace(tzinfo=timezone.utc)
 
     def is_running(self, name: str) -> bool:
         result = run_command(

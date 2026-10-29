@@ -311,6 +311,10 @@ def read_remote_gguf_header(repo: str, sha: str, filename: str, token: str | Non
         return read_header(handle.read)
 
 
+# A tokenizer's files, for a bench that needs one apart from the checkpoint (sma.pipeline._bench_tokenizer).
+TOKENIZER_FILES = ["tokenizer.json", "tokenizer_config.json", "special_tokens_map.json", "added_tokens.json", "chat_template.jinja"]
+
+
 def snapshot_dir(cfg: Config, repo: str, sha: str) -> Path:
     """Where one commit of a repo is downloaded: <hf.cache_dir>/<model slug>/<sha>."""
     from sma.records import model_slug

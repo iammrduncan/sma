@@ -85,13 +85,9 @@ memory:
     vllm: 13.0
     sglang: 13.0
     llamacpp: 3.0
-  # Engine memory that grows with the KV pool, as a share of it. llama.cpp's buffers sized by its
-  # context measured 0.9 GB plus 11.7% of the pool on a Spark. Its prompt cache
-  # (engine.llamacpp_cache_ram_mib) is counted on top.
-  pool_overhead_fraction:
-    vllm: 0.0
-    sglang: 0.0
-    llamacpp: 0.12
+  # llama.cpp sizes its compute buffers by its whole KV cache, so its pool holds its slots at the context
+  # per stream and no more, and the plan counts those buffers per token (src/sma/runplan.py). Its prompt
+  # cache (engine.llamacpp_cache_ram_mib) is counted on top.
   # The least context a quality request needs: prompt plus quality.max_tokens.
   quality_min_context: 8192
 
@@ -140,7 +136,8 @@ quality:
   concurrency: 8
   executable: nel
   max_tokens: 4096
-  # One request to the model server. Failed requests are retried retries.attempts times in all.
+  # One request to the model server, for nel's proxy and its model client alike (nemo-evaluator 0.3.0 fixes the
+  # client at 120 s; SMA raises it). Failed requests are retried retries.attempts times in all.
   request_timeout_s: 900
   # Quality is scored with thinking off. SMA decodes greedily (temperature 0) with an 8192-token
   # context. Qwen3's model card says not to decode thinking mode greedily and to allow 32,768
@@ -182,6 +179,8 @@ quality:
       image: nvcr.io/nvidia/eval-factory/bfcl:26.03
       task: bfclv3_ast
       tools: true
+      # The dataset's size inside the container, for `sma watch`'s answered/total only.
+      questions: 4441
 
 # KernelBench Level 1 (owner decision 2026-10-27). The model writes a kernel for each of the 100
 # problems with KernelBench's own one-shot CUDA prompt. A separate GB10 compiles, checks, and times them
@@ -285,6 +284,10 @@ speed:
 
 telemetry:
   interval_s: 1.0
+  # The engine's /metrics counters (prompt and generated tokens and their seconds, and TTFT and ITL where
+  # the engine has them) go to engine_metrics.jsonl this often while a server is up. `sma watch` averages
+  # them over the last 5 minutes, hour, and 24 hours.
+  engine_metrics_interval_s: 15
   idle_until_cool_c: 55
   idle_timeout_s: 600
   poll_s: 5
