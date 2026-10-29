@@ -1,0 +1,649 @@
+{
+  "architecture": "lfm3",
+  "architecture_check": {
+    "message": "llama.cpp has no architecture registry to query; the server start is the check.",
+    "ok": true,
+    "source": "llama.cpp"
+  },
+  "architectures": [
+    "lfm3"
+  ],
+  "config_snapshot": {
+    "browsecomp": {
+      "enabled": true,
+      "judge_concurrency": 1,
+      "judge_extra_body": {
+        "cache_prompt": false,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "judge_max_tokens": 4096,
+      "judge_model": "ornith-1.5-122b",
+      "judge_temperature": 0.0,
+      "judge_timeout_s": 900,
+      "k": 5,
+      "limit": 100,
+      "local_port": 8790,
+      "max_iterations": 100,
+      "max_tokens": 20000,
+      "min_context": 32768,
+      "remote_dir": "sma-bcp",
+      "request_timeout_s": 1800,
+      "search_port": 8790,
+      "search_start_s": 600,
+      "snippet_max_tokens": 512,
+      "workers": 4
+    },
+    "determinism": {
+      "batch_sizes": [
+        1,
+        8,
+        64
+      ],
+      "max_tokens": 32,
+      "prompts": [
+        "The capital of France is",
+        "2 + 2 =",
+        "def add(a, b):\n    return"
+      ],
+      "temperature": 0
+    },
+    "doctor": {
+      "gpu_index": 0,
+      "min_free_gb": 20
+    },
+    "engine": {
+      "apply_clock_cap": false,
+      "batch_invariant": true,
+      "bind_host": "127.0.0.1",
+      "clock_cap_mhz": null,
+      "container_prefix": "sma",
+      "extra_args": [],
+      "gpu_memory_utilization": 0.9,
+      "gpus": "all",
+      "image": "nvcr.io/nvidia/vllm:26.05.post1-py3",
+      "image_digest": null,
+      "linear_backend": "flashinfer_b12x",
+      "llamacpp_cache_ram_mib": 8192,
+      "llamacpp_image": "ghcr.io/ggml-org/llama.cpp:full-cuda13-b11960",
+      "llamacpp_image_digest": null,
+      "max_num_seqs": 64,
+      "moe_backend": "flashinfer_b12x",
+      "moe_backend_fallbacks": [
+        "marlin"
+      ],
+      "name": "vllm",
+      "no_async_scheduling_with_batch_invariant": true,
+      "no_flashinfer_autotune_quality": true,
+      "port": 8000,
+      "server_stop_timeout_s": 30,
+      "sglang_attention_backend": "flashinfer",
+      "sglang_determinism_backend": "flashinfer",
+      "sglang_disable_deep_gemm": true,
+      "sglang_image": "lmsysorg/sglang:v0.5.10.post1-cu130",
+      "sglang_image_digest": null,
+      "shm_size": "16g",
+      "tool_call_parser": null,
+      "trust_remote_code": false
+    },
+    "hf": {
+      "cache_dir": "/data/models/sma/hf",
+      "download_timeout_s": 3600,
+      "token_env": "HF_TOKEN"
+    },
+    "host_alias": "gpu-host-1",
+    "kernelbench": {
+      "concurrency": 8,
+      "enabled": true,
+      "level": 1,
+      "max_tokens": 32768,
+      "options": {},
+      "poll_s": 60,
+      "request_timeout_s": 3600,
+      "wait_s": 21600
+    },
+    "lock_path": "~/.local/share/sma/locks/gpu.lock",
+    "logprobs": {
+      "corpus_version": "sma-corpus-v3",
+      "llamacpp_chunks": 8,
+      "num_windows": 48,
+      "top_k": 64,
+      "window_tokens": 2048
+    },
+    "memory": {
+      "budget_gb": 100,
+      "overhead_gb": {
+        "llamacpp": 3.0,
+        "sglang": 13.0,
+        "vllm": 13.0
+      },
+      "quality_min_context": 8192,
+      "start_context": 262144
+    },
+    "quality": {
+      "chat_template_kwargs": {
+        "enable_thinking": false
+      },
+      "concurrency": 8,
+      "enabled": true,
+      "executable": "nel",
+      "max_tokens": 4096,
+      "request_timeout_s": 900,
+      "suites": [
+        {
+          "bench": "lm-eval://ifeval",
+          "image": null,
+          "limit": 50,
+          "metric": null,
+          "name": "ifeval",
+          "task": null,
+          "tools": false
+        },
+        {
+          "bench": "sma:gsm8k",
+          "image": null,
+          "limit": 50,
+          "metric": null,
+          "name": "gsm8k",
+          "task": null,
+          "tools": false
+        },
+        {
+          "bench": null,
+          "image": null,
+          "limit": 700,
+          "metric": null,
+          "name": "mmlu_pro",
+          "task": null,
+          "tools": false
+        },
+        {
+          "bench": "gpqa",
+          "image": null,
+          "limit": 20,
+          "metric": null,
+          "name": "gpqa_diamond",
+          "task": null,
+          "tools": false
+        },
+        {
+          "bench": "sma:musique",
+          "image": null,
+          "limit": 100,
+          "metric": "answer_f1",
+          "name": "musique",
+          "task": null,
+          "tools": false
+        },
+        {
+          "bench": null,
+          "image": "nvcr.io/nvidia/eval-factory/bfcl:26.03",
+          "limit": null,
+          "metric": null,
+          "name": "bfcl_v3",
+          "task": "bfclv3_ast",
+          "tools": true
+        }
+      ]
+    },
+    "queue": {
+      "claim_grace_s": 30,
+      "dir": "~/.local/share/sma/queue",
+      "heartbeat_s": 30,
+      "max_attempts": 1,
+      "poll_s": 5,
+      "retry_backoff_factor": 2,
+      "retry_backoff_s": 30,
+      "stale_claim_s": 3600
+    },
+    "retries": {
+      "attempts": 3,
+      "backoff_factor": 2.0,
+      "backoff_s": 2.0
+    },
+    "runs_dir": "runs",
+    "schema_version": 1,
+    "seed": 0,
+    "speed": {
+      "decode": {
+        "input_len": 128,
+        "name": "decode",
+        "output_len": 512
+      },
+      "derive_stat": "p50",
+      "metric_percentiles": "50,90,99",
+      "num_prompts": 32,
+      "percentile_metrics": "ttft,tpot,itl,e2el",
+      "prefill": {
+        "input_len": 2048,
+        "name": "prefill",
+        "output_len": 64
+      },
+      "repeats": 1,
+      "sweep": {
+        "input_len": 1024,
+        "name": "sweep",
+        "output_len": 256
+      },
+      "sweep_concurrency": [
+        1,
+        4,
+        8
+      ],
+      "throttle_retries": 1,
+      "warmup_max_tokens": 8,
+      "warmup_requests": 4,
+      "warmup_soak_s": 30
+    },
+    "swebench": {
+      "agent_config": "swebench.yaml",
+      "agent_wait_s": 43200,
+      "dataset_file": "data/verified-mini.jsonl",
+      "enabled": true,
+      "grade_timeout_s": 1800,
+      "grade_wait_s": 7200,
+      "grade_workers": 4,
+      "min_context": 32768,
+      "poll_s": 60,
+      "remote_dir": "sma-swe",
+      "split": "test",
+      "step_limit": 250,
+      "subset": "data/verified-mini",
+      "workers": 4
+    },
+    "telemetry": {
+      "cool_between_legs": true,
+      "drop_page_cache": true,
+      "idle_timeout_s": 600,
+      "idle_until_cool_c": 55,
+      "interval_s": 1.0,
+      "max_sample_gap_s": 2.5,
+      "min_sample_ratio": 0.8,
+      "poll_s": 5,
+      "spec_bandwidth_gbps": 273,
+      "spec_usable_gb": 115,
+      "sw_power_cap_invalidates": false
+    },
+    "timeouts": {
+      "bench_s": 7200,
+      "command_s": 120,
+      "docker_s": 300,
+      "eval_s": 14400,
+      "health_poll_s": 2,
+      "health_request_s": 5,
+      "image_pull_s": 3600,
+      "logprob_request_s": 600,
+      "metrics_s": 10,
+      "server_start_s": 900
+    }
+  },
+  "dispatch_concurrency": 8,
+  "engine": {
+    "batch_invariant_quality": false,
+    "batch_invariant_supported": false,
+    "batch_invariant_warning": "llama.cpp has no batch-invariant mode. The determinism probe still runs and records what it sees.",
+    "bench_image": "nvcr.io/nvidia/vllm:26.05.post1-py3@sha256:94e21552f644e0c1627464ba89d2f7a4ce7442e196f72afa0bb5d7fba23cbb03",
+    "build_info": "b11960-8642541b2",
+    "clock_cap_mhz": null,
+    "context_per_stream": 262144,
+    "deterministic_quality": {
+      "attention_backend": "flash_attn",
+      "determinism_backend": null,
+      "prefix_cache": true,
+      "radix_cache": null
+    },
+    "env_quality": {},
+    "env_speed": {},
+    "flags_quality": [
+      "-m",
+      "/model/LFM3-1.7B-BF16.gguf",
+      "--host",
+      "0.0.0.0",
+      "--port",
+      "8000",
+      "--alias",
+      "LiquidAI/LFM3-1.7B-GGUF",
+      "--seed",
+      "0",
+      "-ngl",
+      "all",
+      "-fa",
+      "on",
+      "-ctk",
+      "q8_0",
+      "-ctv",
+      "q8_0",
+      "-c",
+      "2099641",
+      "-np",
+      "8",
+      "--kv-unified",
+      "--kv-unified-per-slot",
+      "262144",
+      "--cache-ram",
+      "8192",
+      "--metrics",
+      "--no-webui",
+      "--jinja",
+      "-lv",
+      "4",
+      "--chat-template-kwargs",
+      "{\"enable_thinking\": false}"
+    ],
+    "flags_speed": [
+      "-m",
+      "/model/LFM3-1.7B-BF16.gguf",
+      "--host",
+      "0.0.0.0",
+      "--port",
+      "8000",
+      "--alias",
+      "LiquidAI/LFM3-1.7B-GGUF",
+      "--seed",
+      "0",
+      "-ngl",
+      "all",
+      "-fa",
+      "on",
+      "-ctk",
+      "q8_0",
+      "-ctv",
+      "q8_0",
+      "-c",
+      "2099641",
+      "-np",
+      "8",
+      "--kv-unified",
+      "--kv-unified-per-slot",
+      "262144",
+      "--cache-ram",
+      "8192",
+      "--metrics",
+      "--no-webui",
+      "--jinja",
+      "-lv",
+      "4"
+    ],
+    "flashinfer_autotune_quality": true,
+    "image": "ghcr.io/ggml-org/llama.cpp:full-cuda13-b11960",
+    "image_digest": "sha256:37914cd294528df33623d092d12782e542d8cd16f501523885c2486b606041ff",
+    "kv_cache_reported": {
+      "quality": {
+        "build_info": "b11960-8642541b2",
+        "kv_type": "q8_0,q8_0",
+        "kv_type_line": "0.01.468.609 I llama_kv_cache: size =   13.28 MiB (  2560 cells,   5 layers,  8/1 seqs), K (q8_0):    6.64 MiB, V (q8_0):    6.64 MiB",
+        "pool_tokens": 2099712,
+        "scale_1_0": null
+      },
+      "speed": {
+        "build_info": "b11960-8642541b2",
+        "kv_type": "q8_0,q8_0",
+        "kv_type_line": "0.01.609.047 I llama_kv_cache: size =   13.28 MiB (  2560 cells,   5 layers,  8/1 seqs), K (q8_0):    6.64 MiB, V (q8_0):    6.64 MiB",
+        "pool_tokens": 2099712,
+        "scale_1_0": null
+      }
+    },
+    "kv_cache_scales": "q8_0 per-block scales",
+    "kv_cache_type": "q8_0",
+    "linear_backend": null,
+    "logprobs_mode": "llama-perplexity full-vocabulary KL",
+    "max_logprobs": 64,
+    "moe_backend_chain": [
+      "flashinfer_b12x",
+      "marlin"
+    ],
+    "moe_backend_config": "flashinfer_b12x",
+    "moe_backend_fallback": false,
+    "moe_backend_quality": null,
+    "moe_backend_quality_fallback": false,
+    "moe_backend_speed": null,
+    "moe_backend_speed_fallback": false,
+    "moe_backend_used": null,
+    "name": "llamacpp",
+    "no_async_scheduling_quality": false,
+    "resolved_backend_note": null,
+    "seed": 0,
+    "selected_by": "format",
+    "selection_reason": null,
+    "tensor_parallel_size": 1,
+    "tool_call_parser": "llama.cpp --jinja"
+  },
+  "file_hashes": {
+    "LFM3-1.7B-BF16.gguf": "sha256:39158a79f56edb85e0c4252ce6447b8d7883ef82ffedd02f0cda7c84da5e9f68"
+  },
+  "gguf": {
+    "architecture": "lfm3",
+    "file_type": "MOSTLY_BF16",
+    "file_type_id": 32,
+    "files": [
+      "LFM3-1.7B-BF16.gguf"
+    ],
+    "model_file": "LFM3-1.7B-BF16.gguf",
+    "name": "LFM3 1.7B",
+    "native_context": 262144,
+    "notes": [],
+    "selector": "BF16",
+    "split_count": 1
+  },
+  "host_alias": "gpu-host-1",
+  "is_moe": false,
+  "large_files": {
+    "logprobs/kld-base.bin": {
+      "bytes": 2095235028,
+      "sha256": "sha256:cbfe0aa5d30eac531432bdd9be69c59cf52a2df171277dc98c011bf457a62bd9"
+    },
+    "quality/swebench_verified_mini/trajectories.jsonl.gz": {
+      "bytes": 39624,
+      "sha256": "sha256:fe6e001f58ea315868a8255635cad9f6d16dc415e1c53be82518b88dafb69fab"
+    }
+  },
+  "logprobs_reference_file": "logprobs/kld-base.bin",
+  "memory_plan": {
+    "benchmarks": {
+      "browsecomp": 262144,
+      "determinism": 16384,
+      "kernelbench": 262144,
+      "logprobs": 262144,
+      "quality": 262144,
+      "speed": 262144,
+      "swebench": 262144
+    },
+    "budget_bytes": 100000000000,
+    "budget_gb": 100.0,
+    "buffer_bytes": 8600129536,
+    "buffer_bytes_per_token": 4096,
+    "buffer_gb": 8.6,
+    "context": 262144,
+    "context_reason": "262,144 tokens fits",
+    "footprint_bytes": 37363151648,
+    "footprint_gb": 37.36,
+    "kv_bytes_per_token": 6528,
+    "kv_type": "q8_0",
+    "ladder": [
+      262144,
+      131072,
+      65536,
+      32768,
+      16384,
+      8192,
+      4096,
+      2048,
+      1024
+    ],
+    "layout_notes": [],
+    "notes": [],
+    "overhead_bytes": 11589934592,
+    "overhead_gb": 11.59,
+    "pool_bytes": 13706461184,
+    "pool_gb": 13.71,
+    "pool_streams": 8,
+    "pool_tokens": 2099641,
+    "stream_bytes": 1713307648,
+    "stream_gb": 1.71,
+    "streams_32k": 63,
+    "streams_full_context": 8,
+    "weights_bytes": 3466626336,
+    "weights_gb": 3.47
+  },
+  "model_repo": "LiquidAI/LFM3-1.7B-GGUF",
+  "model_slug": "LiquidAI_LFM3-1.7B-GGUF",
+  "pair_job_id": null,
+  "params": {
+    "active": 1728801600,
+    "active_b": 1.7,
+    "method": "GGUF tensor shapes; dense: active = total, embeddings included, from safetensors shapes",
+    "size_class": "1-3B",
+    "source": "safetensors shapes",
+    "total": 1728801600,
+    "total_b": 1.7
+  },
+  "quant_composition": {
+    "tensor_bytes": {
+      "BF16": 3456827392,
+      "F32": 1551616
+    },
+    "tensor_types": {
+      "BF16": 154,
+      "F32": 133
+    }
+  },
+  "quant_detail": "GGUF MOSTLY_BF16; tensors 154 BF16, 133 F32",
+  "quant_detected": "gguf",
+  "quant_flag": "gguf",
+  "quant_label": "BF16",
+  "quant_producer": null,
+  "reference_run_id": null,
+  "revision_requested": null,
+  "revision_sha": "bad5729bba61d076fff20d2548e62526665af215",
+  "run_id": "20261029T020534Z-1522375e",
+  "schema_version": 2,
+  "sma_git_commit": "d938415c7f95da53e955afb9544f266496c85b09",
+  "sma_git_dirty": true,
+  "sma_version": "0.1.0",
+  "steps": {
+    "browsecomp_plus": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-29T16:01:27Z",
+      "started": "2026-10-29T08:55:25Z",
+      "status": "done"
+    },
+    "browsecomp_plus_results": {
+      "attempts": 0,
+      "error": null,
+      "finished": null,
+      "started": null,
+      "status": "pending"
+    },
+    "cleanup": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-29T16:03:29Z",
+      "started": "2026-10-29T16:03:29Z",
+      "status": "done"
+    },
+    "determinism": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-29T02:07:29Z",
+      "started": "2026-10-29T02:07:04Z",
+      "status": "done"
+    },
+    "fetch": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-29T02:06:59Z",
+      "started": "2026-10-29T02:05:34Z",
+      "status": "done"
+    },
+    "kernelbench": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-29T08:52:15Z",
+      "started": "2026-10-29T07:32:33Z",
+      "status": "done"
+    },
+    "kernelbench_results": {
+      "attempts": 0,
+      "error": null,
+      "finished": null,
+      "started": null,
+      "status": "pending"
+    },
+    "logprobs": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-29T02:07:36Z",
+      "started": "2026-10-29T02:07:29Z",
+      "status": "done"
+    },
+    "quality": {
+      "attempts": 2,
+      "error": null,
+      "finished": "2026-10-29T16:17:22Z",
+      "started": "2026-10-29T02:07:36Z",
+      "status": "done"
+    },
+    "serve_quality": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-29T02:07:04Z",
+      "started": "2026-10-29T02:06:59Z",
+      "status": "done"
+    },
+    "serve_speed": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-29T16:02:34Z",
+      "started": "2026-10-29T16:01:28Z",
+      "status": "done"
+    },
+    "speed": {
+      "attempts": 1,
+      "error": "bench failed (exit 1): ine 200, in from_pretrained\n    raise e\n  File \"/usr/local/lib/python3.12/dist-packages/vllm/tokenizers/hf.py\", line 172, in from_pretrained\n    tokenizer = AutoTokenizer.from_pretrained(\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/dist-packages/transformers/models/auto/tokenization_auto.py\", line 682, in from_pretrained\n    config_dict = load_gguf_checkpoint(gguf_path, return_tensors=False)[\"config\"]\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/dist-packages/transformers/modeling_gguf_pytorch_utils.py\", line 648, in load_gguf_checkpoint\n    raise ValueError(f\"GGUF model with architecture {architecture} is not supported yet.\")\nValueError: GGUF model with architecture lfm3 is not supported yet.",
+      "finished": "2026-10-29T16:03:27Z",
+      "started": "2026-10-29T16:02:34Z",
+      "status": "failed"
+    },
+    "swebench": {
+      "attempts": 2,
+      "error": null,
+      "finished": "2026-10-29T08:55:25Z",
+      "started": "2026-10-29T08:52:15Z",
+      "status": "running"
+    },
+    "teardown": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-29T16:03:29Z",
+      "started": "2026-10-29T16:03:29Z",
+      "status": "done"
+    },
+    "telemetry": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-10-29T16:03:28Z",
+      "started": "2026-10-29T16:03:28Z",
+      "status": "done"
+    }
+  },
+  "subject": {
+    "engine": "llamacpp",
+    "hardware_alias": "gpu-host-1",
+    "model_repo": "LiquidAI/LFM3-1.7B-GGUF",
+    "quant": "BF16",
+    "revision_sha": "bad5729bba61d076fff20d2548e62526665af215"
+  },
+  "timestamps": {
+    "created": "2026-10-29T02:05:34Z",
+    "finished": "2026-10-29T16:03:27Z",
+    "started": "2026-10-29T02:05:34Z"
+  },
+  "tokenizer_fingerprint": "sha256:8a0206d02d98207a0d9596774b1bdfff17f60e5b08ae2410f6c5e152466e46df",
+  "warnings": [
+    "Determinism probe failed. The run continues. Use the recorded concurrency for both quants and treat quality deltas against a wider noise band.",
+    "50 of 50 tasks got no answer from the model (RuntimeError 50). The score is null. Resume the run to retry those tasks.",
+    "Page cache was not dropped. The next model may see leftover file cache."
+  ]
+}

@@ -38,7 +38,7 @@ from sma import agentic
 from sma.compare import compare_run_dirs
 from sma.config import Config, QualitySuite
 from sma.corpus import build_windows, load_corpus
-from sma.errors import CompareRefused, SmaError
+from sma.errors import CompareRefused, RunIncomplete, SmaError
 from sma.fetch import TOKENIZER_FILES, FetchResult, download_snapshot, inspect_snapshot
 from sma.identity import assert_alias_safe
 from sma.kl import parse_perplexity_log, perplexity
@@ -158,6 +158,8 @@ class Ctx:
     followers: dict[str, Any] = field(default_factory=dict)
     # The bench's tokenizer folder when it is not the GGUF's own (_bench_tokenizer), fetched once per process.
     bench_tokenizer_dir: Path | None = None
+    # Steps that failed in this process without stopping the run (_run_step).
+    failed_steps: list[str] = field(default_factory=list)
 
     @property
     def base_url(self) -> str:
@@ -436,6 +438,8 @@ def execute(
                 _run_step(ctx, "browsecomp_plus_results", _step_browsecomp_results)
                 ctx.manifest["timestamps"]["finished"] = utc_now()
                 publish(cfg, ctx.run_dir, ctx.manifest)
+                if ctx.failed_steps:
+                    raise RunIncomplete(ctx.run_id, ctx.failed_steps)
             except BaseException:
                 ctx.manifest["timestamps"]["finished"] = utc_now()
                 try:
@@ -629,7 +633,8 @@ def _run_step(ctx: Ctx, name: str, fn: Callable[[Ctx], None]) -> None:
         fn(ctx)
         if ctx.services.hooks.kill_step == name:
             ctx.services.hooks.kill_step = None
-            raise RuntimeError("killed mid-step")
+            # Like a signal (_SignalGuard raises KeyboardInterrupt): not a step failure, so the step stays resumable.
+            raise SimulatedKill("killed mid-step")
         atomic_write_json(
             marker_path(ctx.run_dir, name),
             {"step": name, "finished": utc_now()},
@@ -652,7 +657,21 @@ def _run_step(ctx: Ctx, name: str, fn: Callable[[Ctx], None]) -> None:
         except Exception:
             log_event("step_publish_failed", step=name)
         log_event("step_failed", step=name, run_id=ctx.run_id, error=message)
-        raise
+        if name in _REQUIRED_STEPS:
+            raise
+        # A measurement or a score that fails does not stop the others. The run ends RunIncomplete, and a
+        # resume retries this step.
+        ctx.failed_steps.append(name)
+        _warn(ctx, f"Step {name} failed, and the run goes on: {scrub_text(str(exc)).splitlines()[0][:300] if str(exc) else type(exc).__name__}")
+
+
+class SimulatedKill(BaseException):
+    """Hooks.kill_step: the process dies mid-step, as from a signal. Tests only; not a step failure."""
+
+
+# Steps nothing after them can do without: the checkpoint and the quality server. Any other step may fail
+# and the run goes on (owner decision 2026-10-29).
+_REQUIRED_STEPS = {"fetch", "serve_quality"}
 
 
 def _stopped_server_note(ctx: Ctx, step: str) -> str | None:
@@ -1045,32 +1064,51 @@ def _step_quality(ctx: Ctx) -> None:
         _warn(ctx, "Quality suites are disabled in config. No scores were produced.")
         return
     _ensure_server(ctx, "quality")
+    failed: list[str] = []
     for suite in ctx.cfg.quality.suites:
         suite_dir = ctx.run_dir / "quality" / suite.name
         done = suite_dir / ".done"
         if done.is_file():
             log_event("suite_skip", suite=suite.name, run_id=ctx.run_id)
             continue
-        suite_dir.mkdir(parents=True, exist_ok=True)
-        # A retry writes to a fresh folder, so a failed attempt's partial output is never mixed in.
-        attempt = 1 + sum(1 for path in suite_dir.glob("attempt-*") if path.is_dir())
-        attempt_dir = suite_dir / f"attempt-{attempt}"
-        if suite.tools and not ctx.manifest["engine"].get("tool_call_parser"):
-            message = (
-                f"Quality suite {suite.name} calls tools, and this run's server has no tool-call parser. "
-                "Pass --tool-parser (for example hermes for Qwen3 on vLLM). The score is null."
-            )
-            _warn(ctx, message)
+        try:
+            _run_suite(ctx, suite, suite_dir, done)
+        except Exception as exc:  # One suite that fails does not stop the others.
+            message = scrub_text(str(exc))[:2000] or type(exc).__name__
+            failed.append(suite.name)
+            log_event("suite_failed", suite=suite.name, run_id=ctx.run_id, error=message)
+            _warn(ctx, f"Quality suite {suite.name} failed; the other suites go on: {message.splitlines()[0][:300]}")
+            # No .done: a resume runs this suite again, into a fresh attempt folder.
             atomic_write_json(
                 suite_dir / "scores.json",
                 {"suite": suite.name, "scorer": "not run", "primary_metric": None, "primary_score": None, "error": message},
             )
-        elif suite.image is not None:
-            _run_eval_factory_suite(ctx, suite, suite_dir, attempt_dir)
-        else:
-            _run_nel_suite(ctx, suite, suite_dir, attempt_dir)
-        _record_suite_context(ctx, suite_dir)
-        atomic_write_json(done, {"suite": suite.name, "finished": utc_now()})
+    if failed:
+        raise SmaError(f"{len(failed)} quality suite(s) failed: {', '.join(failed)}. The others are scored; a resume retries these.")
+
+
+def _run_suite(ctx: Ctx, suite: QualitySuite, suite_dir: Path, done: Path) -> None:
+    """One quality suite into a fresh attempt folder, then its .done marker."""
+    suite_dir.mkdir(parents=True, exist_ok=True)
+    # A retry writes to a fresh folder, so a failed attempt's partial output is never mixed in.
+    attempt = 1 + sum(1 for path in suite_dir.glob("attempt-*") if path.is_dir())
+    attempt_dir = suite_dir / f"attempt-{attempt}"
+    if suite.tools and not ctx.manifest["engine"].get("tool_call_parser"):
+        message = (
+            f"Quality suite {suite.name} calls tools, and this run's server has no tool-call parser. "
+            "Pass --tool-parser (for example hermes for Qwen3 on vLLM). The score is null."
+        )
+        _warn(ctx, message)
+        atomic_write_json(
+            suite_dir / "scores.json",
+            {"suite": suite.name, "scorer": "not run", "primary_metric": None, "primary_score": None, "error": message},
+        )
+    elif suite.image is not None:
+        _run_eval_factory_suite(ctx, suite, suite_dir, attempt_dir)
+    else:
+        _run_nel_suite(ctx, suite, suite_dir, attempt_dir)
+    _record_suite_context(ctx, suite_dir)
+    atomic_write_json(done, {"suite": suite.name, "finished": utc_now()})
 
 
 def _step_kernelbench(ctx: Ctx) -> None:

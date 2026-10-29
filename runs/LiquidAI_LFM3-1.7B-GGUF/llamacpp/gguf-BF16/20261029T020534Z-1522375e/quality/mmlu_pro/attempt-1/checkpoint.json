@@ -1,0 +1,8 @@
+{
+  "completed_benchmarks": {
+    "mmlu_pro": {
+      "bundle_path": "attempt-1/mmlu_pro"
+    }
+  },
+  "failed_benchmarks": {}
+}

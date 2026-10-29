@@ -1,0 +1,252 @@
+{
+  "django__django-11790": {
+    "instance_id": "django__django-11790",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "django__django-11815": {
+    "instance_id": "django__django-11815",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "django__django-11848": {
+    "instance_id": "django__django-11848",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "django__django-11880": {
+    "instance_id": "django__django-11880",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "django__django-11885": {
+    "instance_id": "django__django-11885",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "django__django-11951": {
+    "instance_id": "django__django-11951",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "django__django-11964": {
+    "instance_id": "django__django-11964",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "django__django-11999": {
+    "instance_id": "django__django-11999",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "django__django-12039": {
+    "instance_id": "django__django-12039",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "django__django-12050": {
+    "instance_id": "django__django-12050",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "django__django-12143": {
+    "instance_id": "django__django-12143",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "django__django-12155": {
+    "instance_id": "django__django-12155",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "django__django-12193": {
+    "instance_id": "django__django-12193",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "django__django-12209": {
+    "instance_id": "django__django-12209",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "django__django-12262": {
+    "instance_id": "django__django-12262",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "django__django-12273": {
+    "instance_id": "django__django-12273",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "django__django-12276": {
+    "instance_id": "django__django-12276",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "django__django-12304": {
+    "instance_id": "django__django-12304",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "django__django-12308": {
+    "instance_id": "django__django-12308",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "django__django-12325": {
+    "instance_id": "django__django-12325",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "django__django-12406": {
+    "instance_id": "django__django-12406",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "django__django-12708": {
+    "instance_id": "django__django-12708",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "django__django-12713": {
+    "instance_id": "django__django-12713",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "django__django-12774": {
+    "instance_id": "django__django-12774",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "django__django-9296": {
+    "instance_id": "django__django-9296",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "sphinx-doc__sphinx-10323": {
+    "instance_id": "sphinx-doc__sphinx-10323",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "sphinx-doc__sphinx-10435": {
+    "instance_id": "sphinx-doc__sphinx-10435",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "sphinx-doc__sphinx-10466": {
+    "instance_id": "sphinx-doc__sphinx-10466",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "sphinx-doc__sphinx-10673": {
+    "instance_id": "sphinx-doc__sphinx-10673",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "sphinx-doc__sphinx-11510": {
+    "instance_id": "sphinx-doc__sphinx-11510",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "sphinx-doc__sphinx-7590": {
+    "instance_id": "sphinx-doc__sphinx-7590",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "sphinx-doc__sphinx-7748": {
+    "instance_id": "sphinx-doc__sphinx-7748",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "sphinx-doc__sphinx-7757": {
+    "instance_id": "sphinx-doc__sphinx-7757",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "sphinx-doc__sphinx-7985": {
+    "instance_id": "sphinx-doc__sphinx-7985",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "sphinx-doc__sphinx-8035": {
+    "instance_id": "sphinx-doc__sphinx-8035",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "sphinx-doc__sphinx-8056": {
+    "instance_id": "sphinx-doc__sphinx-8056",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "sphinx-doc__sphinx-8265": {
+    "instance_id": "sphinx-doc__sphinx-8265",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "sphinx-doc__sphinx-8269": {
+    "instance_id": "sphinx-doc__sphinx-8269",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "sphinx-doc__sphinx-8475": {
+    "instance_id": "sphinx-doc__sphinx-8475",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "sphinx-doc__sphinx-8548": {
+    "instance_id": "sphinx-doc__sphinx-8548",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "sphinx-doc__sphinx-8551": {
+    "instance_id": "sphinx-doc__sphinx-8551",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "sphinx-doc__sphinx-8638": {
+    "instance_id": "sphinx-doc__sphinx-8638",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "sphinx-doc__sphinx-8721": {
+    "instance_id": "sphinx-doc__sphinx-8721",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "sphinx-doc__sphinx-9229": {
+    "instance_id": "sphinx-doc__sphinx-9229",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "sphinx-doc__sphinx-9230": {
+    "instance_id": "sphinx-doc__sphinx-9230",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "sphinx-doc__sphinx-9281": {
+    "instance_id": "sphinx-doc__sphinx-9281",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "sphinx-doc__sphinx-9320": {
+    "instance_id": "sphinx-doc__sphinx-9320",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "sphinx-doc__sphinx-9367": {
+    "instance_id": "sphinx-doc__sphinx-9367",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "sphinx-doc__sphinx-9461": {
+    "instance_id": "sphinx-doc__sphinx-9461",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  },
+  "sphinx-doc__sphinx-9698": {
+    "instance_id": "sphinx-doc__sphinx-9698",
+    "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
+    "model_patch": ""
+  }
+}

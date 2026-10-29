@@ -49,9 +49,10 @@ def test_a_suite_that_failed_is_rerun_into_a_fresh_attempt_folder(tmp_path: Path
             raise SmaError("nemo-evaluator: connection reset")
 
     services.evaluator.run = fails_once_after_writing
-    with pytest.raises(SmaError, match="connection reset"):
+    with pytest.raises(SmaError, match="these failed: quality"):
         execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
     run_dir = _run_dir(tmp_path)
+    assert "connection reset" in json.loads((run_dir / "quality" / "ifeval" / "scores.json").read_text())["error"]
     execute(RunSpec(repo="example/tiny", quant_flag="bf16", resume_run_id=run_dir.name), cfg, services)
 
     assert calls == ["attempt-1", "attempt-2"]

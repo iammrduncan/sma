@@ -1,0 +1,91 @@
+{
+  "batch_invariant": false,
+  "delta_ppl": null,
+  "deployment": {
+    "computed": {
+      "kv_bytes_per_token": 6528,
+      "kv_pool_gb": 75.84,
+      "kv_pool_tokens": 11618008,
+      "memory_budget_gb": 100.0,
+      "planned_footprint_gb": 100.0,
+      "streams_32k": 351,
+      "streams_full_context": 44,
+      "weights_gb": 3.47
+    },
+    "context_per_stream": 262144,
+    "context_reason": "262,144 tokens fits",
+    "engine": "llamacpp",
+    "kv_cache_type": "q8_0",
+    "measured": {
+      "kv_pool_tokens": null,
+      "output_tok_s_c1": null,
+      "output_tok_s_c4": null,
+      "output_tok_s_c8": null,
+      "peak_memory_gb": 126.7,
+      "streams_32k": null,
+      "streams_full_context": null
+    },
+    "sentence": "BF16 weights with a Q8_0 KV cache on llamacpp: 3.47 GB of weights, 262,144 tokens per stream, 44 full-length streams (computed) within 100.0 GB. Peak memory 126.7 GB.",
+    "weight_format": "BF16"
+  },
+  "determinism_passed": null,
+  "energy": {
+    "joules": null,
+    "joules_per_bench_request": null,
+    "method": "nvml-energy-counter-per-window",
+    "note": "Each valid speed-cell window is measured on its own and the joules are summed. nvml-energy-counter is the GPU's cumulative energy counter read before and after the bench command. nvidia-smi-1hz-trapezoid integrates sampled power and is used only when the counter was not read; gaps longer than telemetry.max_sample_gap_s are not bridged. Invalid or unverified windows are excluded. GPU only: on a DGX Spark the CPU shares the 140 W SoC budget and is not counted. Not joules per correct answer, and not a wall meter. Null means it was not measured.",
+    "sample_hz": 1.0,
+    "scope": "gpu"
+  },
+  "engine": "llamacpp",
+  "engine_image": "ghcr.io/ggml-org/llama.cpp:full-cuda13-b11960",
+  "engine_image_digest": "sha256:37914cd294528df33623d092d12782e542d8cd16f501523885c2486b606041ff",
+  "host_alias": "gpu-host-1",
+  "kl_k": null,
+  "kl_mean": null,
+  "kl_method": null,
+  "model_repo": "LiquidAI/LFM3-1.7B-GGUF",
+  "model_slug": "LiquidAI_LFM3-1.7B-GGUF",
+  "params_active": 1728801600,
+  "params_active_b": 1.7,
+  "params_total": 1728801600,
+  "params_total_b": 1.7,
+  "perplexity": null,
+  "perplexity_tokens": null,
+  "quality": {},
+  "quant_detected": "gguf",
+  "quant_flag": "gguf",
+  "quant_label": "BF16",
+  "reference_run_id": null,
+  "revision_sha": "4b423c332fd97961416f2e8b69467758fd27370d",
+  "run_id": "20261028T212249Z-40258161",
+  "schema_version": 2,
+  "size_class": "1-3B",
+  "speed": {
+    "bandwidth_ceiling_note": "Derived from the configured spec bandwidth (273 GB/s) divided by approximate active weight bytes. Not a measurement. NVFP4/MXFP4 use 0.5 bytes per parameter and ignore scale overhead.",
+    "bandwidth_ceiling_tok_s": null,
+    "cells": [],
+    "decode_tok_s": null,
+    "decode_tok_s_stat": "p50",
+    "invalid_cells": 0,
+    "output_tok_s_c4": null,
+    "output_tok_s_c8": null,
+    "prefill_tok_s": null,
+    "prefill_tok_s_stat": "p50",
+    "unverified_cells": 0
+  },
+  "status": "failed",
+  "thermal": {
+    "clock_cap_mhz": null,
+    "log": "telemetry.csv",
+    "sw_power_cap_invalidates": false,
+    "temp_end_c": 38.0,
+    "temp_start_c": 32.0,
+    "throttle_samples": 32
+  },
+  "top1_agreement": null,
+  "warnings": [
+    "Peak memory was 126.7 GB, over the 100 GB budget. The plan's engine overhead was too small for this run: raise memory.overhead_gb.llamacpp by the difference.",
+    "Page cache was not dropped. The next model may see leftover file cache."
+  ]
+}

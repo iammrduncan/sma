@@ -1,0 +1,92 @@
+
+============================================================
+  Benchmark 1/1: lm-eval://ifeval
+============================================================
+
+  lm-eval://ifeval: pass@1=0.7200 
+Report: attempt-1/report.md
+
+Completed 1 benchmark(s). Results: attempt-1
+
+2026-10-28 21:07:41,116 INFO nemo_evaluator.orchestration.orchestrator: asyncio default ThreadPoolExecutor set to max_workers=200
+2026-10-28 21:07:41,147 INFO nemo_evaluator.adapters.interceptors.endpoint: Endpoint interceptor initialized: upstream=http://127.0.0.1:8000/v1 request_timeout=900.0 max_retries=2 extra_body_keys=['chat_template_kwargs'] extra_headers=[]
+2026-10-28 21:07:41,147 INFO nemo_evaluator.adapters.pipeline: AdapterPipeline ready (3 interceptors: ['payload_modifier', 'endpoint', 'reasoning'])
+2026-10-28 21:07:41,263 INFO nemo_evaluator.adapters.proxy: Adapter proxy ready at http://127.0.0.1:4000 (port=4000)
+2026-10-28 21:07:45,305 INFO httpx2: HTTP Request: HEAD https://huggingface.co/datasets/google/IFEval/resolve/main/README.md "HTTP/1.1 307 Temporary Redirect"
+2026-10-28 21:07:45,336 INFO httpx2: HTTP Request: HEAD https://huggingface.co/api/resolve-cache/datasets/google/IFEval/966cd89545d6b6acfd7638bc708b98261ca58e84/README.md?%2Fdatasets%2Fgoogle%2FIFEval%2Fresolve%2Fmain%2FREADME.md=&etag=%22128133c9b445ee94a1e720285bb64efa162dd119%22 "HTTP/1.1 200 OK"
+2026-10-28 21:07:45,415 INFO httpx2: HTTP Request: HEAD https://huggingface.co/datasets/google/IFEval/resolve/966cd89545d6b6acfd7638bc708b98261ca58e84/IFEval.py "HTTP/1.1 404 Not Found"
+2026-10-28 21:07:45,715 INFO httpx2: HTTP Request: HEAD https://s3.amazonaws.com/datasets.huggingface.co/datasets/datasets/google/IFEval/google/IFEval.py "HTTP/1.1 404 Not Found"
+2026-10-28 21:07:45,799 INFO httpx2: HTTP Request: GET https://huggingface.co/api/datasets/google/IFEval/revision/966cd89545d6b6acfd7638bc708b98261ca58e84 "HTTP/1.1 200 OK"
+2026-10-28 21:07:45,861 INFO httpx2: HTTP Request: HEAD https://huggingface.co/datasets/google/IFEval/resolve/966cd89545d6b6acfd7638bc708b98261ca58e84/.huggingface.yaml "HTTP/1.1 404 Not Found"
+2026-10-28 21:07:46,028 INFO httpx2: HTTP Request: GET https://datasets-server.huggingface.co/info?dataset=google/IFEval "HTTP/1.1 200 OK"
+2026-10-28 21:07:46,097 INFO httpx2: HTTP Request: GET https://huggingface.co/api/datasets/google/IFEval/tree/966cd89545d6b6acfd7638bc708b98261ca58e84/data?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-10-28 21:07:46,166 INFO httpx2: HTTP Request: GET https://huggingface.co/api/datasets/google/IFEval/tree/966cd89545d6b6acfd7638bc708b98261ca58e84?recursive=false&expand=false "HTTP/1.1 200 OK"
+2026-10-28 21:07:46,240 INFO httpx2: HTTP Request: HEAD https://huggingface.co/datasets/google/IFEval/resolve/966cd89545d6b6acfd7638bc708b98261ca58e84/dataset_infos.json "HTTP/1.1 404 Not Found"
+2026-10-28 21:07:46,291 INFO lm_eval.tasks: Selected tasks:
+2026-10-28 21:07:46,291 INFO lm_eval.tasks: Task: ifeval (ifeval/ifeval.yaml)
+2026-10-28 21:07:46,359 INFO httpx2: HTTP Request: HEAD https://huggingface.co/datasets/google/IFEval/resolve/main/README.md "HTTP/1.1 307 Temporary Redirect"
+2026-10-28 21:07:46,381 INFO httpx2: HTTP Request: HEAD https://huggingface.co/api/resolve-cache/datasets/google/IFEval/966cd89545d6b6acfd7638bc708b98261ca58e84/README.md?%2Fdatasets%2Fgoogle%2FIFEval%2Fresolve%2Fmain%2FREADME.md=&etag=%22128133c9b445ee94a1e720285bb64efa162dd119%22 "HTTP/1.1 200 OK"
+2026-10-28 21:07:46,450 INFO httpx2: HTTP Request: HEAD https://huggingface.co/datasets/google/IFEval/resolve/966cd89545d6b6acfd7638bc708b98261ca58e84/IFEval.py "HTTP/1.1 404 Not Found"
+2026-10-28 21:07:46,507 INFO httpx2: HTTP Request: HEAD https://s3.amazonaws.com/datasets.huggingface.co/datasets/datasets/google/IFEval/google/IFEval.py "HTTP/1.1 404 Not Found"
+2026-10-28 21:07:46,579 INFO httpx2: HTTP Request: HEAD https://huggingface.co/datasets/google/IFEval/resolve/966cd89545d6b6acfd7638bc708b98261ca58e84/.huggingface.yaml "HTTP/1.1 404 Not Found"
+2026-10-28 21:07:46,658 INFO httpx2: HTTP Request: GET https://datasets-server.huggingface.co/info?dataset=google/IFEval "HTTP/1.1 200 OK"
+2026-10-28 21:07:46,727 INFO httpx2: HTTP Request: GET https://huggingface.co/api/datasets/google/IFEval/tree/966cd89545d6b6acfd7638bc708b98261ca58e84/data?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+2026-10-28 21:07:46,795 INFO httpx2: HTTP Request: HEAD https://huggingface.co/datasets/google/IFEval/resolve/966cd89545d6b6acfd7638bc708b98261ca58e84/dataset_infos.json "HTTP/1.1 404 Not Found"
+2026-10-28 21:07:46,818 INFO nemo_evaluator.environments.lm_eval: Loaded lm-eval://ifeval: 541 items across 1 subtask(s)
+2026-10-28 21:07:46,847 INFO nemo_evaluator.observability.progress: lm-eval://ifeval | 50 problems x 1 repeats = 50 steps
+2026-10-28 21:07:46,847 INFO nemo_evaluator.engine.eval_loop: eval start: lm-eval://ifeval problems=50 [0:50] repeats=1 concurrency=8
+2026-10-28 21:07:46,847 INFO nemo_evaluator.engine.eval_loop: p108 r0: solver-entry at +0.0s
+2026-10-28 21:07:46,847 INFO nemo_evaluator.engine.eval_loop: p17 r0: solver-entry at +0.0s
+2026-10-28 21:07:46,848 INFO nemo_evaluator.engine.eval_loop: p346 r0: solver-entry at +0.0s
+2026-10-28 21:07:46,848 INFO nemo_evaluator.engine.eval_loop: p178 r0: solver-entry at +0.0s
+2026-10-28 21:07:46,848 INFO nemo_evaluator.engine.eval_loop: p467 r0: solver-entry at +0.0s
+2026-10-28 21:07:46,848 INFO nemo_evaluator.engine.eval_loop: p289 r0: solver-entry at +0.0s
+2026-10-28 21:07:46,848 INFO nemo_evaluator.engine.eval_loop: p56 r0: solver-entry at +0.0s
+2026-10-28 21:07:46,848 INFO nemo_evaluator.engine.eval_loop: p389 r0: solver-entry at +0.0s
+2026-10-28 21:07:46,849 INFO nemo_evaluator.adapters.interceptors.payload_modifier: payload_modifier: remove=[], add=['max_tokens', 'seed', 'temperature'], rename=[], headers_add=[], headers_remove=[], headers_rename=[]
+2026-10-28 21:07:48,000 INFO nemo_evaluator.engine.eval_loop: p109 r0: solver-entry at +0.0s
+2026-10-28 21:07:48,489 INFO nemo_evaluator.engine.eval_loop: p527 r0: solver-entry at +0.0s
+2026-10-28 21:07:49,562 INFO nemo_evaluator.engine.eval_loop: p58 r0: solver-entry at +0.0s
+2026-10-28 21:07:49,723 INFO nemo_evaluator.engine.eval_loop: p64 r0: solver-entry at +0.0s
+2026-10-28 21:07:50,050 INFO nemo_evaluator.engine.eval_loop: p232 r0: solver-entry at +0.0s
+2026-10-28 21:07:51,493 INFO nemo_evaluator.engine.eval_loop: p118 r0: solver-entry at +0.0s
+2026-10-28 21:07:51,511 INFO nemo_evaluator.engine.eval_loop: p151 r0: solver-entry at +0.0s
+2026-10-28 21:07:51,828 INFO nemo_evaluator.engine.eval_loop: p383 r0: solver-entry at +0.0s
+2026-10-28 21:07:52,131 INFO nemo_evaluator.engine.eval_loop: p433 r0: solver-entry at +0.0s
+2026-10-28 21:07:52,511 INFO nemo_evaluator.engine.eval_loop: p355 r0: solver-entry at +0.0s
+2026-10-28 21:07:55,690 INFO nemo_evaluator.engine.eval_loop: p119 r0: solver-entry at +0.0s
+2026-10-28 21:07:56,223 INFO nemo_evaluator.engine.eval_loop: p196 r0: solver-entry at +0.0s
+2026-10-28 21:07:56,522 INFO nemo_evaluator.engine.eval_loop: p90 r0: solver-entry at +0.0s
+2026-10-28 21:07:56,915 INFO nemo_evaluator.engine.eval_loop: p377 r0: solver-entry at +0.0s
+2026-10-28 21:08:00,116 INFO nemo_evaluator.engine.eval_loop: p314 r0: solver-entry at +0.0s
+2026-10-28 21:08:00,721 INFO nemo_evaluator.engine.eval_loop: p22 r0: solver-entry at +0.0s
+2026-10-28 21:08:02,720 INFO nemo_evaluator.engine.eval_loop: p312 r0: solver-entry at +0.0s
+2026-10-28 21:08:04,164 INFO nemo_evaluator.engine.eval_loop: p465 r0: solver-entry at +0.0s
+2026-10-28 21:08:04,391 INFO nemo_evaluator.engine.eval_loop: p304 r0: solver-entry at +0.0s
+2026-10-28 21:08:05,376 INFO nemo_evaluator.engine.eval_loop: p68 r0: solver-entry at +0.0s
+2026-10-28 21:08:07,040 INFO nemo_evaluator.engine.eval_loop: p130 r0: solver-entry at +0.0s
+2026-10-28 21:08:07,734 INFO nemo_evaluator.engine.eval_loop: p329 r0: solver-entry at +0.0s
+2026-10-28 21:08:08,030 INFO nemo_evaluator.engine.eval_loop: p208 r0: solver-entry at +0.0s
+2026-10-28 21:08:08,488 INFO nemo_evaluator.engine.eval_loop: p272 r0: solver-entry at +0.0s
+2026-10-28 21:08:09,853 INFO nemo_evaluator.engine.eval_loop: p263 r0: solver-entry at +0.0s
+2026-10-28 21:08:11,029 INFO nemo_evaluator.engine.eval_loop: p168 r0: solver-entry at +0.0s
+2026-10-28 21:08:11,268 INFO nemo_evaluator.engine.eval_loop: p181 r0: solver-entry at +0.0s
+2026-10-28 21:08:14,272 INFO nemo_evaluator.engine.eval_loop: p44 r0: solver-entry at +0.0s
+2026-10-28 21:08:14,521 INFO nemo_evaluator.engine.eval_loop: p318 r0: solver-entry at +0.0s
+2026-10-28 21:08:15,788 INFO nemo_evaluator.engine.eval_loop: p407 r0: solver-entry at +0.0s
+2026-10-28 21:08:15,889 INFO nemo_evaluator.engine.eval_loop: p188 r0: solver-entry at +0.0s
+2026-10-28 21:08:18,492 INFO nemo_evaluator.engine.eval_loop: p359 r0: solver-entry at +0.0s
+2026-10-28 21:08:19,218 INFO nemo_evaluator.engine.eval_loop: p451 r0: solver-entry at +0.0s
+2026-10-28 21:08:21,910 INFO nemo_evaluator.engine.eval_loop: p372 r0: solver-entry at +0.0s
+2026-10-28 21:08:22,305 INFO nemo_evaluator.engine.eval_loop: p79 r0: solver-entry at +0.0s
+2026-10-28 21:08:24,258 INFO nemo_evaluator.engine.eval_loop: p216 r0: solver-entry at +0.0s
+2026-10-28 21:08:25,510 INFO nemo_evaluator.engine.eval_loop: p211 r0: solver-entry at +0.0s
+2026-10-28 21:08:28,069 INFO nemo_evaluator.engine.eval_loop: p100 r0: solver-entry at +0.0s
+2026-10-28 21:08:28,258 INFO nemo_evaluator.engine.eval_loop: p284 r0: solver-entry at +0.0s
+2026-10-28 21:08:29,608 INFO nemo_evaluator.engine.eval_loop: p136 r0: solver-entry at +0.0s
+2026-10-28 21:08:30,167 INFO nemo_evaluator.engine.eval_loop: p134 r0: solver-entry at +0.0s
+2026-10-28 21:08:39,349 INFO nemo_evaluator.engine.eval_loop: p43 r0: solver-entry at +0.0s
+2026-10-28 21:08:47,799 INFO nemo_evaluator.observability.progress: progress: 46/50 (92.0%) | pass@1=73.9% (34/46) | 0.8/s | 1m00s elapsed | ETA 5s | 17046 tok
+2026-10-28 21:09:25,976 INFO nemo_evaluator.observability.progress: progress: 50/50 (100.0%) | pass@1=72.0% (36/50) | 0.5/s | 1m39s elapsed | ETA — | 24503 tok
+2026-10-28 21:09:26,061 INFO nemo_evaluator.observability.progress: Done 99.1s | pass@1=72.0% (36/50) | 24,503 tok
+2026-10-28 21:09:26,197 WARNING nemo_evaluator.orchestration.artifact_access: Artifact access may be blocked because parent directories lack a+x: /home/<host>. Grant execute permission on these directories so other cluster users can traverse to attempt-1; read permission is not required for traversal when artifact paths are known.

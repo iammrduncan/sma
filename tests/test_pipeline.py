@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from sma.errors import QuantMismatch, SmaError
-from sma.pipeline import RunSpec, execute
+from sma.pipeline import RunSpec, SimulatedKill, execute
 from sma.records import load_manifest
 from sma.schemautil import validate_instance
 from tests.fakes import write_snapshot
@@ -75,7 +75,7 @@ def test_resume_skips_completed_steps(tmp_path: Path) -> None:
     cfg = make_config(tmp_path)
     services, fetcher, runtime = make_services(tmp_path, cfg)
     services.hooks.kill_step = "determinism"
-    with pytest.raises(RuntimeError, match="killed mid-step"):
+    with pytest.raises(SimulatedKill, match="killed mid-step"):
         execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
     assert fetcher.calls == 1
     assert runtime.running == set()
@@ -99,7 +99,10 @@ def test_resume_skips_completed_steps(tmp_path: Path) -> None:
     assert summary["status"] == "done"
 
 
-def test_quality_failure_still_tears_the_server_down(tmp_path: Path) -> None:
+def test_a_failed_quality_step_does_not_stop_the_run_and_the_server_is_torn_down(tmp_path: Path) -> None:
+    # Owner decision 2026-10-29: a failed score or suite is recorded, and the other steps still run.
+    from sma.errors import RunIncomplete
+
     cfg = make_config(tmp_path)
     services, _fetcher, runtime = make_services(tmp_path, cfg)
 
@@ -107,14 +110,55 @@ def test_quality_failure_still_tears_the_server_down(tmp_path: Path) -> None:
         raise SmaError("nemo-evaluator exploded")
 
     services.evaluator.run = explode
-    with pytest.raises(SmaError, match="nemo-evaluator exploded"):
+    with pytest.raises(RunIncomplete, match="these failed: quality"):
         execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
     assert runtime.running == set()
     assert runtime.stop_count >= 1
-    manifest = json.loads(next((tmp_path / "runs").glob("*/*/*/*/manifest.json")).read_text())
+    run_dir = next((tmp_path / "runs").glob("*/*/*/*"))
+    manifest = json.loads((run_dir / "manifest.json").read_text())
     assert manifest["steps"]["quality"]["status"] == "failed"
+    assert "quality suite(s) failed: ifeval" in manifest["steps"]["quality"]["error"]
+    assert manifest["steps"]["speed"]["status"] == "done"
     assert manifest["steps"]["teardown"]["status"] == "done"
-    assert manifest["steps"]["speed"]["status"] == "pending"
+    assert manifest["timestamps"]["finished"]
+    scores = json.loads((run_dir / "quality" / "ifeval" / "scores.json").read_text())
+    assert scores["primary_score"] is None and "nemo-evaluator exploded" in scores["error"]
+    assert not (run_dir / "quality" / "ifeval" / ".done").exists()
+
+
+def test_one_failed_quality_suite_does_not_stop_the_next(tmp_path: Path) -> None:
+    from sma.config import QualitySuite
+    from sma.errors import RunIncomplete
+
+    cfg = make_config(tmp_path)
+    cfg.quality.suites = [QualitySuite("ifeval", 2, bench="lm-eval://ifeval"), QualitySuite("gsm8k", 2, bench="sma:gsm8k")]
+    services, _fetcher, _runtime = make_services(tmp_path, cfg)
+    run = services.evaluator.run
+
+    def ifeval_fails(argv, output_dir, *args, **kwargs):
+        if output_dir.name == "ifeval":
+            raise SmaError("ifeval's harness crashed")
+        return run(argv, output_dir, *args, **kwargs)
+
+    services.evaluator.run = ifeval_fails
+    with pytest.raises(RunIncomplete):
+        execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
+    run_dir = next((tmp_path / "runs").glob("*/*/*/*"))
+    assert (run_dir / "quality" / "gsm8k" / ".done").is_file()
+    assert json.loads((run_dir / "quality" / "gsm8k" / "scores.json").read_text())["primary_score"] is not None
+
+
+def test_a_failed_fetch_still_stops_the_run(tmp_path: Path) -> None:
+    # Without the checkpoint nothing after it can run.
+    cfg = make_config(tmp_path)
+    services, fetcher, _runtime = make_services(tmp_path, cfg)
+
+    def no_checkpoint(*_args, **_kwargs):
+        raise SmaError("the repo is gone")
+
+    fetcher.fetch = no_checkpoint
+    with pytest.raises(SmaError, match="the repo is gone"):
+        execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
 
 
 def test_moe_nvfp4_falls_back_and_records_the_backend(tmp_path: Path) -> None:

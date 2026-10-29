@@ -1,0 +1,49 @@
+{
+  "ci_lower": 0.0017853072594413884,
+  "ci_upper": 0.055015315221405195,
+  "concurrency": 8,
+  "context_per_stream": 262144,
+  "error": null,
+  "fingerprint": "5975f7a6360573f7",
+  "job_id": "kb-20261029-085215-7c926ad1",
+  "kernelbench": {
+    "compilation_rate": 0.11,
+    "compiled": 11,
+    "correct": 5,
+    "correctness_rate": 0.05,
+    "error_kinds": {
+      "compile": 57,
+      "incorrect": 1,
+      "runtime": 5
+    },
+    "excessive_speedup": 0,
+    "fast_p": {
+      "0.0": 0.050505050505050504,
+      "0.5": 0.050505050505050504,
+      "0.8": 0.050505050505050504,
+      "1.0": 0.010101010101010102,
+      "1.5": 0.0,
+      "2.0": 0.0
+    },
+    "geomean_speedup": 0.9995415493697232,
+    "submitted": 68,
+    "total": 100,
+    "with_baseline": 99
+  },
+  "limit": null,
+  "n": 99,
+  "options": {
+    "backend": "cuda",
+    "excessive_speedup_threshold": 10,
+    "num_correct_trials": 5,
+    "num_perf_trials": 100,
+    "precision": "fp32",
+    "seed": 42,
+    "timeout_s": 300,
+    "timing_method": "cuda_event"
+  },
+  "primary_metric": "fast_1",
+  "primary_score": 0.010101010101010102,
+  "scorer": "KernelBench 423217d9 score.py, timed on the KernelBench service (environment 5975f7a6360573f7)",
+  "suite": "kernelbench_l1"
+}

@@ -1,0 +1,27 @@
+{
+  "argv": [
+    "docker",
+    "run",
+    "--rm",
+    "--name",
+    "sma-20261029T020534Z-1522375e-quality-bfcl_v3",
+    "--network",
+    "host",
+    "--user",
+    "1000:1000",
+    "-e",
+    "HOME=/tmp",
+    "-e",
+    "NEMO_EVALUATOR_TELEMETRY_LEVEL=0",
+    "-v",
+    "/home/<host>/github/sma/runs/LiquidAI_LFM3-1.7B-GGUF/llamacpp/gguf-BF16/20261029T020534Z-1522375e/quality/bfcl_v3/attempt-1:/results",
+    "-v",
+    "/home/<host>/github/sma/runs/LiquidAI_LFM3-1.7B-GGUF/llamacpp/gguf-BF16/20261029T020534Z-1522375e/quality/bfcl_v3/run_config.yaml:/config/run_config.yaml:ro",
+    "nvcr.io/nvidia/eval-factory/bfcl:26.03@sha256:fc6b5f22698b75b759dc29715663d3006b7180847330e06b15ee080346462c03",
+    "sh",
+    "-c",
+    "exec $(command -v nemo-evaluator >/dev/null 2>&1 && echo nemo-evaluator || echo eval-factory) run_eval --run_config /config/run_config.yaml"
+  ],
+  "concurrency": 8,
+  "image": "nvcr.io/nvidia/eval-factory/bfcl:26.03@sha256:fc6b5f22698b75b759dc29715663d3006b7180847330e06b15ee080346462c03"
+}

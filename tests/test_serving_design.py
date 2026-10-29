@@ -13,7 +13,7 @@ from sma.engines import engine_name
 from sma.errors import SmaError
 from sma.kl import parse_perplexity_log
 from sma.memplan import KvLayout
-from sma.pipeline import RunSpec, execute
+from sma.pipeline import RunSpec, SimulatedKill, execute
 from sma.runplan import describe
 from sma.schemautil import validate_instance
 from sma.telemetry import TelemetryRecorder, peak_memory_bytes, read_memory
@@ -422,7 +422,7 @@ def test_a_gguf_run_resumes_with_its_quant_file(tmp_path: Path, monkeypatch: pyt
     cfg = make_config(tmp_path)
     services, _runtime = _gguf_services(tmp_path, cfg)
     services.hooks.kill_step = "quality"
-    with pytest.raises(RuntimeError, match="killed mid-step"):
+    with pytest.raises(SimulatedKill, match="killed mid-step"):
         execute(RunSpec(repo="example/tiny-GGUF", quant_flag="gguf", gguf="UD-Q4_K_XL"), cfg, services)
     run_id = next((tmp_path / "runs").glob("*/llamacpp/gguf-UD-Q4_K_XL/*")).name
     seen = {}
