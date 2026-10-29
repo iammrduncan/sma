@@ -1,0 +1,81 @@
+{
+  "bench": "mmlu_pro",
+  "bundle": "attempt-1/mmlu_pro/eval-20261029T034427Z-mmlu_pro.json",
+  "categories": {
+    "biology": {
+      "mean_reward": 0.7568,
+      "n": 37
+    },
+    "business": {
+      "mean_reward": 0.54,
+      "n": 50
+    },
+    "chemistry": {
+      "mean_reward": 0.5429,
+      "n": 70
+    },
+    "computer science": {
+      "mean_reward": 0.55,
+      "n": 20
+    },
+    "economics": {
+      "mean_reward": 0.6667,
+      "n": 63
+    },
+    "engineering": {
+      "mean_reward": 0.3125,
+      "n": 48
+    },
+    "health": {
+      "mean_reward": 0.4,
+      "n": 50
+    },
+    "history": {
+      "mean_reward": 0.4545,
+      "n": 22
+    },
+    "law": {
+      "mean_reward": 0.0862,
+      "n": 58
+    },
+    "math": {
+      "mean_reward": 0.7013,
+      "n": 77
+    },
+    "other": {
+      "mean_reward": 0.449,
+      "n": 49
+    },
+    "philosophy": {
+      "mean_reward": 0.5526,
+      "n": 38
+    },
+    "physics": {
+      "mean_reward": 0.6447,
+      "n": 76
+    },
+    "psychology": {
+      "mean_reward": 0.5952,
+      "n": 42
+    }
+  },
+  "ci_lower": 0.4871,
+  "ci_upper": 0.5614,
+  "concurrency": 8,
+  "context_per_stream": 262144,
+  "dataset_size": 12032,
+  "error": null,
+  "failures": 171,
+  "limit": 700,
+  "n": 700,
+  "pass_at_1_failures_as_wrong": null,
+  "primary_metric": "pass@1",
+  "primary_score": 0.5243,
+  "repeats": 1,
+  "scorer": "nemo-evaluator 0.3.0",
+  "scorer_shares": {
+    "correct": 0.5242857142857142
+  },
+  "shuffle_seed": 0,
+  "suite": "mmlu_pro"
+}

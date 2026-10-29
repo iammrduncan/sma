@@ -1,0 +1,16 @@
+{
+  "content": "<tool_call>\n<function=write>\n<parameter=content>\nimport torch\nimport torch.nn as nn\nimport torch.nn.functional as F\nfrom torch.utils.cpp_extension import load_inline\n\n# Define custom CUDA kernel for element-wise ELU activation (ELU(x, alpha) = max(0, x) if x<0 else alpha*(x+1))\nelu_kernel_source = \"\"\"\n#include <torch/extension.h>\n#include <cuda_runtime.h>\n\n__global__ void elu_kernel(const float* input, const float* alpha, float* output, int size) {\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    if (idx < size) {\n        float x = input[idx];\n        float a = alpha; // alpha is passed as constant per element? For vectorized ELU we need to handle all elements.\n        // Since alpha may be same for all, but kernel receives it via parameter. We'll implement simple scalar version: each thread handles one element and uses global alpha? Not efficient.\n        // Better: use a loop over threads with block covering size; but simpler: just compute using input[idx] + (x < 0 ? -x : 0) * max(0, x)? Wait ELU definition:\n        // ELU(x) = max(0, x) if x >= 0 else alpha*(x+1)\n        // So for x>=0: output = x\n        // For x<0: output = alpha * (x + 1)\n        if (x < 0.0f) {\n            output[idx] = a * (x + 1.0f);\n        } else {\n            output[idx] = x;\n        }\n    }\n}\n\ntorch::Tensor elu_cuda(torch::Tensor x, float alpha) {\n    auto size = x.numel();\n    auto out = torch::zeros_like(x);\n\n    const int block_size = 256;\n    const int num_blocks = (size + block_size - 1) / block_size;\n\n    elu_kernel<<<num_blocks, block_size>>>(x.data_ptr<float>(), &alpha, out.data_ptr<float>(), size);\n\n    return out;\n}\n\"\"\"\n\n# Compile inline CUDA function for ELU\nelu_cpp_source = (\n    \"torch::Tensor elu_cuda(torch::Tensor x, float alpha);\"\n)\n\nelu = load_inline(\n    name=\"elu\",\n    cpp_sources=elu_cpp_source,\n    cuda_sources=elu_kernel_source,\n    functions=[\"elu_cuda\"],\n    verbose=True,\n    extra_cflags=[],\n    extra_ldflags=[],\n)\n\nclass ModelNew(nn.Module):\n    def __init__(self, alpha: float = 1.0) -> None:\n        super().__init__()\n        self.alpha = alpha\n        # Load the custom CUDA operator for element-wise ELU\n        self.elu_cuda = elu\n\n    def forward(self, x: torch.Tensor) -> torch.Tensor:\n        return self.elu_cuda(x, self.alpha)\n\n</parameter>\n<parameter=path>\nModelNew.pyx\n</parameter>\n</function>\n</tool_call>",
+  "finish_reason": "stop",
+  "kernel": null,
+  "name": "31_ELU",
+  "problem_id": 31,
+  "reasoning": null,
+  "usage": {
+    "completion_tokens": 676,
+    "prompt_tokens": 1045,
+    "prompt_tokens_details": {
+      "cached_tokens": 11
+    },
+    "total_tokens": 1721
+  }
+}

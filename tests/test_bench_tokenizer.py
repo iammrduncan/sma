@@ -100,12 +100,17 @@ def test_the_bench_uses_the_source_models_tokenizer_when_it_matches(tmp_path: Pa
 
 
 def test_speed_refuses_a_source_tokenizer_that_does_not_match(tmp_path: Path) -> None:
-    from sma.errors import SmaError
+    from sma.errors import RunIncomplete
 
     cfg = make_config(tmp_path)
     services, _fetcher = _services(tmp_path, cfg, _tokenizer_json({"a": 0, "b": 1, "ba": 2}))
-    with pytest.raises(SmaError, match="tokenizer does not match the GGUF's: 1 token ids differ"):
+    with pytest.raises(RunIncomplete, match="these failed: speed"):
         execute(RunSpec(repo="example/tiny-GGUF", quant_flag="gguf", gguf="BF16"), cfg, services)
+    run_dir = next(Path(cfg.runs_dir).glob("*/*/*/*"))
+    steps = json.loads((run_dir / "manifest.json").read_text())["steps"]
+    assert "tokenizer does not match the GGUF's: 1 token ids differ" in steps["speed"]["error"]
+    # The steps after speed still run.
+    assert (steps["kernelbench_results"]["status"], steps["browsecomp_plus_results"]["status"]) == ("done", "done")
 
 
 def test_a_gguf_the_bench_reads_keeps_its_own_tokenizer(tmp_path: Path) -> None:

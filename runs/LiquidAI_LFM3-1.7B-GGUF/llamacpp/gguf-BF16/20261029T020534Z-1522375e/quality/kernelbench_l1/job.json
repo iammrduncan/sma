@@ -1,0 +1,81 @@
+{
+  "environment": {
+    "clock_lock_mhz": "2200",
+    "clocks_under_load": {
+      "event_reasons": "0x0000000000000000",
+      "mem_mhz": "[N/A]",
+      "power_w": "82.35",
+      "sm_mhz": "2184",
+      "temp_c": "53"
+    },
+    "cuda_runtime": "13.0",
+    "cudnn": 91300,
+    "fingerprint": "5975f7a6360573f7",
+    "gpu": {
+      "clocks_max_sm_mhz": "3003",
+      "compute_capability": "12.1",
+      "driver_version": "580.173.02",
+      "memory_total_mib": "[N/A]",
+      "name": "NVIDIA GB10",
+      "pci_bus_id": "${KERNELBENCH_GPU_PCI}",
+      "persistence_mode": "Enabled",
+      "power_limit_w": "[N/A]"
+    },
+    "host_memory_budget_gib": 94.0,
+    "host_memory_floor_gib": 8.0,
+    "kernelbench_commit": "423217d9fda91e0c2d67e4a43bf62f96f6d104f1",
+    "nvcc": "Build cuda_13.0.r13.0/compiler.36424714_0",
+    "probed_at": "2026-10-28T01:39:02Z",
+    "python": "3.12.3",
+    "sandbox": {
+      "landlock_abi": 7,
+      "signals_and_abstract_sockets": "own sandbox only",
+      "tcp": "denied",
+      "writable": [
+        "/tmp/kernelbench/kb-43385f125f03",
+        "/dev",
+        "/proc/self"
+      ]
+    },
+    "torch": "2.9.1+cu130",
+    "torch_cuda_arch_list": "12.1"
+  },
+  "job_id": "kb-20261029-085215-7c926ad1",
+  "kernels": 68,
+  "level": 1,
+  "no_kernel": [
+    3,
+    7,
+    8,
+    9,
+    13,
+    14,
+    15,
+    17,
+    19,
+    20,
+    21,
+    22,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    36,
+    37,
+    38,
+    50,
+    52,
+    88,
+    94,
+    96,
+    97,
+    99,
+    100
+  ],
+  "options": {}
+}

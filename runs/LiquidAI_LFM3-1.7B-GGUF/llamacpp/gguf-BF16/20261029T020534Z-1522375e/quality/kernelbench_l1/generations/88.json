@@ -1,0 +1,16 @@
+{
+  "content": "<tool_call>\n<function=write>\n<parameter=path>\nModelNew.py\n</parameter>\n<parameter=content>\nimport torch\nimport torch.nn as nn\nimport torch.nn.functional as F\nfrom torch.utils.cpp_extension import load_inline\n\n# Custom CUDA kernel for GELU activation (element-wise)\ngelu_cuda_source = \"\"\"\n#include <torch/extension.h>\n#include <cuda_runtime.h>\n\n__global__ void gelu_kernel(const float* x, float* out, int size) {\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    if (idx < size) {\n        float val = x[idx];\n        float sqrt_2_over_pi = math.sqrt(2.0 / math.pi);\n        float term = 0.044715f * pow(val, 3.0);\n        out[idx] = 0.5f * val * (1.0 + torch.tanh(sqrt_2_over_pi * (val + term)));\n    }\n}\n\ntorch::Tensor gelu_cuda(torch::Tensor x) {\n    auto size = x.numel();\n    auto out = torch::zeros_like(x);\n\n    const int block_size = 256;\n    const int num_blocks = (size + block_size - 1) / block_size;\n\n    gelu_kernel<<<num_blocks, block_size>>>(x.data_ptr<float>(), out.data_ptr<float>(), size);\n\n    return out;\n}\n\"\"\"\n\n# Compile inline CUDA function for GELU\ngelu_cpp_source = (\n    \"torch::Tensor gelu_cuda(torch::Tensor x);\"\n)\n\ngelu = load_inline(\n    name=\"gelu\",\n    cpp_sources=gelu_cpp_source,\n    cuda_sources=gelu_cuda_source,\n    functions=[\"gelu_cuda\"],\n    verbose=True,\n    extra_cflags=[],\n    extra_ldflags=[],\n)\n\n\nclass ModelNew(nn.Module):\n    def __init__(self) -> None:\n        super(ModelNew, self).__init__()\n        self.gelu = gelu\n\n    def forward(self, x):\n        return self.gelu(x)\n\n\ndef get_inputs():\n    # randomly generate input tensors based on the model architecture\n    a = torch.randn(batch_size, dim).cuda()\n    return [a]\n\n\ndef get_init_inputs():\n    return []\n\n\nif __name__ == \"__main__\":\n    import math\n\n    model = ModelNew()\n    x = torch.randn(1, batch_size, dim).cuda()  # shape: (batch, seq_len?, dim) but here just (batch, dim)\n    # Actually forward expects a single tensor; let's test with simple input\n    out = model(x)\n    print(out.shape)\n\n</parameter>\n</function>\n</tool_call>",
+  "finish_reason": "stop",
+  "kernel": null,
+  "name": "88_MinGPTNewGelu",
+  "problem_id": 88,
+  "reasoning": null,
+  "usage": {
+    "completion_tokens": 602,
+    "prompt_tokens": 1016,
+    "prompt_tokens_details": {
+      "cached_tokens": 462
+    },
+    "total_tokens": 1618
+  }
+}

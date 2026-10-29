@@ -1,0 +1,131 @@
+{"event": "run_created", "level": "INFO", "logger": "sma", "message": "run_created run_id=20261029T020534Z-1522375e repo=LiquidAI/LFM3-1.7B-GGUF quant=gguf", "ts": "2026-10-29T02:05:34Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=fetch run_id=20261029T020534Z-1522375e attempt=1", "ts": "2026-10-29T02:05:34Z"}
+{"event": "fetched", "level": "INFO", "logger": "sma", "message": "fetched repo=LiquidAI/LFM3-1.7B-GGUF revision_sha=bad5729bba61d076fff20d2548e62526665af215", "ts": "2026-10-29T02:06:30Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=KV cache: q8_0, 6,528 bytes per token in the full-attention layers", "ts": "2026-10-29T02:06:59Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=context per stream: 262,144 tokens (262,144 tokens fits)", "ts": "2026-10-29T02:06:59Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=memory: 3.47 GB weights + 11.59 GB engine overhead + 13.71 GB KV pool + 8.6 GB engine buffers sized by it = 37.36 GB of the 100.0 GB budget", "ts": "2026-10-29T02:06:59Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=KV pool: 8 slots at 262,144 tokens, the most the server runs at once", "ts": "2026-10-29T02:06:59Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=streams that fit: 8 at 262,144 tokens, 63 at 32,768", "ts": "2026-10-29T02:06:59Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=per benchmark: browsecomp 262,144, determinism 16,384, kernelbench 262,144, logprobs 262,144, quality 262,144, speed 262,144, swebench 262,144", "ts": "2026-10-29T02:06:59Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=fetch run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T02:06:59Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=serve_quality run_id=20261029T020534Z-1522375e attempt=1", "ts": "2026-10-29T02:06:59Z"}
+{"event": "docker_run", "level": "INFO", "logger": "sma", "message": "docker_run name=sma-20261029T020534Z-1522375e-quality mode=quality", "ts": "2026-10-29T02:06:59Z"}
+{"event": "server_log", "level": "INFO", "logger": "sma", "message": "server_log mode=quality path=/home/<host>/github/sma/runs/LiquidAI_LFM3-1.7B-GGUF/llamacpp/gguf-BF16/20261029T020534Z-1522375e/logs/server-quality.log", "ts": "2026-10-29T02:07:00Z"}
+{"event": "server_ready", "level": "INFO", "logger": "sma", "message": "server_ready mode=quality elapsed_s=4", "ts": "2026-10-29T02:07:04Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=serve_quality run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T02:07:04Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=determinism run_id=20261029T020534Z-1522375e attempt=1", "ts": "2026-10-29T02:07:04Z"}
+{"event": "warning", "level": "INFO", "logger": "sma", "message": "warning message=Determinism probe failed. The run continues. Use the recorded concurrency for both quants and treat quality deltas against a wider noise band.", "ts": "2026-10-29T02:07:29Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=determinism run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T02:07:29Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=logprobs run_id=20261029T020534Z-1522375e attempt=1", "ts": "2026-10-29T02:07:29Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=logprobs run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T02:07:36Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=quality run_id=20261029T020534Z-1522375e attempt=1", "ts": "2026-10-29T02:07:36Z"}
+{"event": "docker_run", "level": "INFO", "logger": "sma", "message": "docker_run name=sma-20261029T020534Z-1522375e-quality mode=quality", "ts": "2026-10-29T02:07:36Z"}
+{"event": "server_log", "level": "INFO", "logger": "sma", "message": "server_log mode=quality path=/home/<host>/github/sma/runs/LiquidAI_LFM3-1.7B-GGUF/llamacpp/gguf-BF16/20261029T020534Z-1522375e/logs/server-quality.log", "ts": "2026-10-29T02:07:36Z"}
+{"event": "server_ready", "level": "INFO", "logger": "sma", "message": "server_ready mode=quality elapsed_s=4", "ts": "2026-10-29T02:07:40Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=quality run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T07:32:33Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=kernelbench run_id=20261029T020534Z-1522375e attempt=1", "ts": "2026-10-29T07:32:33Z"}
+{"event": "kernelbench_generate", "level": "INFO", "logger": "sma", "message": "kernelbench_generate problems=100 run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T07:32:33Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=kernelbench run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T08:52:15Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=swebench run_id=20261029T020534Z-1522375e attempt=1", "ts": "2026-10-29T08:52:15Z"}
+{"event": "swebench_start", "level": "INFO", "logger": "sma", "message": "swebench_start launch=1 run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T08:52:18Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T08:52:18Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T08:53:19Z"}
+{"event": "swebench_start", "level": "INFO", "logger": "sma", "message": "swebench_start launch=2 run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T08:54:21Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T08:54:21Z"}
+{"event": "warning", "level": "INFO", "logger": "sma", "message": "warning message=50 of 50 tasks got no answer from the model (RuntimeError 50). The score is null. Resume the run to retry those tasks.", "ts": "2026-10-29T08:55:25Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=swebench run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T08:55:25Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=browsecomp_plus run_id=20261029T020534Z-1522375e attempt=1", "ts": "2026-10-29T08:55:26Z"}
+{"event": "browsecomp_search_ready", "level": "INFO", "logger": "sma", "message": "browsecomp_search_ready docs=100195 run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T08:55:44Z"}
+{"event": "browsecomp_start", "level": "INFO", "logger": "sma", "message": "browsecomp_start questions=100 run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T08:55:44Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=browsecomp_plus run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:01:28Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=serve_speed run_id=20261029T020534Z-1522375e attempt=1", "ts": "2026-10-29T16:01:28Z"}
+{"event": "docker_run", "level": "INFO", "logger": "sma", "message": "docker_run name=sma-20261029T020534Z-1522375e-speed mode=speed", "ts": "2026-10-29T16:02:29Z"}
+{"event": "server_log", "level": "INFO", "logger": "sma", "message": "server_log mode=speed path=/home/<host>/github/sma/runs/LiquidAI_LFM3-1.7B-GGUF/llamacpp/gguf-BF16/20261029T020534Z-1522375e/logs/server-speed.log", "ts": "2026-10-29T16:02:30Z"}
+{"event": "server_ready", "level": "INFO", "logger": "sma", "message": "server_ready mode=speed elapsed_s=4", "ts": "2026-10-29T16:02:34Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=serve_speed run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:02:34Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=speed run_id=20261029T020534Z-1522375e attempt=1", "ts": "2026-10-29T16:02:35Z"}
+{"event": "step_failed", "level": "INFO", "logger": "sma", "message": "step_failed step=speed run_id=20261029T020534Z-1522375e error=bench failed (exit 1): ine 200, in from_pretrained\n    raise e\n  File \"/usr/local/lib/python3.12/dist-packages/vllm/tokenizers/hf.py\", line 172, in from_pretrained\n    tokenizer = AutoTokenizer.from_pretrained(\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/dist-packages/transformers/models/auto/tokenization_auto.py\", line 682, in from_pretrained\n    config_dict = load_gguf_checkpoint(gguf_path, return_tensors=False)[\"config\"]\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/dist-packages/transformers/modeling_gguf_pytorch_utils.py\", line 648, in load_gguf_checkpoint\n    raise ValueError(f\"GGUF model with architecture {architecture} is not supported yet.\")\nValueError: GGUF model with architecture lfm3 is not supported yet.", "ts": "2026-10-29T16:03:27Z"}
+{"event": "warning", "level": "INFO", "logger": "sma", "message": "warning message=Page cache was not dropped. The next model may see leftover file cache.", "ts": "2026-10-29T16:03:29Z"}
+{"event": "run_resume", "level": "INFO", "logger": "sma", "message": "run_resume run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:03:53Z"}
+{"event": "step_skip", "level": "INFO", "logger": "sma", "message": "step_skip step=fetch run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:03:53Z"}
+{"event": "step_skip", "level": "INFO", "logger": "sma", "message": "step_skip step=serve_quality run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:03:53Z"}
+{"event": "step_skip", "level": "INFO", "logger": "sma", "message": "step_skip step=determinism run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:03:54Z"}
+{"event": "step_skip", "level": "INFO", "logger": "sma", "message": "step_skip step=logprobs run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:03:54Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=quality run_id=20261029T020534Z-1522375e attempt=2", "ts": "2026-10-29T16:03:54Z"}
+{"event": "docker_run", "level": "INFO", "logger": "sma", "message": "docker_run name=sma-20261029T020534Z-1522375e-quality mode=quality", "ts": "2026-10-29T16:03:54Z"}
+{"event": "server_log", "level": "INFO", "logger": "sma", "message": "server_log mode=quality path=/home/<host>/github/sma/runs/LiquidAI_LFM3-1.7B-GGUF/llamacpp/gguf-BF16/20261029T020534Z-1522375e/logs/server-quality.log", "ts": "2026-10-29T16:03:55Z"}
+{"event": "server_ready", "level": "INFO", "logger": "sma", "message": "server_ready mode=quality elapsed_s=4", "ts": "2026-10-29T16:03:59Z"}
+{"event": "suite_skip", "level": "INFO", "logger": "sma", "message": "suite_skip suite=ifeval run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:03:59Z"}
+{"event": "suite_skip", "level": "INFO", "logger": "sma", "message": "suite_skip suite=gsm8k run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:03:59Z"}
+{"event": "suite_skip", "level": "INFO", "logger": "sma", "message": "suite_skip suite=mmlu_pro run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:03:59Z"}
+{"event": "suite_skip", "level": "INFO", "logger": "sma", "message": "suite_skip suite=gpqa_diamond run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:03:59Z"}
+{"event": "suite_skip", "level": "INFO", "logger": "sma", "message": "suite_skip suite=bfcl_v3 run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:17:22Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=quality run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:17:23Z"}
+{"event": "step_skip", "level": "INFO", "logger": "sma", "message": "step_skip step=kernelbench run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:17:23Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=swebench run_id=20261029T020534Z-1522375e attempt=2", "ts": "2026-10-29T16:17:23Z"}
+{"event": "swebench_start", "level": "INFO", "logger": "sma", "message": "swebench_start launch=1 run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:17:26Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:17:27Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:18:27Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:19:27Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:20:28Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:21:28Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:22:28Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:23:28Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:24:29Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:25:29Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:26:29Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:27:30Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:28:30Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:29:30Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:30:30Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:31:31Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:32:31Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:33:31Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:34:32Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:35:32Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:36:32Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:37:32Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:38:33Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:39:33Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:40:33Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:41:34Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:42:34Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:43:34Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:44:34Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:45:35Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:46:35Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:47:35Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:48:36Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:49:36Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:50:36Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:51:36Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:52:37Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:53:37Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:54:37Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:55:38Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:56:38Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:57:38Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:58:38Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T16:59:39Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T17:00:39Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T17:01:39Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T17:02:40Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T17:03:40Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T17:04:40Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T17:05:40Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T17:06:41Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T17:07:41Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T17:08:41Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T17:09:42Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T17:10:42Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T17:11:42Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T17:12:42Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T17:13:43Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T17:14:43Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T17:15:43Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T17:16:44Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T17:17:44Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T17:18:44Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T17:19:44Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T17:20:45Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T020534Z-1522375e", "ts": "2026-10-29T17:21:45Z"}

@@ -1,0 +1,5 @@
+WARNING: Using incubator modules: jdk.incubator.vector
+Oct 29, 2026 8:55:41 AM org.apache.lucene.store.MemorySegmentIndexInputProvider <init>
+INFO: Using MemorySegmentIndexInput with Java 21; to disable start with -Dorg.apache.lucene.store.MMapDirectory.enableMemorySegments=false
+search server ready on 127.0.0.1:8790: 100195 documents, snippets of 512 tokens
+Token indices sequence length is longer than the specified maximum sequence length for this model (346802 > 131072). Running this sequence through the model will result in indexing errors

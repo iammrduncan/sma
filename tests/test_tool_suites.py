@@ -8,7 +8,7 @@ import pytest
 
 from sma.config import QualitySuite, config_from_mapping, validate_config
 from sma.errors import SmaError
-from sma.pipeline import RunSpec, execute
+from sma.pipeline import RunSpec, SimulatedKill, execute
 from tests.harness import make_config, make_services
 
 BFCL = QualitySuite("bfcl_v3", image="nvcr.io/nvidia/eval-factory/bfcl:26.03", task="bfclv3_ast", tools=True)
@@ -77,7 +77,7 @@ def test_a_resumed_run_keeps_its_tool_parser(tmp_path: Path) -> None:
     cfg = make_config(tmp_path)
     services, _fetcher, _runtime = make_services(tmp_path, cfg)
     services.hooks.kill_step = "determinism"
-    with pytest.raises(RuntimeError):
+    with pytest.raises(SimulatedKill):
         execute(RunSpec(repo="example/tiny", quant_flag="bf16", tool_parser="hermes"), cfg, services)
     run_id = _run_dir(tmp_path).name
 

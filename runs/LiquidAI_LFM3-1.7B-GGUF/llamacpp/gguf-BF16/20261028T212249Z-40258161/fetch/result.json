@@ -1,0 +1,54 @@
+{
+  "architecture": "lfm3",
+  "architectures": [
+    "lfm3"
+  ],
+  "batch_invariant_reason": "llama.cpp has no batch-invariant mode. The determinism probe still runs and records what it sees.",
+  "batch_invariant_supported": false,
+  "dtype": null,
+  "experts_per_tok": null,
+  "file_hashes": {
+    "LFM3-1.7B-BF16.gguf": "sha256:39158a79f56edb85e0c4252ce6447b8d7883ef82ffedd02f0cda7c84da5e9f68"
+  },
+  "file_sizes": {
+    "LFM3-1.7B-BF16.gguf": 3466626336
+  },
+  "gguf": {
+    "architecture": "lfm3",
+    "file_type": "MOSTLY_BF16",
+    "file_type_id": 32,
+    "files": [
+      "LFM3-1.7B-BF16.gguf"
+    ],
+    "model_file": "LFM3-1.7B-BF16.gguf",
+    "name": "LFM3 1.7B",
+    "native_context": 262144,
+    "notes": [],
+    "split_count": 1
+  },
+  "is_moe": false,
+  "num_experts": null,
+  "params_active": 1728801600,
+  "params_active_b": 1.7,
+  "params_method": "GGUF tensor shapes; dense: active = total, embeddings included, from safetensors shapes",
+  "params_total": 1728801600,
+  "params_total_b": 1.7,
+  "quant_detail": "GGUF MOSTLY_BF16; tensors 154 BF16, 133 F32",
+  "quant_detected": "gguf",
+  "quant_flag": "gguf",
+  "quant_label": "BF16",
+  "quant_producer": null,
+  "repo": "LiquidAI/LFM3-1.7B-GGUF",
+  "revision_requested": null,
+  "revision_sha": "4b423c332fd97961416f2e8b69467758fd27370d",
+  "size_class": "1-3B",
+  "snapshot_path": "/data/models/sma/hf/LiquidAI_LFM3-1.7B-GGUF/4b423c332fd97961416f2e8b69467758fd27370d",
+  "sources": {
+    "gguf_file_type": "MOSTLY_BF16",
+    "kv_cache_quant_algo": null,
+    "quant_method": "gguf"
+  },
+  "tokenizer_fingerprint": "sha256:8a0206d02d98207a0d9596774b1bdfff17f60e5b08ae2410f6c5e152466e46df",
+  "warnings": [],
+  "weights_bytes": 3466626336
+}

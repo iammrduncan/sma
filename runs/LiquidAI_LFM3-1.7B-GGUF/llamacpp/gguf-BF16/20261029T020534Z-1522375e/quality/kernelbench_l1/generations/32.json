@@ -1,0 +1,16 @@
+{
+  "content": "<tool_call>\n<function=write>\n<parameter=content>\nimport torch\nimport torch.nn as nn\nimport torch.nn.functional as F\nfrom torch.utils.cpp_extension import load_inline\n\n# Define custom CUDA kernel for element-wise HardTanh (sigmoid-like clipping to [-1, 1])\n# HardTanh: tanh(x) clamped to min_val and max_val. We implement via a simple per-element kernel.\nhardtanh_kernel_source = \"\"\"\n#include <torch/extension.h>\n#include <cuda_runtime.h>\n\n__global__ void hardtanh_kernel(const float* input, float* output, int size) {\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    if (idx < size) {\n        float val = input[idx];\n        // Clamp to min_val and max_val\n        if (val > 1.0f) val = 1.0f;\n        else if (val < -1.0f) val = -1.0f;\n        else val = torch::tanh(val); // but we need raw tanh; use math? We'll compute via exp\n        // Actually implement manually:\n        float t = val;\n        if (t > 0.0f) {\n            t = 1.0f / (1.0f + exp(-2.0f * t)); // approximate? Better: use standard tanh formula.\n        }\n    }\n}\n\n# Simpler: just call torch::tanh on each element via kernel using a library? We'll implement with math.\n# For simplicity, we can delegate to F.hardtanh but customizing is not needed. However requirement says replace pytorch operators.\n# Let's write a straightforward kernel that computes tanh manually:\n__global__ void hardtanh_kernel_raw(const float* input, float* output, int size) {\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    if (idx < size) {\n        float v = input[idx];\n        // Compute tanh using standard formula: (exp(-2v)-1)/(exp(-2v)+1)\n        float expm2v = expf(-2.0f * v);\n        output[idx] = (expm2v - 1.0f) / (expm2v + 1.0f);\n    }\n}\n\ntorch::Tensor hardtanh_cuda(torch::Tensor x) {\n    auto size = x.numel();\n    auto out = torch::zeros_like(x);\n\n    const int block_size = 256;\n    const int num_blocks = (size + block_size - 1) / block_size;\n\n    // Launch kernel with raw tanh\n    hardtanh_kernel_raw<<<num_blocks, block_size>>>(x.data_ptr<float>(), out.data_ptr<float>(), size);\n\n    return out;\n}\n\"\"\"\n\n# Define the function signature to be exposed\nhardtanh_cpp_source = (\n    \"torch::Tensor hardtanh_cuda(torch::Tensor x);\"\n)\n\n# Compile inline CUDA source for HardTanh\nhardtanh = load_inline(\n    name=\"hardtanh\",\n    cpp_sources=hardtanh_cpp_source,\n    cuda_sources=hardtanh_kernel_source,\n    functions=[\"hardtanh_cuda\"],\n    verbose=True,\n    extra_cflags=[],\n    extra_ldflags=[],\n)\n\nclass ModelNew(nn.Module):\n    def __init__(self) -> None:\n        super().__init__()\n        self.hardtanh = hardtanh\n\n    def forward(self, x: torch.Tensor) -> torch.Tensor:\n        return self.hardtanh.hardtanh_cuda(x)\n\n</parameter>\n<parameter=path>\nmodel_new.py\n</parameter>\n</function>\n</tool_call>",
+  "finish_reason": "stop",
+  "kernel": null,
+  "name": "32_HardTanh",
+  "problem_id": 32,
+  "reasoning": null,
+  "usage": {
+    "completion_tokens": 805,
+    "prompt_tokens": 998,
+    "prompt_tokens_details": {
+      "cached_tokens": 462
+    },
+    "total_tokens": 1803
+  }
+}

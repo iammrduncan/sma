@@ -1,0 +1,10 @@
+{
+  "run_id": "20261029_034858_86c69e69",
+  "executor": "local",
+  "output_dir": "/home/<host>/github/sma/runs/LiquidAI_LFM3-1.7B-GGUF/llamacpp/gguf-BF16/20261029T020534Z-1522375e/quality/musique/attempt-1",
+  "started_at": "2026-10-29T03:48:58.254878+00:00",
+  "config_summary": "musique.py",
+  "details": {
+    "pid": 346029
+  }
+}

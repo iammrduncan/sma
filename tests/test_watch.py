@@ -59,7 +59,8 @@ def test_watch_shows_the_current_runs_steps_scores_and_answered_counts(tmp_path:
     cfg = make_config(tmp_path)
     run_dir = _run(cfg, "20261029T020534Z-aaaa", "LiquidAI/LFM3-1.7B-GGUF", "BF16",
                    steps={"fetch": "done", "determinism": "done", "logprobs": "done", "quality": "running"})
-    (run_dir / "determinism.json").write_text(json.dumps({"passed": False}))
+    (run_dir / "determinism.json").write_text(json.dumps({"passed": False, "results": [
+        {"batch_size": 1, "matches_batch_1": True}, {"batch_size": 8, "matches_batch_1": False}, {"batch_size": 64, "matches_batch_1": False}]}))
     (run_dir / "logprobs").mkdir()
     (run_dir / "logprobs" / "perplexity.json").write_text(json.dumps({"perplexity": 24.019}))
     ifeval = run_dir / "quality" / "ifeval"
@@ -77,8 +78,9 @@ def test_watch_shows_the_current_runs_steps_scores_and_answered_counts(tmp_path:
     # One line per benchmark, in the order the run does them. No setup or bookkeeping steps.
     names = [line.split()[1] for line in run.splitlines()[1:] if line.strip()]
     assert names == ["determinism", "perplexity", "ifeval", "mmlu_pro", "bfcl_v3", "kernelbench", "swebench", "browsecomp", "speed"]
-    assert "determinism      passed: no" in run and "perplexity       24.019" in run
-    assert "ifeval           0.720 pass@1  n=50" in run
+    # A failed check is marked failed, with the batch sizes that differ; scores are percentages.
+    assert "✗ determinism      failed: batch 8, 64 differ from batch 1" in run and "perplexity       24.019" in run
+    assert "ifeval           72.0% pass@1  n=50" in run
     assert "mmlu_pro         3/700 answered" in run
     assert "bfcl_v3          queued" in run and "fetch" not in run
     assert "memory 90.0 of 121.0 GiB free" in screen
@@ -388,3 +390,28 @@ def test_a_step_being_redone_shows_progress_not_its_last_attempts_error(tmp_path
     screen = render(cfg, View(["sma-20261029T020534Z-aaaa-quality"], None, NOW))
     line = next(text for text in screen.splitlines() if " swebench " in text)
     assert "▶" in line and "agents on the runner" in line and "no answer" not in line
+
+
+
+def test_scores_are_percentages_colored_from_red_to_green() -> None:
+    from sma.watch import _painter, _percent
+
+    plain = _painter(False)
+    assert _percent(0.704, plain) == "70.4%"
+    colored = _painter(True)
+    assert _percent(0.01, colored) == "\033[38;5;196m1.0%\033[0m"  # red
+    assert _percent(0.35, colored) == "\033[38;5;214m35.0%\033[0m"  # orange
+    assert _percent(0.55, colored) == "\033[38;5;226m55.0%\033[0m"  # yellow
+    assert _percent(1.0, colored) == "\033[38;5;46m100.0%\033[0m"  # green
+
+
+def test_kernelbench_shows_its_correct_and_compiled_counts(tmp_path: Path) -> None:
+    cfg = make_config(tmp_path)
+    run_dir = _run(cfg, "20261029T020534Z-aaaa", "LiquidAI/LFM3-1.7B-GGUF", "BF16", steps={"kernelbench_results": "done"})
+    folder = run_dir / "quality" / "kernelbench_l1"
+    folder.mkdir(parents=True)
+    (folder / "scores.json").write_text(json.dumps({"primary_score": 1 / 99, "primary_metric": "fast_1", "n": 99,
+                                                    "kernelbench": {"total": 100, "compiled": 11, "correct": 5}}))
+    Catalog(cfg.runs_path()).rebuild()
+    screen = render(cfg, View(["sma-20261029T020534Z-aaaa-quality"], None, NOW))
+    assert "kernelbench      1.0% fast_1  n=99  (5 of 100 correct, 11 compiled)" in screen

@@ -1,0 +1,10 @@
+config:
+  type: bfclv3_ast
+  output_dir: /results
+  params:
+    parallelism: 8
+target:
+  api_endpoint:
+    url: http://127.0.0.1:8000/v1/chat/completions
+    model_id: LiquidAI/LFM3-1.7B-GGUF
+    type: chat

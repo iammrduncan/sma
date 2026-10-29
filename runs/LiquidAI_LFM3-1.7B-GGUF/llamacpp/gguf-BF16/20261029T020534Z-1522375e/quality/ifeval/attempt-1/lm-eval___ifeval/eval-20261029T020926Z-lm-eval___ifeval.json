@@ -1,0 +1,82 @@
+{
+  "run_id": "eval-20261029T020926Z-lm-eval___ifeval",
+  "config_hash": "sha256:1e744d99ccc312fde440d9105bbc6cbce7183ba3ecde0bbfa7247337a1fb9f44",
+  "sdk_version": "0.3.0",
+  "timestamp": "2026-10-29T02:09:26.061579+00:00",
+  "config": {
+    "benchmark": "lm-eval://ifeval",
+    "model": "LiquidAI/LFM3-1.7B-GGUF",
+    "base_url": "http://127.0.0.1:4000",
+    "repeats": 1,
+    "max_problems": 50,
+    "scorers": null,
+    "_sandbox_config": "capture_cmd=None verify_timeout=600.0 stateful=False type='none'",
+    "shuffle_seed": 0,
+    "shuffle": {
+      "seed": 0,
+      "applied": true,
+      "ds_full_size": 541,
+      "ds_effective_size": 50
+    }
+  },
+  "benchmark": {
+    "name": "lm-eval://ifeval",
+    "samples": 50,
+    "repeats": 1,
+    "scores": {
+      "pass@1": {
+        "value": 0.72,
+        "bootstrap_ci_lower": 0.6,
+        "bootstrap_ci_upper": 0.84
+      },
+      "summary": {
+        "mean": 0.72,
+        "std": 0.4535573676110727,
+        "min": 0.0,
+        "max": 1.0,
+        "median": 1.0,
+        "n": 50
+      },
+      "runtime": {
+        "total_steps": 50,
+        "total_tokens": 24503,
+        "total_prompt_tokens": 2849,
+        "total_completion_tokens": 21654,
+        "total_reasoning_tokens": 0,
+        "elapsed_seconds": 99.13,
+        "latency_percentiles_ms": {
+          "p50": 7067.65,
+          "p90": 20204.96,
+          "p99": 54305.04
+        },
+        "tokens_per_second": 247.18,
+        "steps_per_second": 0.5,
+        "model_errors": 0,
+        "total_retries": 0,
+        "finish_reason_counts": {
+          "stop": 49,
+          "length": 1
+        }
+      },
+      "failures": {
+        "total_steps": 50,
+        "total_failures": 1,
+        "failure_rate": 0.02,
+        "categories": {
+          "refusal": {
+            "count": 1,
+            "percentage": 0.02,
+            "exemplars": [
+              {
+                "problem_idx": 329,
+                "repeat": 0,
+                "error": "refusal"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "n_results": 50
+}

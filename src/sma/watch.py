@@ -153,10 +153,27 @@ def read_live(
 def _painter(color: bool) -> Callable[[str, str], str]:
     def paint(text: str, style: str) -> str:
         # Scrubbed before the color codes, which would hide a name from scrub_text's word match.
-        code = _COLOR.get(style)
+        code = _score_color(float(style[6:])) if style.startswith("score:") else _COLOR.get(style)
         return f"\033[{code}m{scrub_text(text)}\033[0m" if color and code else text
 
     return paint
+
+
+# 256-color steps from red through orange and yellow to green, one per tenth of a score.
+_GRADIENT = (196, 202, 208, 214, 220, 226, 190, 154, 118, 46)
+
+
+def _score_color(value: float) -> str:
+    return f"38;5;{_GRADIENT[min(max(int(value * 10), 0), 9)]}"
+
+
+def _percent(value: float, paint: Callable[[str, str], str]) -> str:
+    """A score from 0 to 1 as a percentage, colored red (0) through green (1)."""
+    return paint(f"{value * 100:.1f}%", f"score:{value}")
+
+
+def _identity(text: str, _style: str) -> str:
+    return text
 
 
 def _header(view: View, paint) -> list[str]:
@@ -284,7 +301,7 @@ def _run_lines(row: dict[str, Any], now: datetime, paint, totals: dict[str, int]
         if name not in _BENCHMARK_STEPS and status in ("running", "failed"):
             error = paint(str(steps[name].get("error") or "")[:100], "failed")
             lines.append(f"  {paint(_MARK[status], status)} {name:16} {status}  {error}".rstrip())
-    for name, status, detail in _benchmarks(manifest, run_dir, steps, now, totals or {}):
+    for name, status, detail in _benchmarks(manifest, run_dir, steps, now, totals or {}, paint):
         detail = re.sub(r"\s*\n\s*", " ", detail)  # An error's traceback would break the one-line layout.
         lines.append(f"  {paint(_MARK.get(status, '?'), status)} {name:16} {detail if status != 'queued' else paint('queued', 'queued')}")
     return lines
@@ -295,7 +312,7 @@ _BENCHMARK_STEPS = ("determinism", "logprobs", "quality", "kernelbench", "sweben
 
 
 def _benchmarks(
-    manifest, run_dir: Path, steps: dict[str, dict], now: datetime, totals: dict[str, int]
+    manifest, run_dir: Path, steps: dict[str, dict], now: datetime, totals: dict[str, int], paint=_identity
 ) -> list[tuple[str, str, str]]:
     """(name, state, detail) for each benchmark, in the order the run does them."""
 
@@ -313,8 +330,7 @@ def _benchmarks(
         return _elapsed(_time(info.get("started")), _time(info.get("finished")), now) if info.get("started") else ""
 
     rows: list[tuple[str, str, str]] = []
-    passed = (_read_json(run_dir / "determinism.json") or {}).get("passed")
-    rows.append(("determinism", state("determinism"), f"passed: {'yes' if passed else 'no'}" if state("determinism") == "done" else took("determinism")))
+    rows.append(_determinism_row(run_dir, state("determinism"), took("determinism")))
     perplexity = (_read_json(run_dir / "logprobs" / "perplexity.json") or {}).get("perplexity")
     kl = (_read_json(run_dir / "logprobs" / "kl_vs_reference.json") or {}).get("kl_mean")
     detail = " · ".join(part for part in (
@@ -323,8 +339,8 @@ def _benchmarks(
     ) if part)
     rows.append(("perplexity", state("logprobs"), detail or took("logprobs")))
     for suite in _suites(manifest):
-        rows.append(_suite_row(run_dir, {"questions": totals.get(suite["name"]), **{k: v for k, v in suite.items() if v is not None}}, now))
-    rows += _agent_rows(manifest, run_dir, state, took)
+        rows.append(_suite_row(run_dir, {"questions": totals.get(suite["name"]), **{k: v for k, v in suite.items() if v is not None}}, now, paint))
+    rows += _agent_rows(manifest, run_dir, state, took, paint)
     speed = _read_json(run_dir / "speed" / "summary.json") or {}
     parts = [
         f"prefill {_number(speed.get('prefill_tok_s'))} tok/s" if isinstance(speed.get("prefill_tok_s"), (int, float)) else "",
@@ -340,14 +356,26 @@ def _suites(manifest: dict[str, Any]) -> list[dict[str, Any]]:
     return [suite for suite in snapshot.get("suites") or [] if isinstance(suite, dict) and suite.get("name")]
 
 
-def _suite_row(run_dir: Path, suite: dict[str, Any], now: datetime) -> tuple[str, str, str]:
+def _determinism_row(run_dir: Path, status: str, took: str) -> tuple[str, str, str]:
+    """Passed, or failed naming the batch sizes whose output differs from one request alone."""
+    if status != "done":
+        return "determinism", status, took
+    result = _read_json(run_dir / "determinism.json") or {}
+    if result.get("passed"):
+        return "determinism", "done", "passed"
+    differ = [str(row.get("batch_size")) for row in result.get("results") or [] if isinstance(row, dict) and row.get("matches_batch_1") is False]
+    reason = f": batch {', '.join(differ)} differ from batch 1" if differ else ""
+    return "determinism", "failed", f"failed{reason}"
+
+
+def _suite_row(run_dir: Path, suite: dict[str, Any], now: datetime, paint=_identity) -> tuple[str, str, str]:
     name = suite["name"]
     folder = run_dir / "quality" / name
     scores = _read_json(folder / "scores.json")
     if scores and (folder / ".done").is_file():
         if scores.get("primary_score") is None:
             return name, "failed", f"null  {str(scores.get('error') or '')[:90]}"
-        return name, "done", f"{scores['primary_score']:.3f} {scores.get('primary_metric')}  n={scores.get('n')}"
+        return name, "done", f"{_percent(scores['primary_score'], paint)} {scores.get('primary_metric')}  n={scores.get('n')}"
     attempts = sorted(folder.glob("attempt-*"), key=lambda p: int(p.name.split("-")[1]) if p.name.split("-")[1].isdigit() else 0)
     if not attempts:
         return name, "queued", ""
@@ -369,7 +397,7 @@ def _suite_row(run_dir: Path, suite: dict[str, Any], now: datetime) -> tuple[str
     return name, "running", f"{answered}  {_elapsed(begun, None, now)}"
 
 
-def _agent_rows(manifest, run_dir: Path, state, took) -> list[tuple[str, str, str]]:
+def _agent_rows(manifest, run_dir: Path, state, took, paint=_identity) -> list[tuple[str, str, str]]:
     """KernelBench, SWE-bench, and BrowseComp-Plus. KernelBench and BrowseComp-Plus are scored after speed."""
     rows = []
     for step, label in (("kernelbench", "kernelbench"), ("swebench", "swebench"), ("browsecomp_plus", "browsecomp")):
@@ -378,7 +406,12 @@ def _agent_rows(manifest, run_dir: Path, state, took) -> list[tuple[str, str, st
         # A step being redone keeps its last attempt's scores.json until it writes a new one.
         scores = None if status == "running" else _read_json(folder / "scores.json")
         if scores and scores.get("primary_score") is not None:
-            rows.append((label, "done", f"{scores['primary_score']:.3f} {scores.get('primary_metric')}"))
+            detail = f"{_percent(scores['primary_score'], paint)} {scores.get('primary_metric')}  n={scores.get('n')}"
+            counts = scores.get("kernelbench") if isinstance(scores.get("kernelbench"), dict) else {}
+            if counts.get("total"):
+                # fast_1: correct and faster than eager PyTorch. Most kernels fall before that.
+                detail += f"  ({counts.get('correct')} of {counts['total']} correct, {counts.get('compiled')} compiled)"
+            rows.append((label, "done", detail))
             continue
         if scores and scores.get("error"):
             rows.append((label, "failed", str(scores["error"])[:90]))
@@ -475,7 +508,7 @@ def _finished_lines(runs, current, paint) -> list[str]:
             parts.append(f"KL {summary['kl_mean']:.4f}")
         for suite, item in (summary.get("quality") or {}).items():
             if isinstance(item, dict) and isinstance(item.get("score"), (int, float)):
-                parts.append(f"{suite} {item['score']:.2f}")
+                parts.append(f"{suite} {_percent(item['score'], paint)}")
         state = row["status"]
         scores = "  " + " · ".join(parts) if parts else ""
         lines.append(f"  {paint(_MARK[state], state)} {row['model_repo']} {row['quant']}{scores}")

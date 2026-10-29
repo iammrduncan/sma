@@ -1,0 +1,15 @@
+{
+  "concurrency": 8,
+  "extraction": "KernelBench's extract_first_code after the reasoning block",
+  "level": 1,
+  "max_tokens": 32768,
+  "prompt": "KernelBench 423217d9 one-shot CUDA fp32, as a chat with KernelBench's system prompt",
+  "sampling": {
+    "source": "llama-server's own defaults; a GGUF has no generation_config.json"
+  },
+  "system_prompt": "You are a helpful assistant",
+  "thinking": {
+    "enable_thinking": null,
+    "how": "the chat template did not render here (TemplateSyntaxError)"
+  }
+}

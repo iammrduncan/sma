@@ -1,0 +1,88 @@
+{
+  "run_id": "eval-20261029T161722Z-sma_musique",
+  "config_hash": "sha256:bf5240937294553df4aade2d108a0fe7b287ee364fca6b2aefb17297bf2cbfc1",
+  "sdk_version": "0.3.0",
+  "timestamp": "2026-10-29T16:17:22.145828+00:00",
+  "config": {
+    "benchmark": "sma_musique",
+    "model": "LiquidAI/LFM3-1.7B-GGUF",
+    "base_url": "http://127.0.0.1:4000",
+    "repeats": 1,
+    "max_problems": 100,
+    "scorers": null,
+    "_sandbox_config": "capture_cmd=None verify_timeout=600.0 stateful=False type='none'",
+    "shuffle_seed": 0,
+    "shuffle": {
+      "seed": 0,
+      "applied": true,
+      "ds_full_size": 2417,
+      "ds_effective_size": 100
+    }
+  },
+  "benchmark": {
+    "name": "sma_musique",
+    "samples": 100,
+    "repeats": 1,
+    "scores": {
+      "mean_reward": {
+        "value": 0.1699,
+        "ci_lower": 0.1074,
+        "ci_upper": 0.2374
+      },
+      "summary": {
+        "mean": 0.16991423980440504,
+        "std": 0.3447598934791518,
+        "min": 0.0,
+        "max": 1.0,
+        "median": 0.008076306421370147,
+        "n": 100
+      },
+      "breakdowns": {
+        "exact_match": [
+          {
+            "group": "False",
+            "n": 88,
+            "mean_reward": 0.0567,
+            "ci_lower": 0.026,
+            "ci_upper": 0.0951
+          },
+          {
+            "group": "True",
+            "n": 12,
+            "mean_reward": 1.0,
+            "ci_lower": 1.0,
+            "ci_upper": 1.0
+          }
+        ]
+      },
+      "runtime": {
+        "total_steps": 100,
+        "total_tokens": 456583,
+        "total_prompt_tokens": 257744,
+        "total_completion_tokens": 198839,
+        "total_reasoning_tokens": 0,
+        "elapsed_seconds": 802.05,
+        "latency_percentiles_ms": {
+          "p50": 45959.78,
+          "p90": 126519.35,
+          "p99": 128241.41
+        },
+        "tokens_per_second": 569.27,
+        "steps_per_second": 0.12,
+        "model_errors": 0,
+        "total_retries": 0,
+        "finish_reason_counts": {
+          "stop": 77,
+          "length": 23
+        }
+      },
+      "failures": {
+        "total_steps": 100,
+        "total_failures": 0,
+        "failure_rate": 0.0,
+        "categories": {}
+      }
+    }
+  },
+  "n_results": 100
+}
