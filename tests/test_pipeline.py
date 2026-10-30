@@ -284,3 +284,15 @@ def test_the_memory_guard_kills_the_runs_containers_and_the_record_says_why(tmp_
     run_dir = next((tmp_path / "runs").glob("*/*/*/*"))
     warnings = load_manifest(run_dir)["warnings"]
     assert any("The memory guard killed" in w and "5.0 GB available" in w and "guard_free_gb (12 GB)" in w for w in warnings)
+
+
+def test_a_runs_log_stops_when_the_run_ends_so_the_next_run_in_the_process_does_not_write_into_it(tmp_path: Path) -> None:
+    # 2026-10-30: a worker ran several runs in one process, and each run's events went into every earlier
+    # run's logs/sma.log, so a run's record held other runs' steps.
+    cfg = make_config(tmp_path)
+    services, _fetcher, _runtime = make_services(tmp_path, cfg)
+    first = execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
+    services, _fetcher, _runtime = make_services(tmp_path, cfg)
+    second = execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
+    first_log = next((tmp_path / "runs").glob(f"*/*/*/{first}")) / "logs" / "sma.log"
+    assert second not in first_log.read_text(encoding="utf-8")

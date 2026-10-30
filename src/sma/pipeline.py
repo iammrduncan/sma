@@ -45,7 +45,7 @@ from sma.identity import assert_alias_safe
 from sma.kl import parse_perplexity_log, perplexity
 from sma.locks import GpuLock
 from sma.nvml import energy_counter_mj
-from sma.logsetup import add_run_log, log_event
+from sma.logsetup import add_run_log, log_event, remove_run_log
 from sma.probe import run_determinism
 from sma.proc import require_ok, run_command
 from sma.prom import diff_samples, parse_prometheus
@@ -157,6 +157,8 @@ class Ctx:
     telemetry: TelemetryRecorder | None = None
     snapshot: Path | None = None
     batch_invariant: bool = True
+    # This run's logs/sma.log handler, removed when the run ends (a worker runs many runs in one process).
+    log_handler: Any = None
     closed: bool = False
     # Live server-log copiers by mode. Stopped and joined when that server stops.
     followers: dict[str, Any] = field(default_factory=dict)
@@ -485,10 +487,10 @@ def _create(spec: RunSpec, cfg: Config, services: Services) -> Ctx:
         selection_reason=spec.selection_reason,
         thinking=spec.thinking,
     )
-    add_run_log(run_dir / "logs" / "sma.log")
+    handler = add_run_log(run_dir / "logs" / "sma.log")
     publish(cfg, run_dir, manifest)
     log_event("run_created", run_id=run_id, repo=spec.repo, quant=spec.quant_flag)
-    return Ctx(cfg=cfg, services=services, run_dir=run_dir, manifest=manifest)
+    return Ctx(cfg=cfg, services=services, run_dir=run_dir, manifest=manifest, log_handler=handler)
 
 
 def _load(spec: RunSpec, cfg: Config, services: Services) -> Ctx:
@@ -529,9 +531,9 @@ def _load(spec: RunSpec, cfg: Config, services: Services) -> Ctx:
             f"--{manifest.get('quant_flag')}, not {spec.repo} --{spec.quant_flag}."
         )
     _backfill(manifest, found)
-    add_run_log(found / "logs" / "sma.log")
+    handler = add_run_log(found / "logs" / "sma.log")
     log_event("run_resume", run_id=manifest["run_id"])
-    ctx = Ctx(cfg=cfg, services=services, run_dir=found, manifest=manifest)
+    ctx = Ctx(cfg=cfg, services=services, run_dir=found, manifest=manifest, log_handler=handler)
     fetch = _optional(found / "fetch" / "result.json")
     if isinstance(fetch, dict) and fetch.get("snapshot_path"):
         ctx.snapshot = Path(str(fetch["snapshot_path"]))
@@ -594,6 +596,9 @@ def _finish(ctx: Ctx) -> None:
         publish(ctx.cfg, ctx.run_dir, ctx.manifest)
     except Exception as exc:
         log_event("final_publish_failed", error=str(exc))
+    if ctx.log_handler is not None:
+        remove_run_log(ctx.log_handler)
+        ctx.log_handler = None
 
 
 def _check_peak_memory(ctx: Ctx) -> None:

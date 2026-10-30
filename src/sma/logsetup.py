@@ -92,6 +92,13 @@ def add_run_log(path: Path) -> logging.Handler:
     return handler
 
 
+def remove_run_log(handler: logging.Handler) -> None:
+    """Stop writing to a run's log. A worker runs many runs in one process; without this, each run's
+    events also went into every earlier run's logs/sma.log (2026-10-30)."""
+    logging.getLogger("sma").removeHandler(handler)
+    handler.close()
+
+
 def log_event(event: str, **fields: object) -> None:
     logger = get_logger()
     cleaned = {key: scrub_text(str(value)) for key, value in fields.items()}
