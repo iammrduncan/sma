@@ -1,0 +1,81 @@
+command: "{%- if config.params.extra.custom_dataset.path is not none and config.params.extra.custom_dataset.format\
+  \ is not none -%} echo \"Processing custom dataset...\" && export BFCL_DATA_DIR=$(core-evals-process-custom-dataset\
+  \ \\\n  --dataset_format {{config.params.extra.custom_dataset.format}} \\\n  --dataset_path\
+  \ {{config.params.extra.custom_dataset.path}} \\\n  --test_category {{config.params.task}}\
+  \ \\\n  --processing_output_dir {{config.output_dir ~ \"/custom_dataset_processing\"\
+  }} \\\n  {% if config.params.extra.custom_dataset.data_template_path %}--data_template_path\
+  \ {{config.params.extra.custom_dataset.data_template_path}}{% endif %}) && \\\n\
+  echo \"Using custom dataset at ${BFCL_DATA_DIR}\" && \\\n{% endif -%}\n{% if target.api_endpoint.api_key_name\
+  \ is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}{% endif %}\
+  \ bfcl generate --model {{target.api_endpoint.model_id}} --test-category {{config.params.task}}\
+  \ --model-mapping oai --result-dir {{config.output_dir}} --model-args base_url={{target.api_endpoint.url}},native_calling={{config.params.extra.native_calling}}\
+  \  {% if config.params.limit_samples is not none %} --limit {{config.params.limit_samples}}{%\
+  \ endif %} --num-threads  {{config.params.parallelism}} && \\\n{% if target.api_endpoint.api_key_name\
+  \ is not none %}OPENAI_API_KEY=${{target.api_endpoint.api_key_name}}{% endif %}\
+  \ bfcl evaluate --model {{target.api_endpoint.model_id}} --test-category {{config.params.task}}\
+  \ --model-mapping oai --result-dir {{config.output_dir}} --score-dir {{config.output_dir}}\
+  \ --model-args base_url={{target.api_endpoint.url}},native_calling={{config.params.extra.native_calling}}\n"
+config:
+  output_dir: /results
+  params:
+    extra:
+      custom_dataset:
+        data_template_path: null
+        format: null
+        path: null
+      native_calling: true
+    limit_samples: null
+    max_new_tokens: null
+    max_retries: null
+    parallelism: 8
+    request_timeout: null
+    task: multi_turn,ast
+    temperature: null
+    top_p: null
+  required_capabilities: null
+  supported_endpoint_types:
+  - chat
+  type: bfclv3_ast
+framework_name: bfcl
+pkg_name: bfcl
+target:
+  api_endpoint:
+    adapter_config:
+      discovery:
+        dirs: []
+        modules: []
+      endpoint_type: chat
+      interceptors:
+      - config:
+          cache_dir: /results/cache
+          max_saved_requests: 5
+          max_saved_responses: 5
+          reuse_cached_responses: true
+          save_requests: true
+          save_responses: true
+        enabled: true
+        name: caching
+      - config: {}
+        enabled: true
+        name: endpoint
+      - config:
+          cache_dir: /results/response_stats_cache
+          logging_aggregated_stats_interval: 100
+        enabled: true
+        name: response_stats
+      log_failed_requests: false
+      mode: server
+      post_eval_hooks:
+      - config:
+          html_report_size: 5
+          report_types:
+          - html
+          - json
+        enabled: true
+        name: post_eval_report
+    api_key: null
+    api_key_name: null
+    model_id: LiquidAI/LFM3-1.7B
+    stream: null
+    type: chat
+    url: http://127.0.0.1:8000/v1/chat/completions

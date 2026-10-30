@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -316,6 +317,13 @@ def nel_config(cfg: Config, *, served_name: str, base_url: str, suite: QualitySu
     if cfg.quality.chat_template_kwargs:
         # Merged into every request body. vLLM and SGLang both read it.
         proxy["extra_body"] = {"chat_template_kwargs": cfg.quality.chat_template_kwargs}
+    # A field left out is not sent: no temperature lets the engine apply the model's own sampling, and no
+    # max_tokens lets an answer use all the context its stream has left.
+    generation: dict[str, Any] = {"seed": cfg.seed}
+    if cfg.quality.temperature is not None:
+        generation["temperature"] = cfg.quality.temperature
+    if cfg.quality.max_tokens is not None:
+        generation["max_tokens"] = cfg.quality.max_tokens
     return {
         "services": {
             "sma": {
@@ -323,7 +331,7 @@ def nel_config(cfg: Config, *, served_name: str, base_url: str, suite: QualitySu
                 "url": base_url.rstrip("/") + "/v1/chat/completions",
                 "protocol": "chat_completions",
                 "model": served_name,
-                "generation": {"temperature": 0.0, "seed": cfg.seed, "max_tokens": cfg.quality.max_tokens},
+                "generation": generation,
                 "proxy": proxy,
             }
         },
@@ -379,6 +387,20 @@ def script_interpreter(path: Path) -> str | None:
     return words[0] if words and "python" in Path(words[0]).name else None
 
 
+def find_executable(name: str) -> str | None:
+    """name on PATH, or else beside the Python running SMA: nel installs into SMA's own environment
+    (`uv sync --extra quality`), and `.venv/bin/sma worker` started without that folder on PATH found
+    no nel, so five quality suites of LFM3-1.7B's SGLang run failed (2026-10-30)."""
+    import shutil
+    import sys
+
+    found = shutil.which(name)
+    if found or "/" in name:
+        return found
+    beside = Path(sys.executable).parent / name
+    return str(beside) if beside.is_file() and os.access(beside, os.X_OK) else None
+
+
 def nel_argv(cfg: Config, *, output_name: str) -> list[str]:
     """Run from the suite folder, which holds nel.yaml. Results go to <suite>/<output_name>."""
     return [cfg.quality.executable, "eval", "run", NEL_CONFIG, "-o", output_name]
@@ -387,13 +409,18 @@ def nel_argv(cfg: Config, *, output_name: str) -> list[str]:
 EVAL_FACTORY_CONFIG = "run_config.yaml"
 
 
-def eval_factory_config(cfg: Config, *, served_name: str, base_url: str, suite: QualitySuite) -> dict[str, Any]:
-    """The run config an NVIDIA eval-factory container reads. Its harness posts to the URL as given."""
+def eval_factory_config(
+    cfg: Config, *, served_name: str, base_url: str, suite: QualitySuite, run_params: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """The run config an NVIDIA eval-factory container reads. Its harness posts to the URL as given.
+
+    params: requests in flight, then the suite's own settings, then the run's (run_params: sampling, the
+    answer limit, and the request timeout, for a suite whose container sends them)."""
     return {
         "config": {
             "type": suite.task,
             "output_dir": "/results",
-            "params": {"parallelism": cfg.quality.concurrency},
+            "params": {"parallelism": cfg.quality.concurrency, **(suite.params or {}), **(run_params or {})},
         },
         "target": {
             "api_endpoint": {
@@ -405,12 +432,15 @@ def eval_factory_config(cfg: Config, *, served_name: str, base_url: str, suite: 
     }
 
 
-def eval_factory_argv(*, name: str, image: str, attempt_dir: Path, config_path: Path, uid: int, gid: int) -> list[str]:
+def eval_factory_argv(
+    *, name: str, image: str, attempt_dir: Path, config_path: Path, uid: int, gid: int, hf_home: Path
+) -> list[str]:
     """Run the container's harness against the quality server.
 
     Host networking, so 127.0.0.1 is the quality server's published port. The host user owns the
     output, so a later run can remove it. Telemetry is off: the harness would otherwise report the
-    model name and task to NVIDIA.
+    model name and task to NVIDIA. hf_home keeps the datasets a container downloads (LiveCodeBench's
+    is 4.5 GB) between runs. No Hugging Face token is passed: the datasets are public.
     """
     return [
         "docker",
@@ -426,10 +456,14 @@ def eval_factory_argv(*, name: str, image: str, attempt_dir: Path, config_path: 
         "HOME=/tmp",
         "-e",
         "NEMO_EVALUATOR_TELEMETRY_LEVEL=0",
+        "-e",
+        "HF_HOME=/hf-home",
         "-v",
         f"{attempt_dir}:/results",
         "-v",
         f"{config_path}:/config/{EVAL_FACTORY_CONFIG}:ro",
+        "-v",
+        f"{hf_home}:/hf-home",
         image,
         "sh",
         "-c",

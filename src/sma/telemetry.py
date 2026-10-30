@@ -303,6 +303,9 @@ class TelemetryRecorder:
         # (base URL, metrics path, names) of the engine whose counters are sampled, once known.
         self._engine: tuple[str, str, tuple[str, ...]] | None = None
         self._engine_thread: threading.Thread | None = None
+        # The memory guard: (floor in bytes, what to do under it). Fires once per drop under the floor.
+        self._guard: tuple[int, Any] | None = None
+        self._guard_tripped = False
 
     def start(self, sampler: bool = True) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -345,6 +348,28 @@ class TelemetryRecorder:
         row = {"ts": round(stamp, 3), "iso": iso, "phase": self.phase, "values": totals}
         with self.path.with_name(ENGINE_METRICS_FILE).open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(row, sort_keys=True) + "\n")
+        return True
+
+    def guard_memory(self, floor_bytes: int, on_low: Any) -> None:
+        """Call on_low(available bytes) when available memory falls under floor_bytes. Checked with every
+        1 Hz memory sample. It fires again only after memory has come back over the floor."""
+        self._guard = (floor_bytes, on_low) if floor_bytes > 0 else None
+
+    def check_memory(self, available: int) -> bool:
+        """Apply the memory guard to one reading. True when it fired. A test can feed readings directly."""
+        if self._guard is None:
+            return False
+        floor, on_low = self._guard
+        if available >= floor:
+            self._guard_tripped = False
+            return False
+        if self._guard_tripped:
+            return False
+        self._guard_tripped = True
+        try:
+            on_low(available)
+        except Exception as exc:  # The guard must not stop the sampler.
+            log_event("memory_guard_error", error=str(exc))
         return True
 
     def set_phase(self, phase: str) -> None:
@@ -424,6 +449,7 @@ class TelemetryRecorder:
                 memory = meminfo()
                 if memory is not None:
                     self.append_memory(*memory)
+                    self.check_memory(memory[0])
                 if result.returncode == 0 and result.stdout.strip():
                     self.append_parsed(result.stdout.strip().splitlines()[0])
                     self.failures = 0
@@ -449,12 +475,20 @@ class TelemetryRecorder:
 
 
 def engine_values(text: str, names: tuple[str, ...]) -> dict[str, float]:
-    """The named series from a /metrics scrape, labels stripped and summed. Names it lacks are left out."""
+    """The named series from a /metrics scrape, labels stripped and summed. Names it lacks are left out.
+
+    A name may end in a label selector, name{label="value"}: then only the series with that label count,
+    kept under the name as written (SGLang's per-stage latency is one metric with a stage label)."""
+    wanted: dict[str, list[tuple[str, str]]] = {}
+    for name in names:
+        base, _, selector = name.partition("{")
+        wanted.setdefault(base, []).append((name, selector.rstrip("}")))
     totals: dict[str, float] = {}
     for key, value in parse_prometheus(text).items():
-        name = metric_name(key)
-        if name in names:
-            totals[name] = totals.get(name, 0.0) + value
+        for name, selector in wanted.get(metric_name(key), []):
+            labels = key.partition("{")[2]
+            if all(pair.strip() in labels for pair in selector.split(",") if pair.strip()):
+                totals[name] = totals.get(name, 0.0) + value
     return totals
 
 

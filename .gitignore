@@ -21,6 +21,14 @@ runs/**/quality/swebench_verified_mini/trajectories.jsonl.gz
 # per-question files that become it hold them.
 runs/**/quality/browsecomp_plus/trajectories.jsonl.gz
 runs/**/quality/browsecomp_plus/queries/
+# Harness caches inside a suite's attempt: BFCL's request and response stores (SQLite, with their -wal
+# and -shm journals) and LiveCodeBench's answer cache. The answers are in the suite's own result files.
+runs/**/quality/*/attempt-*/cache/
+runs/**/quality/*/attempt-*/response_stats_cache/
+*.db-wal
+*.db-shm
+# A llama-server log too big for git (957 MB of prompt-cache bookkeeping); it stays on this machine.
+runs/LiquidAI_LFM3-1.7B-GGUF/llamacpp/gguf-QAD-Q4_0/20261029T233424Z-3514e934/logs/server-quality.log
 queue/
 .sma/
 *.tmp

@@ -227,3 +227,60 @@ def test_gated_deltanet_does_not_set_batch_invariance(tmp_path: Path) -> None:
     assert manifest["engine"]["env_quality"] == {}
     assert any("gated delta-net" in warning for warning in manifest["warnings"])
     assert runtime.running == set()
+
+
+def test_scores_come_before_speed(tmp_path: Path, monkeypatch) -> None:
+    # Owner, 2026-10-29: KernelBench and BrowseComp-Plus were scored only after speed; they need no Spark GPU.
+    import sma.pipeline as pipeline
+    from sma.records import STEP_NAMES
+
+    order: list[str] = []
+    real = pipeline._run_step
+
+    def record(ctx, name, fn, *args, **kwargs):
+        order.append(name)
+        return real(ctx, name, fn, *args, **kwargs)
+
+    monkeypatch.setattr(pipeline, "_run_step", record)
+    cfg = make_config(tmp_path)
+    services, _fetcher, _runtime = make_services(tmp_path, cfg)
+    try:
+        execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
+    except SmaError:
+        pass  # this harness has no KernelBench, SWE-bench, or BrowseComp-Plus machines; the order is the point
+    assert order.index("browsecomp_plus_results") < order.index("serve_speed")
+    assert order.index("kernelbench_results") < order.index("serve_speed")
+    # The manifest lists the steps in the order they run.
+    assert [name for name in STEP_NAMES if name in order] == order
+
+
+def test_the_memory_guard_kills_the_runs_containers_and_the_record_says_why(tmp_path: Path) -> None:
+    # On 2026-10-28 a llama.cpp server took the whole Spark down: GPU memory on a GB10 is charged to no
+    # process, and earlyoom only sends SIGTERM. SMA now kills its own containers under memory.guard_free_gb.
+    from tests.fakes import FakeEvaluator, telemetry_factory
+
+    cfg = make_config(tmp_path)
+    services, _fetcher, runtime = make_services(tmp_path, cfg)
+    recorders = []
+
+    def factory(run_dir, cfg_):
+        recorders.append(telemetry_factory(run_dir, cfg_))
+        return recorders[-1]
+
+    class LowMemory(FakeEvaluator):
+        def run(self, argv, output_dir, timeout_s, log_path, client_timeout_s=None):
+            if argv[0] != "docker" and "/app/llama-perplexity" not in argv and not self.configs:
+                assert recorders[-1].check_memory(5 * 10**9) is True  # 5 GB available: under the 12 GB floor
+                assert recorders[-1].check_memory(4 * 10**9) is False  # once per drop
+                killed = sorted(runtime.exited)
+                assert killed and all("-quality" in name for name in killed)
+                raise SmaError("the server went away")
+            return super().run(argv, output_dir, timeout_s, log_path, client_timeout_s)
+
+    services.telemetry_factory = factory
+    services.evaluator = LowMemory()
+    with pytest.raises(SmaError):
+        execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
+    run_dir = next((tmp_path / "runs").glob("*/*/*/*"))
+    warnings = load_manifest(run_dir)["warnings"]
+    assert any("The memory guard killed" in w and "5.0 GB available" in w and "guard_free_gb (12 GB)" in w for w in warnings)

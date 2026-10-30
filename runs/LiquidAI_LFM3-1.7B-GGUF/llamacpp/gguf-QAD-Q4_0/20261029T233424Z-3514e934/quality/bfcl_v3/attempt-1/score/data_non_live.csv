@@ -1,0 +1,2 @@
+Rank,Model,Non_Live Overall Acc,AST Summary,Exec Summary,Simple AST,Python Simple AST,Java Simple AST,JavaScript Simple AST,Multiple AST,Parallel AST,Parallel Multiple AST,Simple Exec,Python Simple Exec,REST Simple Exec,Multiple Exec,Parallel Exec,Parallel Multiple Exec,Irrelevance Detection
+1,LiquidAI_LFM3-1.7B-GGUF,45.85%,83.58%,N/A,73.33%,93.00%,61.00%,66.00%,92.00%,83.50%,85.50%,N/A,N/A,N/A,N/A,N/A,N/A,78.33%

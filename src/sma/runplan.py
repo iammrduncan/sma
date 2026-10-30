@@ -5,6 +5,7 @@ memplan.py does the arithmetic. This module knows what SMA runs. See docs/servin
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 from sma.backends import ServePlan, get_backend
@@ -63,6 +64,8 @@ def plan_run(cfg: Config, *, engine: str, layout: KvLayout, weights_bytes: int) 
     """The plan for one run on one engine. Raises SmaError when it does not fit the budget."""
     overhead = int(cfg.memory.overhead_gb[engine] * 1e9)
     buffer_bytes_per_token, max_streams = 0, None
+    if engine == "sglang":
+        layout = sglang_layout(layout)
     if engine == "llamacpp":
         # llama-server's prompt cache lives in host RAM beside the pool (--cache-ram).
         overhead += cfg.engine.llamacpp_cache_ram_mib * 2**20
@@ -83,6 +86,25 @@ def plan_run(cfg: Config, *, engine: str, layout: KvLayout, weights_bytes: int) 
     )
 
 
+def sglang_layout(layout: KvLayout) -> KvLayout:
+    """The layout SGLang allocates: its pool gives sliding-window layers K and V for every pooled token,
+    not only the window. On a Spark (dev-lfm3, 2026-10-30) it gave LFM3-1.7B's 5 sliding layers full length
+    beside its 6 full-attention layers: 11,264 bytes a token, where the plan counted 6,144, so 9.39M
+    tokens took 98.5 GB and left the Spark 9 GB. Where SGLang runs its hybrid sliding-window pool, those
+    layers still hold 0.8 of the pooled tokens (swa_full_tokens_ratio); counting them in full stays safe."""
+    if not layout.sliding_attention_layers:
+        return layout
+    return replace(
+        layout,
+        full_attention_layers=layout.full_attention_layers + layout.sliding_attention_layers,
+        full_values_per_token=layout.full_values_per_token + layout.sliding_values_per_token,
+        sliding_attention_layers=0,
+        sliding_values_per_token=0,
+        sliding_window=None,
+        notes=(*layout.notes, "SGLang keeps the sliding-window layers at full length, so they count as full attention."),
+    )
+
+
 def serve_plan(cfg: Config, plan: dict[str, Any] | None, *, model_file: str | None = None) -> ServePlan:
     """The serve command's view of a recorded plan (MemoryPlan.to_json). Placeholders when it is missing."""
     if not isinstance(plan, dict):
@@ -97,6 +119,7 @@ def serve_plan(cfg: Config, plan: dict[str, Any] | None, *, model_file: str | No
         pool_tokens=tokens,
         model_file=model_file,
         slots=slots(cfg),
+        weights_bytes=int(plan["weights_bytes"]) if isinstance(plan.get("weights_bytes"), int) else None,
     )
 
 

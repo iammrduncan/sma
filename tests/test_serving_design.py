@@ -595,3 +595,30 @@ def test_a_reasoning_parser_reaches_vllm_and_sglang_but_not_llama_cpp() -> None:
     argv = serve_argv(cfg, mode="quality", served_name="m", is_moe=False, quant_flag="bf16", moe_backend=None,
                       batch_invariant=False, plan=SERVE_PLAN, engine="sglang")
     assert "--reasoning-parser" not in argv
+
+
+def test_sglang_plans_sliding_layers_in_full_and_its_memory_share_holds_the_plan() -> None:
+    # On a Spark (2026-10-30) SGLang dev-lfm3 gave LFM3-1.7B's 5 sliding-window layers full-length K and V:
+    # 9.39M tokens took 98.5 GB, the plan said 83.5 GB, and SMA's memory guard killed it at 9 GB free.
+    from sma.backends import ServePlan, sglang_mem_fraction
+    from sma.config import default_config
+    from sma.memplan import kv_layout_from_hf_config
+    from sma.runplan import plan_run
+
+    cfg = default_config()
+    layout = kv_layout_from_hf_config(_json(Path(__file__).resolve().parent / "data" / "configs" / "lfm3-1.7b.json"))
+    assert (layout.full_attention_layers, layout.sliding_attention_layers, layout.sliding_window) == (6, 5, 256)
+    vllm = plan_run(cfg, engine="vllm", layout=layout, weights_bytes=3_460_000_000)
+    sglang = plan_run(cfg, engine="sglang", layout=layout, weights_bytes=3_460_000_000)
+    # 4 KV heads x 128 x K and V x 1 byte (FP8) = 1,024 bytes a layer: 6 layers for vLLM's plan, 11 for SGLang's.
+    assert (vllm.kv_bytes_per_token, sglang.kv_bytes_per_token) == (6_144, 11_264)
+    assert sglang.pool_tokens == sglang.pool_bytes // 11_264
+
+    plan = ServePlan(context=sglang.context, pool_bytes=sglang.pool_bytes, pool_tokens=sglang.pool_tokens, weights_bytes=3_460_000_000)
+    # 3.5 GB in use already: SGLang may hold that, the weights, and the pool, and no more.
+    fraction = sglang_mem_fraction(cfg, plan, memory=(127_160_000_000, 130_660_000_000))
+    assert fraction == pytest.approx((3_500_000_000 + 3_460_000_000 + sglang.pool_bytes) / 130_660_000_000)
+    assert fraction < cfg.engine.gpu_memory_utilization
+    # Never above engine.gpu_memory_utilization, and that cap before a plan exists.
+    assert sglang_mem_fraction(cfg, plan, memory=(20_000_000_000, 130_660_000_000)) == cfg.engine.gpu_memory_utilization
+    assert sglang_mem_fraction(cfg, ServePlan("<context>", "<kv-pool-bytes>", "<kv-pool-tokens>")) == cfg.engine.gpu_memory_utilization

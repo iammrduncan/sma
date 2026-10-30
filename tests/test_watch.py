@@ -22,8 +22,9 @@ NOW = datetime(2026, 10, 29, 3, 0, tzinfo=timezone.utc)
 SUITES = [{"name": "ifeval", "limit": 50}, {"name": "mmlu_pro", "limit": 700}, {"name": "bfcl_v3", "limit": None}]
 
 
-def _run(cfg, run_id: str, repo: str, quant: str, *, steps: dict[str, str], finished: bool = False) -> Path:
-    run_dir = Path(cfg.runs_dir) / repo.replace("/", "_") / "llamacpp" / f"gguf-{quant}" / run_id
+def _run(cfg, run_id: str, repo: str, quant: str, *, steps: dict[str, str], finished: bool = False, thinking: str | None = None) -> Path:
+    folder = f"gguf-{quant}" + ("-thinking" if thinking == "on" else "")
+    run_dir = Path(cfg.runs_dir) / repo.replace("/", "_") / "llamacpp" / folder / run_id
     run_dir.mkdir(parents=True)
     manifest = {
         "run_id": run_id,
@@ -37,6 +38,8 @@ def _run(cfg, run_id: str, repo: str, quant: str, *, steps: dict[str, str], fini
         "steps": {name: {"status": steps.get(name, "pending"), "started": "2026-10-29T02:10:00Z" if name in steps else None, "finished": None, "error": None} for name in STEP_NAMES},
         "config_snapshot": {"quality": {"suites": SUITES}, "browsecomp": {"limit": 100}},
     }
+    if thinking is not None:
+        manifest["thinking"] = thinking
     (run_dir / "manifest.json").write_text(json.dumps(manifest))
     return run_dir
 
@@ -44,10 +47,10 @@ def _run(cfg, run_id: str, repo: str, quant: str, *, steps: dict[str, str], fini
 def _cell(screen: str, row: str, column: str) -> str:
     """One SERVING table cell: rows are labels of 20 characters after the indent, columns 12 wide."""
     serving = screen.split("SERVING")[1].split("FINISHED")[0].splitlines()
-    columns = ["since start", "5 min", "1 hour", "24 hours"]
+    columns = ["since start", "5 min", "1 hour", "24 hours", "24 h, all"]
     line = next(text for text in serving if text.strip().startswith(row))
     index = columns.index(column)
-    return line[22 + 12 * index : 22 + 12 * (index + 1)].strip()
+    return line[22 + 14 * index : 22 + 14 * (index + 1)].strip()
 
 
 def _screen(cfg, containers: list[str], plan: Path | None = None) -> str:
@@ -116,6 +119,83 @@ def test_watch_plan_counts_only_runs_since_its_start(tmp_path: Path) -> None:
     assert "old1" not in screen.split("FINISHED")[0]
 
 
+def test_watch_tells_a_thinking_on_run_from_its_thinking_off_run(tmp_path: Path) -> None:
+    # Owner decision 2026-10-29: each 4-bit quant runs twice, thinking off and thinking on.
+    cfg = make_config(tmp_path)
+    repo = "LiquidAI/LFM3-1.7B-GGUF"
+    _run(cfg, "20261029T233424Z-q4of", repo, "QAD-Q4_0", steps={name: "done" for name in STEP_NAMES}, finished=True, thinking="off")
+    run_dir = _run(cfg, "20261030T120000Z-q4on", repo, "QAD-Q4_0", steps={"quality": "running"}, thinking="on")
+    mmlu = run_dir / "quality" / "mmlu_pro"
+    mmlu.mkdir(parents=True)
+    (mmlu / "scores.json").write_text(json.dumps({"primary_score": 0.5, "primary_metric": "pass@1", "n": 700, "answers_cut_off": 3}))
+    (mmlu / ".done").write_text("{}")
+    plan = tmp_path / "plan.txt"
+    plan.write_text(f"since 2026-10-29T02:05:00Z\n{repo} QAD-Q4_0\n{repo} QAD-Q4_0 thinking\n")
+
+    screen = _screen(cfg, ["sma-20261030T120000Z-q4on-quality"], plan)
+
+    lines = screen.splitlines()
+    assert any(line.rstrip().endswith("20261029T233424Z-q4of") and "QAD-Q4_0 " in line and "done" in line for line in lines)
+    assert any("QAD-Q4_0 thinking" in line and "running" in line and "20261030T120000Z-q4on" in line for line in lines)
+    assert "LiquidAI/LFM3-1.7B-GGUF QAD-Q4_0 on llamacpp, thinking on" in screen
+    # Answers that ran out of room are counted on the suite's line.
+    assert "mmlu_pro         50.0% pass@1  n=700  3 cut off" in screen
+
+
+def test_a_suite_the_runs_config_turned_off_gets_no_line(tmp_path: Path) -> None:
+    # Owner, 2026-10-29: SWE-bench is off, and the watch still listed it as queued.
+    cfg = make_config(tmp_path)
+    run_dir = _run(cfg, "20261030T044436Z-aaaa", "LiquidAI/LFM3-1.7B", "BF16", steps={"fetch": "running"})
+    manifest = json.loads((run_dir / "manifest.json").read_text())
+    manifest["config_snapshot"]["swebench"] = {"enabled": False}
+    (run_dir / "manifest.json").write_text(json.dumps(manifest))
+
+    run = _screen(cfg, ["sma-20261030T044436Z-aaaa-quality"]).split("SERVING")[0]
+
+    assert "swebench" not in run
+    assert "kernelbench" in run and "browsecomp" in run
+
+
+def test_serving_shows_the_current_run_and_every_run_only_in_the_day_column(tmp_path: Path) -> None:
+    # Owner, 2026-10-29: the windows are for the model running now; the 24-hour column is every run together.
+    cfg = make_config(tmp_path)
+    end = NOW.timestamp()
+
+    def series(run_dir: Path, rate: float) -> None:
+        rows = [
+            json.dumps({"ts": end - age, "values": {"llamacpp:tokens_predicted_total": tokens, "llamacpp:tokens_predicted_seconds_total": tokens / rate}})
+            for age, tokens in ((60, 0), (45, 600), (30, 1200))
+        ]  # fmt: skip
+        (run_dir / "engine_metrics.jsonl").write_text("\n".join(rows) + "\n")
+        os.utime(run_dir / "engine_metrics.jsonl", (end, end))
+
+    series(_run(cfg, "20261029T233424Z-old0", "LiquidAI/LFM3-1.7B-GGUF", "QAD-Q4_0", steps={name: "done" for name in STEP_NAMES}, finished=True), 40.0)
+    series(_run(cfg, "20261030T044436Z-now0", "LiquidAI/LFM3-1.7B", "bf16", steps={"quality": "running"}), 10.0)
+
+    screen = _screen(cfg, ["sma-20261030T044436Z-now0-quality"])
+
+    # Each cell is average/peak; the peak is the highest rate over one pair of samples.
+    assert _cell(screen, "decode, per stream", "5 min") == "10.0/10.0"  # this run only
+    assert _cell(screen, "decode, per stream", "24 hours") == "10.0/10.0"  # this run's day
+    # Every run: 2,400 tokens in 150 decode-seconds (1,200 at 40 tok/s, 1,200 at 10 tok/s).
+    assert _cell(screen, "decode, per stream", "24 h, all") == "16.0/40.0"  # the other run peaked at 40
+
+
+def test_a_suite_that_failed_before_it_started_shows_failed_not_queued(tmp_path: Path) -> None:
+    # 2026-10-30: five nel suites failed at once ("nel is not on PATH") and sma watch called them queued.
+    cfg = make_config(tmp_path)
+    run_dir = _run(cfg, "20261030T045832Z-aaaa", "LiquidAI/LFM3-1.7B", "bf16", steps={"quality": "running"})
+    ifeval = run_dir / "quality" / "ifeval"
+    ifeval.mkdir(parents=True)
+    (ifeval / "scores.json").write_text(json.dumps({"primary_score": None, "error": "nel is not on PATH."}))
+
+    run = _screen(cfg, ["sma-20261030T045832Z-aaaa-quality"]).split("SERVING")[0]
+
+    assert "ifeval           failed" not in run  # the state word is not printed; the error is
+    line = next(text for text in run.splitlines() if "ifeval" in text)
+    assert "✗" in line and "nel is not on PATH." in line
+
+
 def test_watch_lists_pending_queue_jobs(tmp_path: Path) -> None:
     cfg = make_config(tmp_path)
     JobQueue(cfg.queue_path()).add([{"repo": "Qwen/Qwen3-8B", "quant": "bf16"}], kind="single")
@@ -123,7 +203,8 @@ def test_watch_lists_pending_queue_jobs(tmp_path: Path) -> None:
     screen = _screen(cfg, [])
 
     assert "QUEUE  1 job in sma queue" in screen
-    assert "Qwen/Qwen3-8B bf16" in screen and "pending" in screen
+    # Each line starts with the engine the job runs on (owner, 2026-10-30): VLLM, SGL, or CPP.
+    assert "VLLM · Qwen/Qwen3-8B  · bf16  pending" in screen
     assert "CURRENT RUN  none" in screen
 
 
@@ -131,7 +212,7 @@ def test_watch_refuses_a_plan_line_it_cannot_read(tmp_path: Path) -> None:
     cfg = make_config(tmp_path)
     plan = tmp_path / "plan.txt"
     plan.write_text("LiquidAI/LFM3-1.7B-GGUF BF16 extra\n")
-    with pytest.raises(SmaError, match="is not 'REPO QUANT' or 'since TIME'"):
+    with pytest.raises(SmaError, match="is not 'REPO QUANT', 'REPO QUANT thinking', or 'since TIME'"):
         _screen(cfg, [], plan)
 
 
@@ -208,11 +289,11 @@ def test_watch_serving_shows_each_windows_averages_and_dashes_what_the_engine_la
 
     rows = ("prefill, per stream", "decode, per stream", "decode, all streams", "ITL ms")
     # Per stream: one request's rate while sharing. All streams: the server's total over the window.
-    assert [_cell(screen, row, "5 min") for row in rows] == ["2,000", "40.0", "300", "25.0"]
+    assert [_cell(screen, row, "5 min") for row in rows] == ["2,000/2,000", "40.0/40.0", "300/300", "25.0/25.0"]
     # Prompt tokens over wall-clock time are not a prefill speed, so there is no such row.
     assert "prefill, all streams" not in screen
     # The day also counts the two samples from 2 hours ago, at the same rates; the gap between is skipped.
-    assert [_cell(screen, row, "24 hours") for row in rows] == ["2,000", "40.0", "300", "25.0"]
+    assert [_cell(screen, row, "24 h, all") for row in rows] == ["2,000/2,000", "40.0/40.0", "300/300", "25.0/25.0"]
     assert _cell(screen, "prefill, per stream", "since start") == "—"  # No live read in this test.
     serving = screen.split("SERVING")[1].split("FINISHED")[0]
     assert "TTFT" not in serving and "covered" not in serving  # Only prefill, decode, and ITL.
@@ -265,9 +346,10 @@ def test_watch_reads_the_live_server_for_a_run_that_records_no_engine_counters(t
     assert asked[0] == (f"http://127.0.0.1:{cfg.engine.port}", "/metrics")
     rows = ("prefill, per stream", "decode, per stream", "decode, all streams", "ITL ms")
     # Since start: the counters over the container's 1,000 s of uptime.
-    assert [_cell(screen, row, "since start") for row in rows] == ["2,000", "31.3", "36.0", "31.9"]
-    assert [_cell(screen, row, "5 min") for row in rows] == ["2,000", "40.0", "400", "25.0"]
-    assert "this run records no counters" in screen
+    # Average/peak: the peak is the one pair of reads 15 s apart (6,000 tokens in 150 s of decode, 15 s of wall time).
+    assert [_cell(screen, row, "since start") for row in rows] == ["2,000/2,000", "31.3/40.0", "36.0/400", "31.9/25.0"]
+    assert [_cell(screen, row, "5 min") for row in rows] == ["2,000/2,000", "40.0/40.0", "400/400", "25.0/25.0"]
+    assert "the run records no counters" in screen
 
 
 def test_watch_does_not_count_a_recording_run_twice(tmp_path: Path) -> None:
@@ -333,6 +415,21 @@ def test_watch_counts_bfcl_answers_from_the_containers_result_files(tmp_path: Pa
     assert detail.startswith("3 answered · 2 categories")
     _name, _state, limited = _suite_row(run_dir, {"name": "bfcl_v3", "limit": 1000, "image": "x"}, NOW)
     assert limited.startswith("3/1,000 answered")
+
+
+def test_watch_counts_livecodebench_answers_from_its_runners_cache(tmp_path: Path) -> None:
+    # LiveCodeBench's runner keeps one cache key per answered problem and rewrites the file every 10.
+    from sma.watch import _suite_row
+
+    run_dir = tmp_path / "run"
+    cache = run_dir / "quality" / "livecodebench" / "attempt-1" / "cache"
+    cache.mkdir(parents=True)
+    suite = {"name": "livecodebench", "limit": None, "image": "nvcr.io/nvidia/eval-factory/livecodebench:26.03", "questions": 454}
+    (cache / "LFM3_codegeneration_release_v6_1_.json").write_text(json.dumps({"p0": ["a"], "p1": ["b"], "p2": ["c"]}))
+    assert _suite_row(run_dir, suite, NOW)[2].startswith("3/454 answered")
+    # Caught mid-rewrite: no count, not an error.
+    (cache / "LFM3_codegeneration_release_v6_1_.json").write_text('{"p0": [')
+    assert _suite_row(run_dir, suite, NOW)[2].startswith("running")
 
 
 def test_a_suites_question_total_comes_from_its_config_even_for_an_older_runs_record(tmp_path: Path) -> None:

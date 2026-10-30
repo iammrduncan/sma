@@ -1,0 +1,24 @@
+{
+  "bench": "sma:musique",
+  "bundle": "attempt-1/sma_musique/eval-20261030T004332Z-sma_musique.json",
+  "categories": null,
+  "ci_lower": 0.1298,
+  "ci_upper": 0.2725,
+  "concurrency": 8,
+  "context_per_stream": 262144,
+  "dataset_size": 2417,
+  "error": null,
+  "failures": 4,
+  "limit": 100,
+  "n": 100,
+  "pass_at_1_failures_as_wrong": null,
+  "primary_metric": "answer_f1",
+  "primary_score": 0.1986,
+  "repeats": 1,
+  "scorer": "nemo-evaluator 0.3.0",
+  "scorer_shares": {
+    "exact_match": 0.14
+  },
+  "shuffle_seed": 0,
+  "suite": "musique"
+}

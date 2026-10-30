@@ -47,6 +47,10 @@
     "model_slug": { "type": "string" },
     "quant_flag": { "enum": ["bf16", "nvfp4", "mxfp4", "mixed", "gguf"] },
     "quant_label": { "type": ["string", "null"] },
+    "thinking": {
+      "description": "The run's thinking mode. Null: a run from before the setting, which scored quality with thinking off.",
+      "enum": ["off", "on", null]
+    },
     "quant_detected": { "type": ["string", "null"] },
     "revision_sha": { "type": ["string", "null"] },
     "host_alias": { "type": "string" },
@@ -140,6 +144,11 @@
           "description": "Each measure the harness reported besides the headline, as a share (IFEval: by prompt and by instruction, strict and loose). Null when it reported none. Older records lack it.",
           "type": ["object", "null"],
           "additionalProperties": { "type": "number" }
+        },
+        "answers_cut_off": {
+          "description": "Answers that stopped at the output limit (finish_reason length). Null when not counted.",
+          "type": ["integer", "null"],
+          "minimum": 0
         }
       }
     },

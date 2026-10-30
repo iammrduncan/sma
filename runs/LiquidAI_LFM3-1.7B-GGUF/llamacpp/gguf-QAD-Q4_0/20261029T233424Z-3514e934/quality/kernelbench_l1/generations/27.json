@@ -1,0 +1,16 @@
+{
+  "content": "<tool_call>\n<function=write>\n<parameter=path>\nModelNew.py\n</parameter>\n<parameter=content>\nimport torch\nimport torch.nn as nn\nfrom torch.utils.cpp_extension import load_inline\n\n\n# Define the custom CUDA kernel for element-wise SELU activation (SELU = \u03c3(x) * tanh(x))\n# We implement a simple online softmax-like approach or use a per-element kernel.\n# For simplicity and to match \"custom operators\" we write an inline function that applies SELU.\n\nselu_cpp_source = \"\"\"\ntorch::Tensor selu_cuda(torch::Tensor x);\n\"\"\"\n\nselu_cuda_kernel_source = \"\"\"\n__global__ void selu_kernel(const float* input, float* output, int size) {\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    if (idx < size) {\n        float val = input[idx];\n        // SELU: x * sigmoid(x)\n        float sigmoid_val = 1.0f / (1.0f + exp(-val));\n        output[idx] = val * sigmoid_val * tanh(val);\n    }\n}\n\ntorch::Tensor selu_cuda(torch::Tensor x) {\n    auto size = x.numel();\n    auto out = torch::zeros_like(x);\n\n    const int block_size = 256;\n    const int num_blocks = (size + block_size - 1) / block_size;\n\n    selu_kernel<<<num_blocks, block_size>>>(x.data_ptr<float>(), out.data_ptr<float>(), size);\n\n    return out;\n}\n\"\"\"\n\nselu_cpp = \"torch::Tensor selu_cuda(torch::Tensor x);\"\nelement_selu_source = (\n    \"selu_cuda_kernel_source\\n\" + \"\\n\".join(selu_cuda_kernel_source.splitlines()) +\n    \"\\ntorch::Tensor selu_cuda(torch::Tensor x);\"\n)\n\n\n# Compile the inline CUDA code for SELU activation\nselu = load_inline(\n    name=\"selu\",\n    cpp_sources=selu_cpp_source,\n    cuda_sources=element_selu_source,\n    functions=[\"selu_cuda\"],\n    verbose=True,\n    extra_cflags=[],\n    extra_ldflags=[],\n)\n\n\nclass ModelNew(nn.Module):\n    def __init__(self) -> None:\n        super().__init__()\n        self.selu = selu\n\n    def forward(self, x: torch.Tensor) -> torch.Tensor:\n        return self.selu.element_selu_cuda(x)\n\n</parameter>\n</function>\n</tool_call>",
+  "finish_reason": "stop",
+  "kernel": null,
+  "name": "27_SELU_",
+  "problem_id": 27,
+  "reasoning": null,
+  "usage": {
+    "completion_tokens": 555,
+    "prompt_tokens": 977,
+    "prompt_tokens_details": {
+      "cached_tokens": 463
+    },
+    "total_tokens": 1532
+  }
+}

@@ -25,6 +25,8 @@ class Series:
 
     engine: str
     samples: list[tuple[float, dict[str, float]]]
+    # The run the samples belong to (its folder name), so a view can keep to one run.
+    run_id: str | None = None
 
 
 @dataclass
@@ -36,10 +38,19 @@ class Window:
     totals: dict[str, float] = field(default_factory=dict)
     counts: dict[str, int] = field(default_factory=dict)
     seconds: float = 0.0
+    # The highest rate over any one pair of samples in the window (telemetry.engine_metrics_interval_s).
+    peaks: dict[str, float] = field(default_factory=dict)
 
     def rates(self) -> dict[str, float | None]:
         mean = {name: self.totals[name] / self.counts[name] for name in self.totals if self.counts.get(name)}
         return get_backend(self.engine).serving_rates(self.change, mean, self.seconds)
+
+
+def combined_rates(windows: list[Window]) -> dict[str, float | None]:
+    """One set of rates over every engine's window: tokens and seconds summed across engines first."""
+    from sma.backends import rates_from_parts
+
+    return rates_from_parts([get_backend(one.engine).serving_parts(one.change, one.seconds) for one in windows])
 
 
 def recent_series(runs_dir: Path, *, now: float, span_s: float) -> list[Series]:
@@ -55,7 +66,7 @@ def recent_series(runs_dir: Path, *, now: float, span_s: float) -> list[Series]:
         engine = (manifest.get("engine") or {}).get("name") if isinstance(manifest, dict) else None
         samples = [sample for sample in _read_samples(path) if sample[0] >= now - span_s]
         if engine and samples:
-            found.append(Series(str(engine), samples))
+            found.append(Series(str(engine), samples, path.parent.name))
     return found
 
 
@@ -68,13 +79,33 @@ def window(series: list[Series], *, start: float, max_gap_s: float) -> list[Wind
                 continue
             totals = by_engine.setdefault(one.engine, Window(one.engine))
             totals.seconds += after_t - before_t
+            step: dict[str, float] = {}
             for name, value in after.items():
                 previous = before.get(name)
                 if previous is not None:
-                    totals.change[name] = totals.change.get(name, 0.0) + (value - previous if value >= previous else value)
+                    step[name] = value - previous if value >= previous else value
+                    totals.change[name] = totals.change.get(name, 0.0) + step[name]
                 totals.totals[name] = totals.totals.get(name, 0.0) + value
                 totals.counts[name] = totals.counts.get(name, 0) + 1
+            for key, rate in _rates(one.engine, step, after_t - before_t).items():
+                if rate is not None:
+                    totals.peaks[key] = max(rate, totals.peaks.get(key, rate))
     return list(by_engine.values())
+
+
+def combined_peaks(windows: list[Window]) -> dict[str, float]:
+    """The highest rate any engine reached over one pair of samples in the window."""
+    peaks: dict[str, float] = {}
+    for one in windows:
+        for key, rate in one.peaks.items():
+            peaks[key] = max(rate, peaks.get(key, rate))
+    return peaks
+
+
+def _rates(engine: str, change: dict[str, float], seconds: float) -> dict[str, float | None]:
+    from sma.backends import rates_from_parts
+
+    return rates_from_parts([get_backend(engine).serving_parts(change, seconds)])
 
 
 def _read_samples(path: Path) -> list[tuple[float, dict[str, float]]]:

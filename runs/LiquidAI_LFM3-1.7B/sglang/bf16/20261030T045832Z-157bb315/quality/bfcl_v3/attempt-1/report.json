@@ -1,0 +1,615 @@
+[
+  {
+    "request_data": {
+      "model": "LiquidAI/LFM3-1.7B",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Solve the quadratic equation with coefficients a = 1, b = 2, and c = 3."
+        }
+      ],
+      "temperature": 0.001,
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "math_sum",
+            "description": "Compute the sum of all numbers in a list. Note that the provided function is in Python 3 syntax.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "numbers": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "description": "The list of numbers to be added up."
+                },
+                "decimal_places": {
+                  "type": "integer",
+                  "description": "The number of decimal places to round to. Default is 2."
+                }
+              },
+              "required": [
+                "numbers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "display_request": {
+      "model": "LiquidAI/LFM3-1.7B",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Solve the quadratic equation with coefficients a = 1, b = 2, and c = 3."
+        }
+      ],
+      "temperature": 0.001,
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "math_sum",
+            "description": "Compute the sum of all numbers in a list. Note that the provided function is in Python 3 syntax.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "numbers": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "description": "The list of numbers to be added up."
+                },
+                "decimal_places": {
+                  "type": "integer",
+                  "description": "The number of decimal places to round to. Default is 2."
+                }
+              },
+              "required": [
+                "numbers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "response": {
+      "id": "b28ffe43cecc48d480d03917150f641e",
+      "object": "chat.completion",
+      "created": 1793336452,
+      "model": "LiquidAI/LFM3-1.7B",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "The quadratic equation \\(x^2 + 2x + 3 = 0\\) (with \\(a = 1\\), \\(b = 2\\), \\(c = 3\\)) has **complex** roots because the discriminant \\(D = b^2 - 4ac = 4 - 12 = -8 < 0\\).\n\nUsing the quadratic formula:\n\\[\nx = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a} = \\frac{-2 \\pm \\sqrt{-8}}{2}\n\\]\n\nSimplify \\(\\sqrt{-8} = i\\sqrt{8} = 2i\\sqrt{2}\\):\n\\[\nx = \\frac{-2 \\pm 2i\\sqrt{2}}{2} = -1 \\pm i\\sqrt{2}\n\\]\n\n**Solutions:**\n- \\(x_1 = -1 + i\\sqrt{2}\\)\n- \\(x_2 = -1 - i\\sqrt{2}\\)\n\nThus, the equation has two complex conjugate roots.",
+            "reasoning_content": "We need to solve the quadratic equation with coefficients a=1, b=2, c=3. The user asked: \"Solve the quadratic equation with coefficients a = 1, b = 2, and c = 3.\"\n\nHowever, looking at the available tools, there is only one tool: `math_sum`, which computes the sum of all numbers in a list. There's no tool for solving quadratic equations. So I cannot directly use a tool to solve this.\n\nI should inform the user that I don't have the necessary tool to solve quadratic equations. But maybe I can compute it manually? As an AI, I can reason about it. The quadratic formula is x = [-b ± sqrt(b^2 - 4ac)] / (2a). For a=1, b=2, c=3:\n\nDiscriminant D = b^2 - 4ac = 4 - 12 = -8. Since discriminant is negative, roots are complex: x = [-2 ± sqrt(-8)] / 2 = [-2 ± i*sqrt(8)]/2 = [-2 ± 2i*sqrt(2)]/2 = -1 ± i*sqrt(2).\n\nSo the solutions are x = -1 + i√2 and x = -1 - i√2.\n\nBut since I don't have a specific tool for this, I could just provide the answer directly without using any tool. However, the instructions say I should use tools when possible. In this case, there is no relevant tool. So I'll just answer based on my knowledge.\n\nThus, final answer: The quadratic equation x^2 + 2x + 3 = 0 has complex roots: x = -1 ± i√2.\n\nI'll present that clearly."
+          },
+          "logprobs": null,
+          "finish_reason": "stop",
+          "matched_stop": 124900
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 152,
+        "total_tokens": 716,
+        "completion_tokens": 564,
+        "prompt_tokens_details": null,
+        "reasoning_tokens": 361,
+        "completion_tokens_details": {
+          "reasoning_tokens": 361
+        }
+      },
+      "metadata": {
+        "weight_version": "default",
+        "weight_versions": [
+          {
+            "version": "default",
+            "start": 0,
+            "end": 564
+          }
+        ]
+      }
+    },
+    "endpoint": "http://127.0.0.1:8000/v1/chat/completions",
+    "cache_key": "2327fdf3a8a26d4801037af84e5810033116970d227196d397063e4f14f44840"
+  },
+  {
+    "request_data": {
+      "model": "LiquidAI/LFM3-1.7B",
+      "messages": [
+        {
+          "role": "user",
+          "content": "What's the area of a rectangle that has width of 5m and length of 7m?"
+        }
+      ],
+      "temperature": 0.001,
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "draw_circle",
+            "description": "Draw a circle based on the radius provided. Note that the provided function is in Python 3 syntax.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "radius": {
+                  "type": "number",
+                  "description": "The radius of the circle. This is a float type value.",
+                  "format": "float"
+                },
+                "unit": {
+                  "type": "string",
+                  "description": "The unit of measurement for the radius. e.g. 'm' for meters, 'cm' for centimeters"
+                }
+              },
+              "required": [
+                "radius",
+                "unit"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "display_request": {
+      "model": "LiquidAI/LFM3-1.7B",
+      "messages": [
+        {
+          "role": "user",
+          "content": "What's the area of a rectangle that has width of 5m and length of 7m?"
+        }
+      ],
+      "temperature": 0.001,
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "draw_circle",
+            "description": "Draw a circle based on the radius provided. Note that the provided function is in Python 3 syntax.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "radius": {
+                  "type": "number",
+                  "description": "The radius of the circle. This is a float type value.",
+                  "format": "float"
+                },
+                "unit": {
+                  "type": "string",
+                  "description": "The unit of measurement for the radius. e.g. 'm' for meters, 'cm' for centimeters"
+                }
+              },
+              "required": [
+                "radius",
+                "unit"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "response": {
+      "id": "947130961b1d4e77bd83ecdf27dc3dc9",
+      "object": "chat.completion",
+      "created": 1793336445,
+      "model": "LiquidAI/LFM3-1.7B",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "The area of a rectangle is calculated by multiplying its length by its width:\n\n**Area = length × width**\n\nGiven:\n- Width = 5 m\n- Length = 7 m\n\n**Calculation:**  \n\\( 7 \\, \\text{m} \\times 5 \\, \\text{m} = 35 \\, \\text{m}^2 \\)\n\nSo, the area is **35 square meters**.",
+            "reasoning_content": "We need to find the area of a rectangle with width 5m and length 7m. The formula for area is length × width. So, 7m * 5m = 35 square meters.\n\nHowever, looking at the available tools, there's only one function: `draw_circle` which draws a circle given radius and unit. There's no tool for calculating the area of a rectangle or any other geometric shape calculation. \n\nSince I don't have a tool to compute the area of a rectangle, I should just answer directly using my knowledge. The user asked \"What's the area of a rectangle that has width of 5m and length of 7m?\" This is a straightforward arithmetic problem. I can compute it without needing a tool.\n\nThus, I'll provide the answer: Area = length × width = 7 m × 5 m = 35 m².\n\nI'll mention that I'm not using any tool because none is available for this specific calculation."
+          },
+          "logprobs": null,
+          "finish_reason": "stop",
+          "matched_stop": 124900
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 162,
+        "total_tokens": 447,
+        "completion_tokens": 285,
+        "prompt_tokens_details": null,
+        "reasoning_tokens": 203,
+        "completion_tokens_details": {
+          "reasoning_tokens": 203
+        }
+      },
+      "metadata": {
+        "weight_version": "default",
+        "weight_versions": [
+          {
+            "version": "default",
+            "start": 0,
+            "end": 285
+          }
+        ]
+      }
+    },
+    "endpoint": "http://127.0.0.1:8000/v1/chat/completions",
+    "cache_key": "9af7b6fd2f5ae7e6f13ba4868836d46f3dc7e5834ffef0cf5af9888d9d434d5a"
+  },
+  {
+    "request_data": {
+      "model": "LiquidAI/LFM3-1.7B",
+      "messages": [
+        {
+          "role": "user",
+          "content": "What is the roots of linear equation bx + c = 0?"
+        }
+      ],
+      "temperature": 0.001,
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "find_roots",
+            "description": "Find the roots of a quadratic equation ax^2 + bx + c = 0. Note that the provided function is in Python 3 syntax.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "a": {
+                  "type": "number",
+                  "description": "Coefficient of x^2. This is a float type value.",
+                  "format": "float"
+                },
+                "b": {
+                  "type": "number",
+                  "description": "Coefficient of x. This is a float type value.",
+                  "format": "float"
+                },
+                "c": {
+                  "type": "number",
+                  "description": "Constant term. This is a float type value.",
+                  "format": "float"
+                }
+              },
+              "required": [
+                "a",
+                "b",
+                "c"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "display_request": {
+      "model": "LiquidAI/LFM3-1.7B",
+      "messages": [
+        {
+          "role": "user",
+          "content": "What is the roots of linear equation bx + c = 0?"
+        }
+      ],
+      "temperature": 0.001,
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "find_roots",
+            "description": "Find the roots of a quadratic equation ax^2 + bx + c = 0. Note that the provided function is in Python 3 syntax.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "a": {
+                  "type": "number",
+                  "description": "Coefficient of x^2. This is a float type value.",
+                  "format": "float"
+                },
+                "b": {
+                  "type": "number",
+                  "description": "Coefficient of x. This is a float type value.",
+                  "format": "float"
+                },
+                "c": {
+                  "type": "number",
+                  "description": "Constant term. This is a float type value.",
+                  "format": "float"
+                }
+              },
+              "required": [
+                "a",
+                "b",
+                "c"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "response": {
+      "id": "8dd7064c210742b7b71a6d0a308b02fc",
+      "object": "chat.completion",
+      "created": 1793336453,
+      "model": "LiquidAI/LFM3-1.7B",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "For a **linear equation** \\( bx + c = 0 \\) (where \\( b \\neq 0 \\)), the root is simply:\n\n\\[\nx = -\\frac{c}{b}\n\\]\n\nIf \\( b = 0 \\):\n- When \\( c = 0 \\), every real number is a solution (infinitely many).\n- When \\( c \\neq 0 \\), there is no solution (the equation is inconsistent).\n\nSince you didn’t provide specific values for \\( b \\) and \\( c \\), I can’t compute a numerical root.  \nIf you give me the coefficients, I can help further—though my current tool is designed for quadratic equations (\\( ax^2 + bx + c = 0 \\)). For linear cases, the above formula works directly.",
+            "reasoning_content": "We need to find the roots of a linear equation bx + c = 0. However, the available tool `find_roots` is for quadratic equations (ax^2 + bx + c = 0). It requires parameters a, b, c. For a linear equation, the coefficient of x^2 (a) is 0. So we can set a=0, and then use b and c from the user's input? But the user didn't provide specific values for b and c. They just asked \"What is the roots of linear equation bx + c = 0?\" without giving numbers.\n\nI need to clarify: The question is general, not with specific coefficients. I should explain that for a linear equation bx + c = 0, the root is x = -c/b (provided b ≠ 0). Since there's no tool for general symbolic solving or for linear equations specifically, and the only tool is for quadratics, I cannot directly compute it without values. \n\nBut maybe I can still use the tool by setting a=0? Let's see: If a=0, then the equation becomes 0*x^2 + b*x + c = 0 => b*x + c = 0. That matches. The function `find_roots` might handle that case? Possibly it would return something like one root? But typically quadratic formula with a=0 leads to division by zero in discriminant calculation. Not sure. Better to ask for clarification or give the general solution.\n\nGiven the instructions: I should use tools when appropriate. Since the user didn't provide numeric values, I can't call the tool meaningfully. I'll respond with the general formula and note that if they provide specific coefficients, I can compute using the tool.\n\nThus, my answer: For a linear equation bx + c = 0, the root is x = -c/b (assuming b ≠ 0). If b = 0, then either no solution (if c ≠ 0) or infinite solutions (if c = 0).\n\nI'll also mention that I have a tool for quadratic equations but not specifically for linear ones, though I could adapt by setting a=0, but better to just give the direct answer.\n\nLet's craft the response."
+          },
+          "logprobs": null,
+          "finish_reason": "stop",
+          "matched_stop": 124900
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 190,
+        "total_tokens": 804,
+        "completion_tokens": 614,
+        "prompt_tokens_details": null,
+        "reasoning_tokens": 463,
+        "completion_tokens_details": {
+          "reasoning_tokens": 463
+        }
+      },
+      "metadata": {
+        "weight_version": "default",
+        "weight_versions": [
+          {
+            "version": "default",
+            "start": 0,
+            "end": 614
+          }
+        ]
+      }
+    },
+    "endpoint": "http://127.0.0.1:8000/v1/chat/completions",
+    "cache_key": "bd824d537abda301f385bd0b63568189c9bfbe9feb85c6b0156f5e46ba0449ed"
+  },
+  {
+    "request_data": {
+      "model": "LiquidAI/LFM3-1.7B",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Calculate the area of a triangle given the base is 10 meters and height is 5 meters."
+        }
+      ],
+      "temperature": 0.001,
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "determine_body_mass_index",
+            "description": "Calculate body mass index given weight and height. Note that the provided function is in Python 3 syntax.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "weight": {
+                  "type": "number",
+                  "description": "Weight of the individual in kilograms. This is a float type value.",
+                  "format": "float"
+                },
+                "height": {
+                  "type": "number",
+                  "description": "Height of the individual in meters. This is a float type value.",
+                  "format": "float"
+                }
+              },
+              "required": [
+                "weight",
+                "height"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "display_request": {
+      "model": "LiquidAI/LFM3-1.7B",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Calculate the area of a triangle given the base is 10 meters and height is 5 meters."
+        }
+      ],
+      "temperature": 0.001,
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "determine_body_mass_index",
+            "description": "Calculate body mass index given weight and height. Note that the provided function is in Python 3 syntax.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "weight": {
+                  "type": "number",
+                  "description": "Weight of the individual in kilograms. This is a float type value.",
+                  "format": "float"
+                },
+                "height": {
+                  "type": "number",
+                  "description": "Height of the individual in meters. This is a float type value.",
+                  "format": "float"
+                }
+              },
+              "required": [
+                "weight",
+                "height"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "response": {
+      "id": "d29ce212c408462eb5332718dc4082c2",
+      "object": "chat.completion",
+      "created": 1793336449,
+      "model": "LiquidAI/LFM3-1.7B",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "To calculate the area of a triangle, you can use the formula:\n\n**Area = (base × height) / 2**\n\nGiven:\n- Base = 10 meters\n- Height = 5 meters\n\nPlugging in the values:\n\\[\n\\text{Area} = \\frac{10 \\, \\text{m} \\times 5 \\, \\text{m}}{2} = \\frac{50}{2} = 25 \\, \\text{m}^2\n\\]\n\n**Result:** The area of the triangle is **25 square meters**.",
+            "reasoning_content": "We need to calculate the area of a triangle given base and height. The user provided: base = 10 meters, height = 5 meters.\n\nHowever, looking at the available tools, there is only one function: `determine_body_mass_index` which calculates BMI given weight and height. There is no tool for calculating the area of a triangle.\n\nTherefore, I cannot use any tool to perform this calculation. I should inform the user that I don't have the necessary tool for this task, but I can provide the formula or result manually? Since the instructions say I should use tools when possible, but if not available, I might need to answer directly or explain.\n\nThe user asked specifically: \"Calculate the area of a triangle given the base is 10 meters and height is 5 meters.\"\n\nI know the formula for area of a triangle is (base * height) / 2. So I can compute it without a tool: (10 * 5) / 2 = 50 / 2 = 25 square meters.\n\nBut according to the system prompt, I should use the available tools. Since there's no relevant tool, I should just answer the question directly, perhaps noting that I don't have a specific tool but can do the math myself.\n\nLet me check the tool list again: only `determine_body_mass_index`. No geometry tool. So I'll proceed to give the answer.\n\nThus, final response: The area of a triangle is (base × height) / 2. With base = 10 m and height = 5 m, area = (10 × 5) / 2 = 25 m².\n\nI'll output that."
+          },
+          "logprobs": null,
+          "finish_reason": "stop",
+          "matched_stop": 124900
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 162,
+        "total_tokens": 611,
+        "completion_tokens": 449,
+        "prompt_tokens_details": null,
+        "reasoning_tokens": 342,
+        "completion_tokens_details": {
+          "reasoning_tokens": 342
+        }
+      },
+      "metadata": {
+        "weight_version": "default",
+        "weight_versions": [
+          {
+            "version": "default",
+            "start": 0,
+            "end": 449
+          }
+        ]
+      }
+    },
+    "endpoint": "http://127.0.0.1:8000/v1/chat/completions",
+    "cache_key": "ce368a7adc842bcfc2314f1e1f40aa4a7c7254b6d11291de16fa3eb83254528f"
+  },
+  {
+    "request_data": {
+      "model": "LiquidAI/LFM3-1.7B",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Solve for the roots of the equation 3x^2 - 2x - 5."
+        }
+      ],
+      "temperature": 0.001,
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "distance_calculator_calculate",
+            "description": "Calculate the distance between two geographical coordinates. Note that the provided function is in Python 3 syntax.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "coordinate_1": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "description": "The first coordinate, a pair of latitude and longitude."
+                },
+                "coordinate_2": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "description": "The second coordinate, a pair of latitude and longitude."
+                }
+              },
+              "required": [
+                "coordinate_1",
+                "coordinate_2"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "display_request": {
+      "model": "LiquidAI/LFM3-1.7B",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Solve for the roots of the equation 3x^2 - 2x - 5."
+        }
+      ],
+      "temperature": 0.001,
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "distance_calculator_calculate",
+            "description": "Calculate the distance between two geographical coordinates. Note that the provided function is in Python 3 syntax.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "coordinate_1": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "description": "The first coordinate, a pair of latitude and longitude."
+                },
+                "coordinate_2": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "description": "The second coordinate, a pair of latitude and longitude."
+                }
+              },
+              "required": [
+                "coordinate_1",
+                "coordinate_2"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "response": {
+      "id": "8c7897f79bd7491594bc29b996cf5838",
+      "object": "chat.completion",
+      "created": 1793336455,
+      "model": "LiquidAI/LFM3-1.7B",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "The quadratic equation \\(3x^2 - 2x - 5 = 0\\) has two real roots. Using the quadratic formula:\n\n\\[\nx = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}\n\\]\n\nwhere \\(a = 3\\), \\(b = -2\\), \\(c = -5\\):\n\n1. **Discriminant**:  \n   \\(\\Delta = b^2 - 4ac = (-2)^2 - 4(3)(-5) = 4 + 60 = 64\\)\n\n2. **Square root of discriminant**:  \n   \\(\\sqrt{\\Delta} = \\sqrt{64} = 8\\)\n\n3. **Roots**:\n   \\[\n   x_1 = \\frac{-(-2) + 8}{2 \\cdot 3} = \\frac{2 + 8}{6} = \\frac{10}{6} = \\frac{5}{3}\n   \\]\n   \\[\n   x_2 = \\frac{-(-2) - 8}{2 \\cdot 3} = \\frac{2 - 8}{6} = \\frac{-6}{6} = -1\n   \\]\n\n**Solutions:**  \n\\[\n\\boxed{x = \\frac{5}{3}} \\quad \\text{and} \\quad \\boxed{x = -1}\n\\]",
+            "reasoning_content": "We need to solve for the roots of the quadratic equation 3x^2 - 2x - 5 = 0. The user asked about solving a quadratic equation, but the available tool is `distance_calculator_calculate` which calculates distance between two geographical coordinates. That's not relevant here. There's no tool provided for solving equations or finding roots. Therefore, I cannot use any tool to solve this. I should inform the user that I don't have the capability to solve quadratic equations with the current tools and perhaps offer to explain how to do it manually or suggest using other methods.\n\nThus, my response: I'll state that I don't have the necessary tool to find roots of an equation, but I can describe the quadratic formula method or ask if they want me to compute it step-by-step without a tool? However, as per instructions, I should only use available tools when appropriate. Since there's no suitable tool, I should just answer directly based on my knowledge.\n\nLet me recall: For quadratic equation ax² + bx + c = 0, roots are given by x = [-b ± sqrt(b² - 4ac)] / (2a). Here a=3, b=-2, c=-5.\n\nCompute discriminant: D = b² - 4ac = (-2)² - 4*3*(-5) = 4 + 60 = 64. sqrt(D)=8.\n\nThen roots: x = [ -(-2) ± 8 ] / (2*3) = [2 ± 8] / 6.\n\nSo first root: (2+8)/6 = 10/6 = 5/3 ≈ 1.6667.\nSecond root: (2-8)/6 = (-6)/6 = -1.\n\nThus roots are x = 5/3 and x = -1.\n\nI can provide these answers. No tool needed. So final answer."
+          },
+          "logprobs": null,
+          "finish_reason": "stop",
+          "matched_stop": 124900
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 173,
+        "total_tokens": 846,
+        "completion_tokens": 673,
+        "prompt_tokens_details": null,
+        "reasoning_tokens": 397,
+        "completion_tokens_details": {
+          "reasoning_tokens": 397
+        }
+      },
+      "metadata": {
+        "weight_version": "default",
+        "weight_versions": [
+          {
+            "version": "default",
+            "start": 0,
+            "end": 673
+          }
+        ]
+      }
+    },
+    "endpoint": "http://127.0.0.1:8000/v1/chat/completions",
+    "cache_key": "d8fe3cc7d2e19ff78539a9fd2ec31745bbfd5815b5aa8b529992d32b4a190752"
+  }
+]

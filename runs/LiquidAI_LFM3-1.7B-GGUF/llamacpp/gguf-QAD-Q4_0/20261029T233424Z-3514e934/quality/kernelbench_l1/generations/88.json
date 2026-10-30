@@ -1,0 +1,16 @@
+{
+  "content": "<tool_call>\n<function=write>\n<parameter=path>\nModelNew.py\n</parameter>\n<parameter=content>\nimport torch\nimport torch.nn as nn\nimport torch.nn.functional as F\nfrom torch.utils.cpp_extension import load_inline\n\n# Define the custom CUDA kernel for element-wise GELU activation (FP32)\ngelu_cuda_source = \"\"\"\n#include <torch/extension.h>\n#include <cuda_runtime.h>\n\n__global__ void gelu_kernel(const float* x, float* out, int size) {\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    if (idx < size) {\n        float val = 0.5f * x[idx] * (1.0f + torch.tanh(math.sqrt(2.0f / math.PI) * (x[idx] + 0.044715f * pow(x[idx], 3.0f))));\n        out[idx] = val;\n    }\n}\n\ntorch::Tensor gelu_cuda(torch::Tensor x) {\n    auto size = x.numel();\n    auto out = torch::zeros_like(x);\n\n    const int block_size = 256;\n    const int num_blocks = (size + block_size - 1) / block_size;\n\n    gelu_kernel<<<num_blocks, block_size>>>(x.data_ptr<float>(), out.data_ptr<float>(), size);\n\n    return out;\n}\n\"\"\"\n\n# Compile the inline CUDA code for GELU activation\ngelu = load_inline(\n    name=\"gelu\",\n    cpp_sources=(\"torch::Tensor gelu_cuda(torch::Tensor x);\"),\n    cuda_sources=gelu_cuda_source,\n    functions=[\"gelu_cuda\"],\n    verbose=True,\n    extra_cflags=[],\n    extra_ldflags=[],\n)\n\nclass ModelNew(nn.Module):\n    \"\"\"\n    Implementation of the GELU activation function (same as in original Model).\n    Uses custom CUDA operator for element-wise GELU.\n    \"\"\"\n\n    def __init__(self):\n        super(ModelNew, self).__init__()\n        self.gelu = gelu  # custom CUDA operator\n\n    def forward(self, x):\n        return self.gelu(x)\n\n</parameter>\n</function>\n</tool_call>",
+  "finish_reason": "stop",
+  "kernel": null,
+  "name": "88_MinGPTNewGelu",
+  "problem_id": 88,
+  "reasoning": null,
+  "usage": {
+    "completion_tokens": 484,
+    "prompt_tokens": 1016,
+    "prompt_tokens_details": {
+      "cached_tokens": 462
+    },
+    "total_tokens": 1500
+  }
+}

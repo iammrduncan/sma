@@ -169,3 +169,22 @@ def test_ifeval_records_strict_and_loose_by_prompt_and_by_instruction(tmp_path: 
     # A suite whose rows report no lm-eval metrics records none.
     _bundle(tmp_path / "gpqa" / "attempt-1" / "gpqa", value=0.3, failures=0)
     assert normalize_suite(tmp_path / "gpqa", tmp_path / "gpqa" / "attempt-1", "gpqa_diamond", bench="gpqa", limit=20)["measures"] is None
+
+
+def test_answers_that_ran_out_of_room_are_counted_once_per_question(tmp_path: Path) -> None:
+    # With quality.max_tokens 4096, LFM3-1.7B ran out on 213 of 700 MMLU-Pro answers and nothing said so.
+    bench_dir = tmp_path / "attempt-1" / "gpqa"
+    _bundle(bench_dir, value=0.3, failures=0)
+    traffic = [
+        {"problem_idx": 1, "repeat": 0, "status_code": 200, "finish_reason": "length"},
+        {"problem_idx": 2, "repeat": 0, "status_code": 200, "finish_reason": "stop"},
+        # A retry replaces its first attempt; a failed request is not an answer.
+        {"problem_idx": 3, "repeat": 0, "status_code": 200, "finish_reason": "length"},
+        {"problem_idx": 3, "repeat": 0, "status_code": 200, "finish_reason": "stop"},
+        {"problem_idx": 4, "repeat": 0, "status_code": 500},
+    ]
+    (bench_dir / "model_traffic.jsonl").write_text("".join(json.dumps(row) + "\n" for row in traffic), encoding="utf-8")
+    scores = normalize_suite(tmp_path, tmp_path / "attempt-1", "gpqa_diamond", bench="gpqa", limit=20)
+    assert scores["answers_cut_off"] == 1
+    (bench_dir / "model_traffic.jsonl").unlink()
+    assert normalize_suite(tmp_path, tmp_path / "attempt-1", "gpqa_diamond", bench="gpqa", limit=20)["answers_cut_off"] is None

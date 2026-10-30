@@ -1,0 +1,102 @@
+{"event": "run_created", "level": "INFO", "logger": "sma", "message": "run_created run_id=20261029T233424Z-3514e934 repo=LiquidAI/LFM3-1.7B-GGUF quant=gguf", "ts": "2026-10-29T23:34:24Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=fetch run_id=20261029T233424Z-3514e934 attempt=1", "ts": "2026-10-29T23:34:24Z"}
+{"event": "fetched", "level": "INFO", "logger": "sma", "message": "fetched repo=LiquidAI/LFM3-1.7B-GGUF revision_sha=bad5729bba61d076fff20d2548e62526665af215", "ts": "2026-10-29T23:34:49Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=KV cache: q8_0, 6,528 bytes per token in the full-attention layers", "ts": "2026-10-29T23:34:58Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=context per stream: 262,144 tokens (262,144 tokens fits)", "ts": "2026-10-29T23:34:58Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=memory: 1.05 GB weights + 11.59 GB engine overhead + 13.71 GB KV pool + 8.6 GB engine buffers sized by it = 34.95 GB of the 100.0 GB budget", "ts": "2026-10-29T23:34:58Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=KV pool: 8 slots at 262,144 tokens, the most the server runs at once", "ts": "2026-10-29T23:34:58Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=streams that fit: 8 at 262,144 tokens, 63 at 32,768", "ts": "2026-10-29T23:34:58Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=per benchmark: browsecomp 262,144, determinism 16,384, kernelbench 262,144, logprobs 262,144, quality 262,144, speed 262,144, swebench 262,144", "ts": "2026-10-29T23:34:58Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=fetch run_id=20261029T233424Z-3514e934", "ts": "2026-10-29T23:34:58Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=serve_quality run_id=20261029T233424Z-3514e934 attempt=1", "ts": "2026-10-29T23:34:58Z"}
+{"event": "docker_run", "level": "INFO", "logger": "sma", "message": "docker_run name=sma-20261029T233424Z-3514e934-quality mode=quality", "ts": "2026-10-29T23:34:58Z"}
+{"event": "server_log", "level": "INFO", "logger": "sma", "message": "server_log mode=quality path=/home/<host>/github/sma/runs/LiquidAI_LFM3-1.7B-GGUF/llamacpp/gguf-QAD-Q4_0/20261029T233424Z-3514e934/logs/server-quality.log", "ts": "2026-10-29T23:34:58Z"}
+{"event": "server_ready", "level": "INFO", "logger": "sma", "message": "server_ready mode=quality elapsed_s=4", "ts": "2026-10-29T23:35:02Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=serve_quality run_id=20261029T233424Z-3514e934", "ts": "2026-10-29T23:35:02Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=determinism run_id=20261029T233424Z-3514e934 attempt=1", "ts": "2026-10-29T23:35:03Z"}
+{"event": "warning", "level": "INFO", "logger": "sma", "message": "warning message=Determinism probe failed. The run continues. Use the recorded concurrency for both quants and treat quality deltas against a wider noise band.", "ts": "2026-10-29T23:35:15Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=determinism run_id=20261029T233424Z-3514e934", "ts": "2026-10-29T23:35:15Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=logprobs run_id=20261029T233424Z-3514e934 attempt=1", "ts": "2026-10-29T23:35:15Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=logprobs run_id=20261029T233424Z-3514e934", "ts": "2026-10-29T23:35:21Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=quality run_id=20261029T233424Z-3514e934 attempt=1", "ts": "2026-10-29T23:35:21Z"}
+{"event": "docker_run", "level": "INFO", "logger": "sma", "message": "docker_run name=sma-20261029T233424Z-3514e934-quality mode=quality", "ts": "2026-10-29T23:35:21Z"}
+{"event": "server_log", "level": "INFO", "logger": "sma", "message": "server_log mode=quality path=/home/<host>/github/sma/runs/LiquidAI_LFM3-1.7B-GGUF/llamacpp/gguf-QAD-Q4_0/20261029T233424Z-3514e934/logs/server-quality.log", "ts": "2026-10-29T23:35:21Z"}
+{"event": "server_ready", "level": "INFO", "logger": "sma", "message": "server_ready mode=quality elapsed_s=4", "ts": "2026-10-29T23:35:25Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=quality run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T02:31:26Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=kernelbench run_id=20261029T233424Z-3514e934 attempt=1", "ts": "2026-10-30T02:31:26Z"}
+{"event": "kernelbench_generate", "level": "INFO", "logger": "sma", "message": "kernelbench_generate problems=100 run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T02:31:26Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=kernelbench run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:06:03Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=swebench run_id=20261029T233424Z-3514e934 attempt=1", "ts": "2026-10-30T03:06:03Z"}
+{"event": "swebench_start", "level": "INFO", "logger": "sma", "message": "swebench_start launch=1 run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:06:06Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:06:07Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:07:07Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:08:07Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:09:08Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:10:08Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:11:08Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:12:08Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:13:09Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:14:09Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:15:09Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:16:10Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:17:10Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:18:10Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:19:11Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:20:11Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:21:11Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:22:11Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:23:12Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:24:12Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:25:12Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:26:13Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:27:13Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:28:13Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:29:14Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:30:14Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:31:14Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:32:14Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:33:15Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:34:15Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:35:15Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:36:16Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:37:16Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:38:16Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:39:17Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:40:17Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:41:17Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:42:17Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:43:18Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:44:18Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:45:18Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:46:19Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:47:19Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:48:19Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:49:20Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:50:20Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:51:20Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:52:21Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:53:21Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:54:21Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:55:21Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:56:22Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:57:22Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:58:22Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T03:59:23Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T04:00:23Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T04:01:23Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T04:02:23Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T04:03:24Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T04:04:24Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T04:05:24Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T04:06:25Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T04:07:25Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T04:08:25Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T04:09:26Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T04:10:26Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T04:11:26Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T04:12:27Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T04:13:27Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T04:14:27Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T04:15:27Z"}
+{"event": "swebench_wait", "level": "INFO", "logger": "sma", "message": "swebench_wait step=agent run_id=20261029T233424Z-3514e934", "ts": "2026-10-30T04:16:28Z"}
+{"event": "warning", "level": "INFO", "logger": "sma", "message": "warning message=Page cache was not dropped. The next model may see leftover file cache.", "ts": "2026-10-30T04:18:42Z"}

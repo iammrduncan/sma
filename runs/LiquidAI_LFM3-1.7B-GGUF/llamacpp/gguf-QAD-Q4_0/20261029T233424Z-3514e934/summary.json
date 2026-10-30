@@ -1,0 +1,158 @@
+{
+  "batch_invariant": false,
+  "delta_ppl": 6.194057,
+  "deployment": {
+    "computed": {
+      "kv_bytes_per_token": 6528,
+      "kv_pool_gb": 13.71,
+      "kv_pool_tokens": 2099641,
+      "memory_budget_gb": 100.0,
+      "planned_footprint_gb": 34.95,
+      "streams_32k": 63,
+      "streams_full_context": 8,
+      "weights_gb": 1.05
+    },
+    "context_per_stream": 262144,
+    "context_reason": "262,144 tokens fits",
+    "engine": "llamacpp",
+    "kv_cache_type": "q8_0",
+    "measured": {
+      "kv_pool_tokens": 2099712,
+      "output_tok_s_c1": null,
+      "output_tok_s_c4": null,
+      "output_tok_s_c8": null,
+      "peak_memory_gb": 54.46,
+      "streams_32k": 64,
+      "streams_full_context": 8
+    },
+    "sentence": "QAD-Q4_0 weights with a Q8_0 KV cache on llamacpp: 1.05 GB of weights, 262,144 tokens per stream, 8 full-length streams by the engine's own KV report within 100.0 GB. Peak memory 54.46 GB.",
+    "weight_format": "QAD-Q4_0"
+  },
+  "determinism_passed": false,
+  "energy": {
+    "joules": null,
+    "joules_per_bench_request": null,
+    "method": "nvml-energy-counter-per-window",
+    "note": "Each valid speed-cell window is measured on its own and the joules are summed. nvml-energy-counter is the GPU's cumulative energy counter read before and after the bench command. nvidia-smi-1hz-trapezoid integrates sampled power and is used only when the counter was not read; gaps longer than telemetry.max_sample_gap_s are not bridged. Invalid or unverified windows are excluded. GPU only: on a DGX Spark the CPU shares the 140 W SoC budget and is not counted. Not joules per correct answer, and not a wall meter. Null means it was not measured.",
+    "sample_hz": 1.0,
+    "scope": "gpu"
+  },
+  "engine": "llamacpp",
+  "engine_image": "ghcr.io/ggml-org/llama.cpp:full-cuda13-b11960",
+  "engine_image_digest": "sha256:37914cd294528df33623d092d12782e542d8cd16f501523885c2486b606041ff",
+  "host_alias": "gpu-host-1",
+  "kl_k": null,
+  "kl_mean": 0.249378,
+  "kl_method": "llama-perplexity-kld",
+  "model_repo": "LiquidAI/LFM3-1.7B-GGUF",
+  "model_slug": "LiquidAI_LFM3-1.7B-GGUF",
+  "params_active": 1728801600,
+  "params_active_b": 1.7,
+  "params_total": 1728801600,
+  "params_total_b": 1.7,
+  "perplexity": 30.212664,
+  "perplexity_tokens": 8184,
+  "quality": {
+    "bfcl_v3": {
+      "ci_lower": 0.6636546876486885,
+      "ci_upper": 0.6911386192866974,
+      "context_per_stream": 262144,
+      "error": null,
+      "limit": null,
+      "metric": "accuracy",
+      "n": 4441,
+      "score": 0.6775501013285297,
+      "scorer": "eval-factory bfclv3_ast"
+    },
+    "gpqa_diamond": {
+      "ci_lower": 0.0988,
+      "ci_upper": 0.45,
+      "context_per_stream": 262144,
+      "error": null,
+      "limit": 20,
+      "metric": "pass@1",
+      "n": 20,
+      "score": 0.25,
+      "scorer": "nemo-evaluator 0.3.0"
+    },
+    "gsm8k": {
+      "ci_lower": 0.82,
+      "ci_upper": 0.98,
+      "context_per_stream": 262144,
+      "error": null,
+      "limit": 50,
+      "metric": "pass@1",
+      "n": 50,
+      "score": 0.9,
+      "scorer": "nemo-evaluator 0.3.0"
+    },
+    "ifeval": {
+      "ci_lower": 0.62,
+      "ci_upper": 0.86,
+      "context_per_stream": 262144,
+      "error": null,
+      "limit": 50,
+      "metric": "pass@1",
+      "n": 50,
+      "score": 0.74,
+      "scorer": "nemo-evaluator 0.3.0"
+    },
+    "mmlu_pro": {
+      "ci_lower": 0.4829,
+      "ci_upper": 0.5571,
+      "context_per_stream": 262144,
+      "error": null,
+      "limit": 700,
+      "metric": "pass@1",
+      "n": 700,
+      "score": 0.5214,
+      "scorer": "nemo-evaluator 0.3.0"
+    },
+    "musique": {
+      "ci_lower": 0.1298,
+      "ci_upper": 0.2725,
+      "context_per_stream": 262144,
+      "error": null,
+      "limit": 100,
+      "metric": "answer_f1",
+      "n": 100,
+      "score": 0.1986,
+      "scorer": "nemo-evaluator 0.3.0"
+    }
+  },
+  "quant_detected": "gguf",
+  "quant_flag": "gguf",
+  "quant_label": "QAD-Q4_0",
+  "reference_run_id": "20261029T020534Z-1522375e",
+  "revision_sha": "bad5729bba61d076fff20d2548e62526665af215",
+  "run_id": "20261029T233424Z-3514e934",
+  "schema_version": 2,
+  "size_class": "1-3B",
+  "speed": {
+    "bandwidth_ceiling_note": "Derived from the configured spec bandwidth (273 GB/s) divided by approximate active weight bytes. Not a measurement. NVFP4/MXFP4 use 0.5 bytes per parameter and ignore scale overhead.",
+    "bandwidth_ceiling_tok_s": null,
+    "cells": [],
+    "decode_tok_s": null,
+    "decode_tok_s_stat": "p50",
+    "invalid_cells": 0,
+    "output_tok_s_c4": null,
+    "output_tok_s_c8": null,
+    "prefill_tok_s": null,
+    "prefill_tok_s_stat": "p50",
+    "unverified_cells": 0
+  },
+  "status": "done",
+  "thermal": {
+    "clock_cap_mhz": null,
+    "log": "telemetry.csv",
+    "sw_power_cap_invalidates": false,
+    "temp_end_c": 45.0,
+    "temp_start_c": 39.0,
+    "throttle_samples": 0
+  },
+  "top1_agreement": 0.7341200000000001,
+  "warnings": [
+    "Determinism probe failed. The run continues. Use the recorded concurrency for both quants and treat quality deltas against a wider noise band.",
+    "Page cache was not dropped. The next model may see leftover file cache."
+  ]
+}

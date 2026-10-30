@@ -6,6 +6,7 @@ them to check the memory planner against published model shapes.
 | File | Repo | Commit |
 | --- | --- | --- |
 | `qwen3-8b.json` | `Qwen/Qwen3-8B` | `b968826d9c46dd6066d109eabc6255188de91218` |
+| `lfm3-1.7b.json` | `LiquidAI/LFM3-1.7B` | `ac2586a34f1a1c03329dbdcdefabd8b6478ddaa7` |
 | `qwen3-30b-a3b-instruct-2507.json` | `Qwen/Qwen3-30B-A3B-Instruct-2507` | `0d7cf23991f47feeb3a57ecb4c9cee8ea4a17bfe` |
 | `qwen3.6-35b-a3b-nvfp4.json` | `nvidia/Qwen3.6-35B-A3B-NVFP4` | `1355db6a052410cfd62085d94b58866fd0f2c3c5` |
 | `lfm2.5-8b-a1b.json` | `LiquidAI/LFM2.5-8B-A1B` | `5dd22602c2e9f6a097b1de4c4efe0658b605015c` |

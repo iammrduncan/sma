@@ -1,0 +1,28 @@
+{
+  "total_steps": 20,
+  "total_failures": 12,
+  "failure_rate": 0.6,
+  "categories": {
+    "format_error": {
+      "count": 12,
+      "percentage": 0.6,
+      "exemplars": [
+        {
+          "problem_idx": 59,
+          "repeat": 0,
+          "error": "format_error"
+        },
+        {
+          "problem_idx": 179,
+          "repeat": 0,
+          "error": "format_error"
+        },
+        {
+          "problem_idx": 58,
+          "repeat": 0,
+          "error": "format_error"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "run_id": "20261029_233650_59c00e2e",
+  "executor": "local",
+  "output_dir": "/home/<host>/github/sma/runs/LiquidAI_LFM3-1.7B-GGUF/llamacpp/gguf-QAD-Q4_0/20261029T233424Z-3514e934/quality/gsm8k/attempt-1",
+  "started_at": "2026-10-29T23:36:50.756089+00:00",
+  "config_summary": "gsm8k.py",
+  "details": {
+    "pid": 2076929
+  }
+}

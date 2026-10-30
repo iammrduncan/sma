@@ -152,7 +152,10 @@ These were build details, not owner decisions.
   others behind it.
 - **vLLM batch invariance with an FP8 KV cache.** It starts on the GB10 (checked 2026-10-27,
   Qwen3-0.6B, TRITON_ATTN backend).
-- **SGLang's pool.** `--max-total-tokens` sets it in tokens. Deterministic SGLang also needs
+- **SGLang's pool.** `--max-total-tokens` sets it in tokens, and `--mem-fraction-static` holds it to the
+  plan's bytes: the memory in use at launch plus the plan's weights and pool, over the total (2026-10-30).
+  SGLang keeps sliding-window layers at full length in its pool, so the plan counts them as full
+  attention for SGLang; a token-only cap with a 0.9 share let LFM3-1.7B take 98.5 GB. Deterministic SGLang also needs
   `SGLANG_ENABLE_JIT_DEEPGEMM=0` on the GB10, with or without FP8.
 - **Real kernels for quantized checkpoints** (owner decision during the build). vLLM's batch-invariant
   quality mode served NVFP4 by emulation on the Spark ("VLLM_BATCH_INVARIANT forces NVFP4 linear to use
@@ -177,10 +180,15 @@ These were build details, not owner decisions.
 
 ## KernelBench and SWE-bench (decided 2026-10-27)
 
+SWE-bench is off since 2026-10-29 (owner decision: too slow; small models mostly hit its step limit).
+LiveCodeBench replaces it as a quality suite: one answer per contest problem from LiveCodeBench's
+leaderboard window (August 2024 to May 2025), scored by hidden tests in NVIDIA's eval-factory container.
+The SWE-bench notes below describe it when `swebench.enabled` is turned back on.
+
 - Both run in every `sma run`, after the quality suites, on the quality server. `kernelbench.enabled`
   and `swebench.enabled` turn them off.
-- Both use the model's own thinking mode (the chat template's default) and sampling (the
-  checkpoint's `generation_config.json`), not greedy decoding.
+- Both use the model's own sampling (the checkpoint's `generation_config.json`, or a GGUF's
+  `general.sampling` metadata), not greedy decoding. Their thinking follows the run's mode (below).
 - KernelBench: Level 1 only, one answer per problem, KernelBench's own prompt and scoring at the
   service's commit. The headline is fast_1.
 - SWE-bench Verified-mini: mini-swe-agent's `swebench.yaml`, 8 agents (4 until 2026-10-29), 250 steps. The runner's
@@ -190,12 +198,30 @@ These were build details, not owner decisions.
 ## BrowseComp-Plus and MuSiQue (decided 2026-10-28)
 
 - BrowseComp-Plus runs in every `sma run` after SWE-bench, on the quality server; its judge step runs
-  after speed. `browsecomp.enabled` turns it off. 100 of 830 questions, a seeded subset.
+  right after it, before speed (2026-10-29). `browsecomp.enabled` turns it off. 100 of 830 questions, a seeded subset.
 - The BM25 index (2.17 GB) and its search server run on the x86_64 runner, not the Spark, so the
   document store takes nothing from the model's memory or CPU. The Spark reaches it over SSH.
-- It uses the model's own thinking mode and sampling, as KernelBench and SWE-bench do. Each question
+- It uses the model's own sampling and the run's thinking mode, as KernelBench and SWE-bench do. Each question
   gets a stream with at least 32,768 tokens of context (`browsecomp.min_context`), the largest ladder
   step that fits 4 of them.
 - The judge is the lab's Ornith 1.5 122B, with thinking off at temperature 0, one request at a time
   ([judge-info.md](../judge-info.md)).
-- MuSiQue-Ans is a quality suite (100 seeded questions, thinking off, greedy), graded by rule.
+- MuSiQue-Ans is a quality suite (100 seeded questions, graded by rule), in the run's thinking mode.
+
+## Thinking mode and answer length (decided 2026-10-29)
+
+- Each run has a thinking mode, part of its identity: `sma run ... --thinking off` (the default) or
+  `--thinking on`. A thinking-on run lives in `<quant>-thinking`, beside the quant's thinking-off runs.
+- Each 4-bit quant (NVFP4, FP4, a GGUF Q4) runs twice, thinking off and thinking on, both full runs. BF16
+  runs with thinking off, the reference for quantization damage. The KV cache is 8-bit in both, as in
+  production.
+- Off: the chat template's thinking off for every benchmark; quality decodes greedily. On: thinking on
+  for every benchmark, and no temperature sent, so the engine applies the model's own sampling. The
+  quality server takes the mode as its default for BFCL, whose container cannot send it and always
+  sends temperature 0.001. The agent suites send `enable_thinking` for the mode.
+- No answer has a length limit of SMA's own. An answer may use all the context its stream has left,
+  which the memory plan sets (256K for LFM3-1.7B). The old 4,096-token quality limit cut off 30% of
+  LFM3-1.7B's MMLU-Pro answers and 60% of its GPQA answers with thinking off; those answers were
+  reasoning, not repetition. `scores.json` counts answers that stop at the limit (`answers_cut_off`).
+  KernelBench's answers get the context minus 4,096 for the prompt. BrowseComp-Plus keeps its client's
+  20,000 tokens per question, part of that benchmark.

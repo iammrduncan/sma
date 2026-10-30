@@ -1,0 +1,173 @@
+command: " bfcl generate --model LiquidAI/LFM3-1.7B-GGUF --test-category multi_turn,ast\
+  \ --model-mapping oai --result-dir /results --model-args base_url=http://127.0.0.1:8000/v1/chat/completions,native_calling=True\
+  \   --num-threads  8 && \\\n bfcl evaluate --model LiquidAI/LFM3-1.7B-GGUF --test-category\
+  \ multi_turn,ast --model-mapping oai --result-dir /results --score-dir /results\
+  \ --model-args base_url=http://127.0.0.1:8000/v1/chat/completions,native_calling=True"
+config:
+  output_dir: /results
+  params:
+    extra:
+      custom_dataset:
+        data_template_path: null
+        format: null
+        path: null
+      native_calling: true
+    parallelism: 8
+    task: multi_turn,ast
+  supported_endpoint_types:
+  - chat
+  type: bfclv3_ast
+git_hash: 83a6bbd46e65be5bceb13b920aa2f90dd73ec155
+results:
+  groups:
+    bfcl:
+      metrics:
+        ast_summary:
+          scores:
+            ast_summary:
+              stats: {}
+              value: 83.58
+        base:
+          scores:
+            base:
+              stats: {}
+              value: 42.0
+        irrelevance_detection_live:
+          scores:
+            irrelevance_detection_live:
+              stats: {}
+              value: 61.79
+        irrelevance_detection_non_live:
+          scores:
+            irrelevance_detection_non_live:
+              stats: {}
+              value: 78.33
+        java_simple_ast_non_live:
+          scores:
+            java_simple_ast_non_live:
+              stats: {}
+              value: 61.0
+        javascript_simple_ast_non_live:
+          scores:
+            javascript_simple_ast_non_live:
+              stats: {}
+              value: 66.0
+        live_overall_acc:
+          scores:
+            live_overall_acc:
+              stats: {}
+              value: 69.61
+        long_context:
+          scores:
+            long_context:
+              stats: {}
+              value: 35.5
+        miss_func:
+          scores:
+            miss_func:
+              stats: {}
+              value: 28.0
+        miss_param:
+          scores:
+            miss_param:
+              stats: {}
+              value: 28.0
+        multi_turn_overall_acc:
+          scores:
+            multi_turn_overall_acc:
+              stats: {}
+              value: 33.38
+        multiple_ast_non_live:
+          scores:
+            multiple_ast_non_live:
+              stats: {}
+              value: 92.0
+        non_live_overall_acc:
+          scores:
+            non_live_overall_acc:
+              stats: {}
+              value: 45.85
+        parallel_ast_non_live:
+          scores:
+            parallel_ast_non_live:
+              stats: {}
+              value: 83.5
+        parallel_multiple_ast_non_live:
+          scores:
+            parallel_multiple_ast_non_live:
+              stats: {}
+              value: 85.5
+        python_multiple_ast_live:
+          scores:
+            python_multiple_ast_live:
+              stats: {}
+              value: 75.12
+        python_parallel_ast_live:
+          scores:
+            python_parallel_ast_live:
+              stats: {}
+              value: 87.5
+        python_parallel_multiple_ast_live:
+          scores:
+            python_parallel_multiple_ast_live:
+              stats: {}
+              value: 62.5
+        python_simple_ast_live:
+          scores:
+            python_simple_ast_live:
+              stats: {}
+              value: 73.26
+        python_simple_ast_non_live:
+          scores:
+            python_simple_ast_non_live:
+              stats: {}
+              value: 93.0
+        relevance_detection_live:
+          scores:
+            relevance_detection_live:
+              stats: {}
+              value: 72.22
+        simple_ast_non_live:
+          scores:
+            simple_ast_non_live:
+              stats: {}
+              value: 73.33
+  tasks: {}
+target:
+  api_endpoint:
+    adapter_config:
+      discovery:
+        dirs: []
+        modules: []
+      endpoint_type: chat
+      interceptors:
+      - config:
+          cache_dir: /results/cache
+          max_saved_requests: 5
+          max_saved_responses: 5
+          reuse_cached_responses: true
+          save_requests: true
+          save_responses: true
+        enabled: true
+        name: caching
+      - config: {}
+        enabled: true
+        name: endpoint
+      - config:
+          cache_dir: /results/response_stats_cache
+          logging_aggregated_stats_interval: 100
+        enabled: true
+        name: response_stats
+      log_failed_requests: false
+      mode: server
+      post_eval_hooks:
+      - config:
+          html_report_size: 5
+          report_types:
+          - html
+          - json
+        enabled: true
+        name: post_eval_report
+    model_id: LiquidAI/LFM3-1.7B-GGUF
+    type: chat
+    url: http://127.0.0.1:8000/v1/chat/completions

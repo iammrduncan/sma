@@ -1,6 +1,6 @@
 """KernelBench Level 1, SWE-bench Verified-mini, and BrowseComp-Plus as steps of a run (owner decisions 2026-10-27/28).
 
-All run against the quality server with the model's own thinking mode and sampling. Each writes
+All run against the quality server with the model's own sampling, in the run's thinking mode. Each writes
 quality/<suite>/scores.json in the same shape as the other suites, so the summary lists them together.
 The pipeline passes in its own server and warning helpers; this module does not import the pipeline.
 """
@@ -43,16 +43,26 @@ EnsureServer = Callable[[Any, str], None]
 
 
 def model_defaults(ctx: Any) -> dict[str, Any]:
-    """The thinking mode and sampling someone running this checkpoint gets."""
+    """The run's thinking mode, and the sampling someone running this checkpoint gets.
+
+    Every request sends enable_thinking for the run's mode (owner decision 2026-10-29: the agent suites
+    follow the run, off or on). The template's own default is recorded beside it.
+    """
     model_file = (ctx.manifest.get("gguf") or {}).get("model_file")
     try:
         template = chat_template(ctx.snapshot, model_file) if ctx.snapshot else None
     except (OSError, ValueError, SmaError) as exc:
-        thinking = {"enable_thinking": None, "how": f"the chat template could not be read ({type(exc).__name__})"}
+        default = {"enable_thinking": None, "how": f"the chat template could not be read ({type(exc).__name__})"}
     else:
-        thinking = thinking_default(template)
+        default = thinking_default(template)
+    mode = ctx.manifest.get("thinking") or "off"
+    thinking = {
+        "enable_thinking": mode == "on",
+        "how": f"the run's thinking mode (--thinking {mode})",
+        "template_default": default,
+    }
     if model_file:
-        sampling: dict[str, Any] = {"source": "llama-server's own defaults; a GGUF has no generation_config.json"}
+        sampling: dict[str, Any] = gguf_sampling(ctx.snapshot / model_file if ctx.snapshot else None)
     else:
         path = ctx.snapshot / "generation_config.json" if ctx.snapshot else None
         found = json.loads(path.read_text(encoding="utf-8")) if path is not None and path.is_file() else {}
@@ -63,6 +73,31 @@ def model_defaults(ctx: Any) -> dict[str, Any]:
         )
         sampling = {"source": source, **{key: found[key] for key in _SAMPLING_KEYS if key in found}}
     return {"thinking": thinking, "sampling": sampling}
+
+
+# A GGUF's general.sampling.* keys, which llama-server applies to a request that sets no sampling (b11960 on
+# a Spark reported LFM3's temp 0.1, top_k 50, and repeat penalty 1.1 from them at /props), by request field.
+_GGUF_SAMPLING = {
+    "general.sampling.temp": "temperature",
+    "general.sampling.top_k": "top_k",
+    "general.sampling.top_p": "top_p",
+    "general.sampling.min_p": "min_p",
+    "general.sampling.penalty_repeat": "repetition_penalty",
+}
+
+
+def gguf_sampling(path: Path | None) -> dict[str, Any]:
+    """The sampling llama-server applies to this GGUF: its general.sampling metadata, else llama-server's own."""
+    from sma.gguf import read_header_file
+
+    try:
+        metadata = read_header_file(path).metadata if path is not None else {}
+    except (OSError, ValueError, SmaError):
+        metadata = {}
+    found = {field: round(float(metadata[key]), 6) for key, field in _GGUF_SAMPLING.items() if isinstance(metadata.get(key), (int, float))}
+    if not found:
+        return {"source": "llama-server's own defaults; the GGUF has no general.sampling metadata"}
+    return {"source": "the GGUF's general.sampling metadata; requests set no sampling field, so llama-server applies it", **found}
 
 
 def _skip(ctx: Any, warn: Warn, suite: str, message: str) -> None:
@@ -95,9 +130,9 @@ def kernelbench_step(ctx: Any, *, ensure_server: EnsureServer, warn: Warn) -> No
     ensure_server(ctx, "quality")
     problems = kb.load_problems(cfg.level)
     defaults = model_defaults(ctx)
-    server_context = int((ctx.manifest.get("memory_plan") or {}).get("context") or cfg.max_tokens)
-    # Room for the prompt: a Level 1 prompt is a few thousand tokens.
-    max_tokens = max(1024, min(cfg.max_tokens, server_context - 4096))
+    server_context = int((ctx.manifest.get("memory_plan") or {}).get("context") or cfg.max_tokens or 32768)
+    # Room for the prompt: a Level 1 prompt is a few thousand tokens. No kernelbench.max_tokens: the rest.
+    max_tokens = max(1024, min(cfg.max_tokens or server_context, server_context - 4096))
     thinking = defaults["thinking"]["enable_thinking"]
     atomic_write_json(
         suite_dir / "settings.json",

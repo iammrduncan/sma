@@ -1,0 +1,7 @@
+{
+  "error": "nel is not on PATH. Install the quality extra (`uv sync --extra quality`) or set quality.executable.",
+  "primary_metric": null,
+  "primary_score": null,
+  "scorer": "not run",
+  "suite": "musique"
+}

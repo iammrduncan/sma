@@ -8,8 +8,9 @@
 #   (`sma list`). `sma queue add` has no --reference (F8).
 # - "#BLOCKED" lines cannot run today. The note above each one names the fix (F1-F9, at the end).
 # - "#OPTIONAL" lines are extra legs: base models, more quants, and models outside the requested sets.
+# - "#LATER" lines are models to come back to, which SMA cannot measure yet or that nobody has checked.
 # - Each model has a short note: architecture, engine, and the dry-run memory plan (weights, context
-#   per stream, full-length streams within 100 GB). "Gaps" points to the benchmark gaps (G1-G15, at the
+#   per stream, full-length streams within 100 GB). "Gaps" points to the benchmark gaps (G1-G16, at the
 #   end, followed by LiquidAI's LFM3 benchmark table mapped onto SMA).
 #
 # How checkpoints were picked
@@ -63,9 +64,10 @@
 #   Gaps: G1 long context (trained to 256K), G2 thinking, G5 multilingual, G6 agentic coding, G7 tool
 #   use, G12 instruction following, G13 hallucination, G14 code generation, G15 agent harnesses. Its
 #   card's benchmark table is mapped onto SMA at the end of this file.
-sma run LiquidAI/LFM3-1.7B-GGUF --gguf BF16 --config sma-lfm3.yaml
-sma run LiquidAI/LFM3-1.7B-GGUF --gguf QAD-Q4_0 --config sma-lfm3.yaml --reference @LiquidAI/LFM3-1.7B-GGUF:BF16
-#BLOCKED sma queue add-pair --bf16 LiquidAI/LFM3-1.7B --nvfp4 LiquidAI/LFM3-1.7B-NVFP4 --tool-parser qwen3_coder
+# Plan (owner, 2026-10-29): native safetensors on SGLang; each pair runs BF16 thinking off, then NVFP4 with
+# thinking off and on. The GGUF pair is left out: NVFP4 covers 4-bit, and a GGUF Q4 needs its own GGUF BF16.
+sma queue add-pair --bf16 LiquidAI/LFM3-1.7B --nvfp4 LiquidAI/LFM3-1.7B-NVFP4 --engine sglang --tool-parser qwen3_coder
+#OPTIONAL sma queue add-pair --gguf LiquidAI/LFM3-1.7B-GGUF BF16 QAD-Q4_0
 # LFM3-1.7B-FP8 (LiquidAI's SGLang build) also needs an --fp8 flag (F3).
 #BLOCKED sma queue add LiquidAI/LFM3-1.7B-FP8 --fp8 --tool-parser qwen3_coder
 
@@ -74,18 +76,18 @@ sma run LiquidAI/LFM3-1.7B-GGUF --gguf QAD-Q4_0 --config sma-lfm3.yaml --referen
 
 # LFM3-VL-2B. Lfm3VlForConditionalGeneration, 128,000 native. SMA measures its text side only (G3).
 #   Plan (after F10): BF16 GGUF 3.5 GB, 128,000 per stream, 8 slots, 26.0 GB.
-sma run LiquidAI/LFM3-VL-2B-GGUF --gguf BF16 --config sma-lfm3.yaml
-sma run LiquidAI/LFM3-VL-2B-GGUF --gguf QAD-Q4_0 --config sma-lfm3.yaml --reference @LiquidAI/LFM3-VL-2B-GGUF:BF16
-#BLOCKED sma queue add-pair --bf16 LiquidAI/LFM3-VL-2B --nvfp4 LiquidAI/LFM3-VL-2B-NVFP4 --tool-parser qwen3_coder
+sma queue add-pair --bf16 LiquidAI/LFM3-VL-2B --nvfp4 LiquidAI/LFM3-VL-2B-NVFP4 --engine sglang --tool-parser qwen3_coder
+#OPTIONAL sma queue add-pair --gguf LiquidAI/LFM3-VL-2B-GGUF BF16 QAD-Q4_0
 
 # LFM3-Audio-2B and LFM3-Omni-2B. Text and audio in, text and speech out (Omni adds vision). Their GGUF
 #   text model is arch lfm3, 128,000 native; SMA serves the text model only, without the mmproj file.
 #   llama.cpp's LFM3 change names only the 1.7B and VL-2B. Audio and speech are not measured (G4).
 #   Neither repo has a QAD file, so the Q4 leg is plain Q4_0 (the format LiquidAI's speed table uses).
-sma run LiquidAI/LFM3-Audio-2B-GGUF --gguf BF16 --config sma-lfm3.yaml
-sma run LiquidAI/LFM3-Audio-2B-GGUF --gguf Q4_0 --config sma-lfm3.yaml --reference @LiquidAI/LFM3-Audio-2B-GGUF:BF16
-sma run LiquidAI/LFM3-Omni-2B-GGUF --gguf BF16 --config sma-lfm3.yaml
-sma run LiquidAI/LFM3-Omni-2B-GGUF --gguf Q4_0 --config sma-lfm3.yaml --reference @LiquidAI/LFM3-Omni-2B-GGUF:BF16
+# No 4-bit safetensors exist for these two, so they run as GGUF on llama.cpp (both GGUFs declare lfm3,
+# 24 blocks, 128,000 native; b11960 has lfm3): BF16, then Q4_0 thinking off and on. Their native BF16 on
+# SGLang is optional; Audio-2B needs an SMA fix first (its config keeps the text model under `lfm`).
+sma queue add-pair --gguf LiquidAI/LFM3-Audio-2B-GGUF BF16 Q4_0
+sma queue add-pair --gguf LiquidAI/LFM3-Omni-2B-GGUF BF16 Q4_0
 
 # d1-2B and d1-Omni-2B are decision models: they return calibrated answers in one forward pass and do
 #   not generate text, so no SMA step applies (G8). No command.
@@ -374,8 +376,44 @@ sma queue add unsloth/Qwen3.8-Flash-Next-GGUF --gguf UD-Q2_K_XL
 #BLOCKED sma queue add nvidia/Qwen3.6-35B-A3B-NVFP4 --mixed --tool-parser qwen3_coder
 
 
+# ==== Later: Nemotron retriever (NVIDIA, blog 2026-10-21) ==========================================
+# From https://huggingface.co/blog/nvidia/nemotron-retriever-world-class-agentic-retrieval (added
+# 2026-10-29 so they are not forgotten; nothing run or dry-run). Repos, types, and sizes are from the
+# Hugging Face API that day. Collection: huggingface.co/collections/nvidia/nemotron-retriever.
+# These embed, rerank, or parse documents: they do not chat, so SMA's quality suites, KernelBench,
+# BrowseComp-Plus, and its speed cells do not apply. SMA needs a retrieval mode first (G16).
+#   Nemotron-3.5-Embed-8B-BF16     visual-document retrieval (text and page images); Mistral3Model,
+#                                  8.38B, built on Ministral-3-8B-Instruct; sentence-transformers;
+#                                  license "other". Post: ViDoRe v3.1 61.17 nDCG@10 (first among dense
+#                                  retrievers on 10/20/2026), MIRACL Vision 72.6.
+#   Nemotron-3.5-Embed-1B-BF16     distilled from the 8B; Mistral3Model, 1.55B; ViDoRe v3.1 58.38.
+#   Nemotron-3.5-Embed-1B-NVFP4    the 1B in NVFP4 (text and image encoders), served with vLLM; post:
+#                                  99.85% of BF16's accuracy on ViDoRe v3, 27% more docs/s on GB200. A
+#                                  BF16/NVFP4 pair like SMA's, for embeddings.
+#   Nemotron-3.5-Rerank-8B-BF16    cross-encoder reranker (Mistral3ForSequenceClassification, 8.38B);
+#                                  ViDoRe v3.1 reranking 60.49 (Qwen3-VL-Reranker-8B 59.17).
+#   Nemotron-3.5-Parse             page images to Markdown and HTML tables; RadioMBartPrefixForCausalLM,
+#                                  631M; license openmdw-1.1; ParseBench 72.74 at 16.1 pages/s on an H100.
+#   Nemotron-3-Embed-8B-BF16, Nemotron-3-Embed-1B-BF16   the earlier text embedders (Ministral3Model,
+#                                  7.95B and 1.14B) the 3.5 models start from.
+#LATER nvidia/Nemotron-3.5-Embed-8B-BF16
+#LATER nvidia/Nemotron-3.5-Embed-1B-BF16 and nvidia/Nemotron-3.5-Embed-1B-NVFP4 (a pair)
+#LATER nvidia/Nemotron-3.5-Rerank-8B-BF16
+#LATER nvidia/Nemotron-3.5-Parse
+#LATER nvidia/Nemotron-3-Embed-8B-BF16, nvidia/Nemotron-3-Embed-1B-BF16
+# Ministral-3-8B-Instruct-2512 is a chat model (Mistral3ForConditionalGeneration, 8.92B, Apache-2.0),
+# the 8B embedder's backbone. SMA could run it as it is today; not checked against the pinned vLLM
+# registry or dry-run yet.
+#LATER sma queue add mistralai/Ministral-3-8B-Instruct-2512-BF16 --bf16
+# Not in the post, seen on the Hub the same day: NVIDIA's Nemotron 3.5 chat models with BF16 and NVFP4
+# checkpoints (Lightning-30B-A3B, Bolt-E4B, Bolt-74B-A9B with a GGUF, Super-VL-120B-A12B). Not added.
+
+
 # ==== SMA fixes these lines need =====================================================================
-# F1  Pair commands fail before they do anything. Fix this first: every "queue add-pair" line needs it.
+# F1  Pair commands fail before they do anything. FIXED 2026-10-29 in the working tree (not yet committed):
+#     each command names its quant to _chosen_engine; tests/test_atomic_queue.py sends add-pair through the
+#     CLI. Pairs also take GGUF files now (--gguf REPO REFERENCE QUANT) and run three legs: the reference
+#     with thinking off, then the quant with thinking off and with thinking on. The history follows.
 #     Symptom. `sma queue add-pair ...`, `sma run-pair ...`, and `sma run-pair ... --dry-run` all exit 2
 #       with "error: Pass one of --bf16, --nvfp4, --mxfp4, --mixed, or --gguf QUANT". Nothing is queued
 #       and nothing is written. The README's own example fails the same way:
@@ -487,16 +525,26 @@ sma queue add unsloth/Qwen3.8-Flash-Next-GGUF --gguf UD-Q2_K_XL
 #     server's setting (off) applied. The template thinks by default. The 1.7B BF16 run's KernelBench answers
 #     have no reasoning (100 of 100); the 1.7B Q4_0 run, already in flight with the old code, will match it.
 #     Sampling was llama-server's defaults (a GGUF has no generation_config.json). tests/test_thinking.py.
-# F16 The 4,096-token output cap cuts LFM3's answers even with thinking off (found 2026-10-29; not changed).
+# F16 The 4,096-token output cap cuts LFM3's answers even with thinking off (found 2026-10-29; fixed in the
+#     working tree, not yet committed: quality.max_tokens and kernelbench.max_tokens are null, so an answer may
+#     use the rest of its stream's context; scores.json counts answers_cut_off).
 #     LFM3 reasons in its reply anyway. Answers that hit the cap, 1.7B BF16 / Q4_0: MMLU-Pro 213 / 224 of 700,
 #     GPQA 12 / 12 of 20, MuSiQue 23 / 34 of 100 (cut answers average F1 0.002), IFEval 1 / 2, GSM8K 0 / 3.
-#     Almost every cut answer scored wrong, so these suites understate the model. Owner to decide the cap.
+#     Almost every cut answer scored wrong, so these suites understate the model. Owner decision 2026-10-29: no cap.
+
+# F17 SGLang filled the Spark with LFM3-1.7B (found 2026-10-30; fixed in the working tree, not yet committed).
+#     SMA sized SGLang's pool in tokens only (--max-total-tokens 13,597,390 at 6,144 bytes a token: the 6
+#     full-attention layers) with --mem-fraction-static 0.9. SGLang dev-lfm3 gives the 5 sliding-window
+#     layers full length too (11,264 bytes a token), so it took 9.39M tokens and 98.5 GB of K and V, leaving
+#     9.1 GB; SMA's memory guard killed the server (run 20261030T044436Z-4112d062). SMA now plans SGLang with
+#     sliding layers in full and sets --mem-fraction-static from the plan (in use + weights + pool, over the
+#     total), so SGLang's pool is the plan's bytes. tests/test_serving_design.py.
 
 # ==== Benchmark gaps =================================================================================
 # What SMA does not measure for these models, most models affected first. SMA today: IFEval 50,
-# GSM8K 50, MMLU-Pro 700, GPQA Diamond 20, MuSiQue 100, BFCL v3, KernelBench L1, SWE-bench
-# Verified-mini, BrowseComp-Plus 100; perplexity and KL; determinism; speed at 2,048 tokens of input
-# or less; energy; the memory plan.
+# GSM8K 50, MMLU-Pro 700, GPQA Diamond 20, MuSiQue 100, BFCL v3, LiveCodeBench v6 (Aug 2024 to May
+# 2025), KernelBench L1, BrowseComp-Plus 100; perplexity and KL; determinism; speed at 2,048 tokens of
+# input or less; energy; the memory plan. SWE-bench Verified-mini is off since 2026-10-29 (owner: too slow).
 #
 # G1  Long context. LFM3 (256K), Spark-X2.6 (1M), Nanbeige4.3 (512K), Qwen3.5/3.8 and Gemma 4 (256K),
 #     Flint (256K), LFM2/2.5 (128K). Hybrid and sliding-window layers exist to win here, and
@@ -551,14 +599,23 @@ sma queue add unsloth/Qwen3.8-Flash-Next-GGUF --gguf UD-Q2_K_XL
 # G13 Hallucination and abstention. Nothing in SMA rewards "I don't know". LiquidAI's AA-Omniscience row
 #     is LFM3-1.7B's largest lead: non-hallucination 92.93 against 13.64 for Qwen3.5-4B, at about the
 #     same accuracy (7.07 against 15.67). Candidate: AA-Omniscience (index, accuracy, non-hallucination).
-# G14 Code generation. KernelBench Level 1 is SMA's only code-writing suite, and it is CUDA kernels.
-#     Candidates: LiveCodeBench v6 (LFM3 73.46), LiveCodeBench Pro 25Q2 (31.74), SciCode (28.47).
+# G14 Code generation. SMA runs LiveCodeBench v6 (leaderboard window, 454 problems) since 2026-10-29,
+#     in place of SWE-bench; LFM3's card reports 73.46 on it (its window is not named). Still missing:
+#     LiveCodeBench Pro 25Q2 (31.74), SciCode (28.47).
 # G15 Agent tasks in a harness. LFM3 is post-trained for agent harnesses (Hermes Agent, Pi, OpenClaw),
 #     and its card leads with agent results. SMA's agents are mini-swe-agent and BrowseComp-Plus's own
 #     client. Candidates: LiveClaw (45.60) and Claw-Eval General (68.64 average, 51.40 pass^3) through
 #     OpenClaw, WebArena-Verified (38.42, up to 40 steps), EnterpriseOps-Gym (28.20) and AutomationBench
 #     public (41.29, up to 50 turns each), Humanity's Last Exam with tools (13.90). The harness is part
 #     of the score, so it must be pinned and recorded like the engine.
+# G16 Retrieval models. Embedders, rerankers, and document parsers (the Nemotron retriever models above)
+#     do not chat. They need a serving mode SMA lacks (vLLM's pooling API: /v1/embeddings, /score or
+#     /rerank) and retrieval scores: ViDoRe v3.1 and MIRACL Vision (nDCG@10), BRIGHT, ParseBench for the
+#     parser, plus throughput in documents or pages per second. KL and perplexity do not apply; a
+#     BF16/NVFP4 pair could compare embeddings directly (cosine) and by retrieval score. A second use:
+#     BrowseComp-Plus's search could run on a dense retriever instead of BM25 (its repo supports one, and
+#     the post evaluates on BrowseComp-Plus), but that changes the benchmark for every model: an owner
+#     decision.
 #
 # ==== LiquidAI's LFM3-1.7B benchmarks against SMA ====================================================
 # From the LFM3-1.7B model card (2026-10-27). LiquidAI served every model with vLLM in BF16 at full

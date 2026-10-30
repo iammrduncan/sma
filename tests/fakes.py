@@ -272,6 +272,7 @@ class FakeEvaluator:
         self.calls: list[list[str]] = []
         self.configs: list[dict[str, Any]] = []
         self.client_timeouts: list[float | None] = []
+        self.eval_factory_configs: list[dict[str, Any]] = []
 
     def run(
         self, argv: list[str], output_dir: Path, timeout_s: float, log_path: Path, client_timeout_s: float | None = None
@@ -332,11 +333,16 @@ class FakeEvaluator:
             run_dir = Path(next(mount for mount in mounts if mount.endswith(":/sma-run:rw")).rsplit(":", 2)[0])
             (run_dir / "logprobs" / "kld-base.bin").write_bytes(b"logits")
 
-    @staticmethod
-    def _eval_factory(argv: list[str]) -> None:
-        """The layout the eval-factory BFCL container (26.03) writes into its /results mount."""
+    def _eval_factory(self, argv: list[str]) -> None:
+        """The layout the eval-factory BFCL or LiveCodeBench container (26.03) writes into its /results mount."""
         mounts = [argv[index + 1] for index, arg in enumerate(argv) if arg == "-v"]
         results = Path(next(mount for mount in mounts if mount.endswith(":/results")).rsplit(":", 1)[0])
+        config_mount = next(mount for mount in mounts if ":/config/" in mount)
+        run_config = yaml.safe_load(Path(config_mount.split(":", 1)[0]).read_text(encoding="utf-8"))
+        self.eval_factory_configs.append(run_config)
+        if run_config["config"]["type"].startswith(("codegeneration", "livecodebench")):
+            _livecodebench_output(results)
+            return
         model = "org_model"
         (results / "result" / model).mkdir(parents=True, exist_ok=True)
         (results / "score" / model).mkdir(parents=True, exist_ok=True)
@@ -363,6 +369,27 @@ class FakeEvaluator:
             ),
             encoding="utf-8",
         )
+
+
+def _livecodebench_output(results: Path) -> None:
+    """What livecodebench 26.03 writes for three problems with one answer each: two pass, one fails."""
+    problems = [("abc390_a", "easy", True), ("abc390_f", "hard", False), ("3781", "medium", True)]
+    rows = [
+        {
+            "question_id": qid, "difficulty": level, "platform": "atcoder", "contest_date": "2025-02-01T00:00:00",
+            "output_list": [f"```python\nprint({qid!r})\n```"], "code_list": [f"print({qid!r})"],
+            "graded_list": [ok], "pass@1": 1.0 if ok else 0.0,
+        }
+        for qid, level, ok in problems
+    ]  # fmt: skip
+    stem = results / "org_model" / "Scenario.codegeneration_1_0.0"
+    stem.parent.mkdir(parents=True, exist_ok=True)
+    Path(f"{stem}_eval_all.json").write_text(json.dumps(rows), encoding="utf-8")
+    Path(f"{stem}_eval.json").write_text(json.dumps([{"pass@1": 2 / 3, "pass@1_stderr": 0.27}]), encoding="utf-8")
+    (results / "results.yml").write_text(
+        yaml.safe_dump({"results": {"groups": {"codegeneration": {"metrics": {"pass@1": {"scores": {"pass@1": {"value": 2 / 3}}}}}}}}),
+        encoding="utf-8",
+    )
 
 
 class FakeBencher:

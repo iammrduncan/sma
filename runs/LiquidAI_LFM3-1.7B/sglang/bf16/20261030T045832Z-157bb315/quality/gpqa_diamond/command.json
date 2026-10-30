@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "nel",
+    "eval",
+    "run",
+    "nel.yaml",
+    "-o",
+    "attempt-1"
+  ],
+  "client_timeout_s": 14400,
+  "concurrency": 8,
+  "cwd": "quality/gpqa_diamond"
+}

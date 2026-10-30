@@ -1,0 +1,50 @@
+
+============================================================
+  Benchmark 1/1: gpqa
+============================================================
+
+  gpqa: pass@1=0.2500 
+Report: attempt-1/report.md
+
+Completed 1 benchmark(s). Results: attempt-1
+
+2026-10-29 19:31:47,166 INFO nemo_evaluator.orchestration.orchestrator: asyncio default ThreadPoolExecutor set to max_workers=200
+2026-10-29 19:31:47,177 INFO nemo_evaluator.adapters.interceptors.endpoint: Endpoint interceptor initialized: upstream=http://127.0.0.1:8000/v1 request_timeout=900.0 max_retries=2 extra_body_keys=['chat_template_kwargs'] extra_headers=[]
+2026-10-29 19:31:47,177 INFO nemo_evaluator.adapters.pipeline: AdapterPipeline ready (3 interceptors: ['payload_modifier', 'endpoint', 'reasoning'])
+2026-10-29 19:31:47,294 INFO nemo_evaluator.adapters.proxy: Adapter proxy ready at http://127.0.0.1:53393 (port=53393)
+2026-10-29 19:31:47,712 INFO httpx2: HTTP Request: HEAD https://huggingface.co/datasets/Idavidrein/gpqa/resolve/main/README.md "HTTP/1.1 200 OK"
+2026-10-29 19:31:47,788 INFO httpx2: HTTP Request: HEAD https://huggingface.co/datasets/Idavidrein/gpqa/resolve/83022cefff930aea54f654c0b282e74b9eeda5c6/gpqa.py "HTTP/1.1 404 Not Found"
+2026-10-29 19:31:48,021 INFO httpx2: HTTP Request: HEAD https://s3.amazonaws.com/datasets.huggingface.co/datasets/datasets/Idavidrein/gpqa/Idavidrein/gpqa.py "HTTP/1.1 404 Not Found"
+2026-10-29 19:31:48,090 INFO httpx2: HTTP Request: GET https://huggingface.co/api/datasets/Idavidrein/gpqa/revision/83022cefff930aea54f654c0b282e74b9eeda5c6 "HTTP/1.1 200 OK"
+2026-10-29 19:31:48,163 INFO httpx2: HTTP Request: HEAD https://huggingface.co/datasets/Idavidrein/gpqa/resolve/83022cefff930aea54f654c0b282e74b9eeda5c6/.huggingface.yaml "HTTP/1.1 404 Not Found"
+2026-10-29 19:31:48,358 INFO httpx2: HTTP Request: GET https://datasets-server.huggingface.co/info?dataset=Idavidrein/gpqa "HTTP/1.1 200 OK"
+2026-10-29 19:31:48,441 INFO httpx2: HTTP Request: GET https://huggingface.co/api/datasets/Idavidrein/gpqa/tree/83022cefff930aea54f654c0b282e74b9eeda5c6?recursive=false&expand=false "HTTP/1.1 200 OK"
+2026-10-29 19:31:48,512 INFO httpx2: HTTP Request: HEAD https://huggingface.co/datasets/Idavidrein/gpqa/resolve/83022cefff930aea54f654c0b282e74b9eeda5c6/dataset_infos.json "HTTP/1.1 404 Not Found"
+2026-10-29 19:31:48,592 INFO nemo_evaluator.environments.custom: BYOB gpqa: 198 samples
+2026-10-29 19:31:48,609 INFO nemo_evaluator.observability.progress: gpqa | 20 problems x 1 repeats = 20 steps
+2026-10-29 19:31:48,609 INFO nemo_evaluator.engine.eval_loop: eval start: gpqa problems=20 [0:20] repeats=1 concurrency=8
+2026-10-29 19:31:48,609 INFO nemo_evaluator.engine.eval_loop: p92 r0: solver-entry at +0.0s
+2026-10-29 19:31:48,609 INFO nemo_evaluator.engine.eval_loop: p59 r0: solver-entry at +0.0s
+2026-10-29 19:31:48,610 INFO nemo_evaluator.engine.eval_loop: p172 r0: solver-entry at +0.0s
+2026-10-29 19:31:48,610 INFO nemo_evaluator.engine.eval_loop: p137 r0: solver-entry at +0.0s
+2026-10-29 19:31:48,610 INFO nemo_evaluator.engine.eval_loop: p58 r0: solver-entry at +0.0s
+2026-10-29 19:31:48,610 INFO nemo_evaluator.engine.eval_loop: p116 r0: solver-entry at +0.0s
+2026-10-29 19:31:48,610 INFO nemo_evaluator.engine.eval_loop: p138 r0: solver-entry at +0.0s
+2026-10-29 19:31:48,610 INFO nemo_evaluator.engine.eval_loop: p179 r0: solver-entry at +0.0s
+2026-10-29 19:31:48,611 INFO nemo_evaluator.adapters.interceptors.payload_modifier: payload_modifier: remove=[], add=['max_tokens', 'seed', 'temperature'], rename=[], headers_add=[], headers_remove=[], headers_rename=[]
+2026-10-29 19:32:06,381 INFO nemo_evaluator.engine.eval_loop: p88 r0: solver-entry at +0.0s
+2026-10-29 19:32:25,926 INFO nemo_evaluator.engine.eval_loop: p6 r0: solver-entry at +0.0s
+2026-10-29 19:32:32,686 INFO nemo_evaluator.engine.eval_loop: p164 r0: solver-entry at +0.0s
+2026-10-29 19:32:47,592 INFO nemo_evaluator.engine.eval_loop: p94 r0: solver-entry at +0.0s
+2026-10-29 19:32:47,656 INFO nemo_evaluator.engine.eval_loop: p100 r0: solver-entry at +0.0s
+2026-10-29 19:32:47,656 INFO nemo_evaluator.engine.eval_loop: p166 r0: solver-entry at +0.0s
+2026-10-29 19:32:47,657 INFO nemo_evaluator.engine.eval_loop: p68 r0: solver-entry at +0.0s
+2026-10-29 19:32:47,658 INFO nemo_evaluator.engine.eval_loop: p119 r0: solver-entry at +0.0s
+2026-10-29 19:33:08,489 INFO nemo_evaluator.observability.progress: progress: 9/20 (45.0%) | pass@1=22.2% (2/9) | 0.1/s | 1m19s elapsed | ETA 1m37s | 33510 tok
+2026-10-29 19:33:08,490 INFO nemo_evaluator.engine.eval_loop: p165 r0: solver-entry at +0.0s
+2026-10-29 19:33:09,405 INFO nemo_evaluator.engine.eval_loop: p26 r0: solver-entry at +0.0s
+2026-10-29 19:33:30,223 INFO nemo_evaluator.engine.eval_loop: p99 r0: solver-entry at +0.0s
+2026-10-29 19:33:37,309 INFO nemo_evaluator.engine.eval_loop: p169 r0: solver-entry at +0.0s
+2026-10-29 19:34:16,887 INFO nemo_evaluator.observability.progress: progress: 20/20 (100.0%) | pass@1=25.0% (5/20) | 0.1/s | 2m28s elapsed | ETA — | 75586 tok
+2026-10-29 19:34:16,969 INFO nemo_evaluator.observability.progress: Done 148.3s | pass@1=25.0% (5/20) | 75,586 tok
+2026-10-29 19:34:17,333 WARNING nemo_evaluator.orchestration.artifact_access: Artifact access may be blocked because parent directories lack a+x: /home/<host>. Grant execute permission on these directories so other cluster users can traverse to attempt-1; read permission is not required for traversal when artifact paths are known.

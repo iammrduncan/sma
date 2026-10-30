@@ -31,6 +31,8 @@ class ServePlan:
     model_file: str | None = None
     # llama.cpp: parallel slots. The unified KV pool is shared by all of them.
     slots: int = 8
+    # The checkpoint's weights in bytes. SGLang's --mem-fraction-static is set from them and the pool.
+    weights_bytes: int | None = None
 
 
 @dataclass(frozen=True)
@@ -98,6 +100,8 @@ class EngineBackend(Protocol):
 
     def serving_metrics(self) -> tuple[str, ...]: ...
 
+    def serving_parts(self, change: dict[str, float], seconds: float) -> dict[str, tuple[float | None, float | None]]: ...
+
     def serving_rates(
         self, change: dict[str, float], mean: dict[str, float], seconds: float
     ) -> dict[str, float | None]: ...
@@ -158,6 +162,9 @@ SGLANG_WATCHED = (
     "sglang:e2e_request_latency_seconds_sum",
     "sglang:e2e_request_latency_seconds_count",
 )
+
+
+SGLANG_PREFILL_SECONDS = 'sglang:per_stage_req_latency_seconds_sum{stage="prefill_forward"}'
 
 
 def docker_exec(container: str, command: list[str]) -> list[str]:
@@ -323,14 +330,19 @@ class VllmBackend:
             "vllm:num_requests_running",
         )
 
+    def serving_parts(self, change: dict[str, float], seconds: float) -> dict[str, tuple[float | None, float | None]]:
+        return {
+            "prefill_tok_s": (change.get("vllm:prompt_tokens_total"), change.get("vllm:request_prefill_time_seconds_sum")),
+            "decode_tok_s": (change.get("vllm:generation_tokens_total"), change.get("vllm:request_decode_time_seconds_sum")),
+            "itl_ms": (change.get("vllm:inter_token_latency_seconds_sum"), change.get("vllm:inter_token_latency_seconds_count")),
+            "generated_tok_s_all": (change.get("vllm:generation_tokens_total"), seconds),
+        }
+
     def serving_rates(self, change: dict[str, float], mean: dict[str, float], seconds: float) -> dict[str, float | None]:
         return {
-            "prefill_tok_s": _ratio(change.get("vllm:prompt_tokens_total"), change.get("vllm:request_prefill_time_seconds_sum")),
-            "decode_tok_s": _ratio(change.get("vllm:generation_tokens_total"), change.get("vllm:request_decode_time_seconds_sum")),
-            "itl_ms": _ratio(change.get("vllm:inter_token_latency_seconds_sum"), change.get("vllm:inter_token_latency_seconds_count"), 1000),
+            **rates_from_parts([self.serving_parts(change, seconds)]),
             "ttft_ms": _ratio(change.get("vllm:time_to_first_token_seconds_sum"), change.get("vllm:time_to_first_token_seconds_count"), 1000),
             "prompt_tok_s_all": _ratio(change.get("vllm:prompt_tokens_total"), seconds),
-            "generated_tok_s_all": _ratio(change.get("vllm:generation_tokens_total"), seconds),
             "in_flight": mean.get("vllm:num_requests_running"),
         }
 
@@ -441,7 +453,7 @@ class SglangBackend:
             "--tp-size",
             "1",
             "--mem-fraction-static",
-            f"{cfg.engine.gpu_memory_utilization:.4g}",
+            f"{sglang_mem_fraction(cfg, plan):.4g}",
             # The memory plan sizes the pool (in tokens) and the context. The KV cache is always 8-bit.
             "--context-length",
             str(plan.context),
@@ -568,18 +580,26 @@ class SglangBackend:
         )
 
     def serving_metrics(self) -> tuple[str, ...]:
-        return SGLANG_WATCHED + ("sglang:num_running_reqs",)
+        # Each request's time in prefill, which SGLang builds after v0.5.10 report per stage (dev-lfm3 does).
+        return SGLANG_WATCHED + ("sglang:num_running_reqs", SGLANG_PREFILL_SECONDS)
+
+    def serving_parts(self, change: dict[str, float], seconds: float) -> dict[str, tuple[float | None, float | None]]:
+        intervals, spent = change.get("sglang:inter_token_latency_seconds_count"), change.get("sglang:inter_token_latency_seconds_sum")
+        return {
+            # Prompt tokens over the time requests spent in prefill, as for vLLM. SGLang v0.5.10 reports
+            # no prefill time, so its prefill rate is not measured.
+            "prefill_tok_s": (change.get("sglang:prompt_tokens_total"), change.get(SGLANG_PREFILL_SECONDS)),
+            # Per stream: the tokens between intervals over the time they took.
+            "decode_tok_s": (intervals, spent),
+            "itl_ms": (spent, intervals),
+            "generated_tok_s_all": (change.get("sglang:generation_tokens_total"), seconds),
+        }
 
     def serving_rates(self, change: dict[str, float], mean: dict[str, float], seconds: float) -> dict[str, float | None]:
-        itl_ms = _ratio(change.get("sglang:inter_token_latency_seconds_sum"), change.get("sglang:inter_token_latency_seconds_count"), 1000)
         return {
-            # SGLang reports no prefill time, so no per-request prefill rate.
-            "prefill_tok_s": None,
-            "decode_tok_s": _ratio(1000.0, itl_ms),
-            "itl_ms": itl_ms,
+            **rates_from_parts([self.serving_parts(change, seconds)]),
             "ttft_ms": _ratio(change.get("sglang:time_to_first_token_seconds_sum"), change.get("sglang:time_to_first_token_seconds_count"), 1000),
             "prompt_tok_s_all": _ratio(change.get("sglang:prompt_tokens_total"), seconds),
-            "generated_tok_s_all": _ratio(change.get("sglang:generation_tokens_total"), seconds),
             "in_flight": mean.get("sglang:num_running_reqs"),
         }
 
@@ -766,17 +786,22 @@ class LlamaCppBackend:
     def serving_metrics(self) -> tuple[str, ...]:
         return LLAMACPP_WATCHED + ("llamacpp:n_busy_slots_per_decode",)
 
-    def serving_rates(self, change: dict[str, float], mean: dict[str, float], seconds: float) -> dict[str, float | None]:
+    def serving_parts(self, change: dict[str, float], seconds: float) -> dict[str, tuple[float | None, float | None]]:
         # Prompt and generation seconds are summed over the slots, so these rates are per request.
         tokens, spent = change.get("llamacpp:tokens_predicted_total"), change.get("llamacpp:tokens_predicted_seconds_total")
         return {
-            "prefill_tok_s": _ratio(change.get("llamacpp:prompt_tokens_total"), change.get("llamacpp:prompt_seconds_total")),
-            "decode_tok_s": _ratio(tokens, spent),
-            "itl_ms": _ratio(spent, tokens, 1000),
+            "prefill_tok_s": (change.get("llamacpp:prompt_tokens_total"), change.get("llamacpp:prompt_seconds_total")),
+            "decode_tok_s": (tokens, spent),
+            "itl_ms": (spent, tokens),
+            "generated_tok_s_all": (tokens, seconds),
+        }
+
+    def serving_rates(self, change: dict[str, float], mean: dict[str, float], seconds: float) -> dict[str, float | None]:
+        return {
+            **rates_from_parts([self.serving_parts(change, seconds)]),
             # llama-server reports no time to first token and no request count to estimate it from.
             "ttft_ms": None,
             "prompt_tok_s_all": _ratio(change.get("llamacpp:prompt_tokens_total"), seconds),
-            "generated_tok_s_all": _ratio(tokens, seconds),
             "in_flight": mean.get("llamacpp:requests_processing"),
         }
 
@@ -815,6 +840,41 @@ LLAMACPP_WATCHED = (
     "llamacpp:requests_processing",
     "llamacpp:requests_deferred",
 )
+
+
+def sglang_mem_fraction(cfg: Config, plan: ServePlan, memory: tuple[int, int] | None = None) -> float:
+    """SGLang's --mem-fraction-static: the share of the device its weights and KV pool may hold.
+
+    SGLang sizes its pool to leave total x (1 - fraction) free, and --max-total-tokens only caps it in tokens,
+    so with 0.9 a model whose tokens cost more than planned filled the Spark (LFM3-1.7B, 2026-10-30). The
+    fraction is what is already in use plus the plan's weights and pool, so the pool is the plan's bytes
+    whatever SGLang thinks a token costs; never above engine.gpu_memory_utilization. memory is
+    (available, total) from /proc/meminfo, the GB10's one pool; without it, or before a plan, that cap.
+    """
+    from sma.telemetry import meminfo
+
+    cap = cfg.engine.gpu_memory_utilization
+    if not isinstance(plan.pool_bytes, int) or plan.weights_bytes is None:
+        return cap
+    found = memory or meminfo()
+    if found is None:
+        return cap
+    available, total = found
+    return min(cap, (total - available + plan.weights_bytes + plan.pool_bytes) / total)
+
+
+def rates_from_parts(parts: list[dict[str, tuple[float | None, float | None]]]) -> dict[str, float | None]:
+    """Serving rates from each engine's (numerator, denominator) parts, summed first: tokens over seconds
+    across every engine that served, so a window that spans two engines is one honest average. A part an
+    engine does not report adds nothing (SGLang's prefill time). ITL is in milliseconds."""
+    sums: dict[str, list[float]] = {}
+    for one in parts:
+        for key, (top, bottom) in one.items():
+            entry = sums.setdefault(key, [0.0, 0.0])
+            if top is not None and bottom is not None:
+                entry[0] += top
+                entry[1] += bottom
+    return {key: _ratio(top, bottom, 1000 if key == "itl_ms" else 1) for key, (top, bottom) in sums.items()}
 
 
 def _ratio(top: float | None, bottom: float | None, scale: float = 1.0) -> float | None:

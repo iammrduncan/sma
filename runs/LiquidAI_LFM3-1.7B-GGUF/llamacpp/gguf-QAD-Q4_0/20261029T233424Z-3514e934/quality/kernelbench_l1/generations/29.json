@@ -1,0 +1,16 @@
+{
+  "content": "<tool_call>\n<function=write>\n<parameter=path>\nModelNew.py\n</parameter>\n<parameter=content>\nimport torch\nimport torch.nn as nn\nfrom torch.utils.cpp_extension import load_inline\n\n\n# Define the custom CUDA kernel for element-wise Softplus (softplus = ln(1 + exp(x)))\n# We implement softplus using a custom CUDA kernel that computes log1p(exp(x)) efficiently.\n# For FP32 precision.\n\nsoftplus_source = \"\"\"\n#include <torch/extension.h>\n#include <cuda_runtime.h>\n\n__global__ void softplus_kernel(const float* x, float* out, int size) {\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    if (idx < size) {\n        // Compute softplus: ln(1 + exp(x))\n        // To avoid overflow for large positive x, we use the stable formula:\n        // softplus(x) = max(0, x) + log1p(exp(-abs(x)))  but simpler: \n        // For each element: if x > 0: return x + log1p(exp(-x)); else: return log1p(exp(x))\n        float val;\n        if (x > 0.0f) {\n            val = x - log1p(fexp(-x));\n        } else {\n            val = log1p(fexp(x));\n        }\n        out[idx] = val;\n    }\n}\n\ntorch::Tensor softplus_cuda(torch::Tensor a) {\n    auto size = a.numel();\n    auto out = torch::zeros_like(a);\n\n    const int block_size = 256;\n    const int num_blocks = (size + block_size - 1) / block_size;\n\n    softplus_kernel<<<num_blocks, block_size>>>(a.data_ptr<float>(), out.data_ptr<float>(), size);\n    return out;\n}\n\"\"\"\n\n# Compile the inline CUDA code for Softplus\nsoftplus_cpp_source = \"torch::Tensor softplus_cuda(torch::Tensor a);\"\nsoftplus = load_inline(\n    name=\"softplus\",\n    cpp_sources=softplus_cpp_source,\n    cuda_sources=softplus_source,\n    functions=[\"softplus_cuda\"],\n    verbose=True,\n    extra_cflags=[],\n    extra_ldflags=[],\n)\n\n\nclass ModelNew(nn.Module):\n    def __init__(self) -> None:\n        super().__init__()\n        self.softplus = softplus\n\n    def forward(self, x: torch.Tensor) -> torch.Tensor:\n        return self.softplus.elementwise_add_cuda(x)\n\n</parameter>\n</function>\n</tool_call>",
+  "finish_reason": "stop",
+  "kernel": null,
+  "name": "29_Softplus",
+  "problem_id": 29,
+  "reasoning": null,
+  "usage": {
+    "completion_tokens": 558,
+    "prompt_tokens": 979,
+    "prompt_tokens_details": {
+      "cached_tokens": 463
+    },
+    "total_tokens": 1537
+  }
+}

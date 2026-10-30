@@ -89,6 +89,24 @@ def test_a_resumed_run_keeps_its_tool_parser(tmp_path: Path) -> None:
         )
 
 
+def test_a_thinking_on_run_serves_quality_with_thinking_on_and_resumes_only_as_thinking_on(tmp_path: Path) -> None:
+    cfg = make_config(tmp_path)
+    services, _fetcher, runtime = make_services(tmp_path, cfg)
+    services.hooks.kill_step = "determinism"
+    with pytest.raises(SimulatedKill):
+        execute(RunSpec(repo="example/tiny", quant_flag="bf16", thinking="on"), cfg, services)
+    run_dir = _run_dir(tmp_path)
+    assert run_dir.parent.name == "bf16-thinking"
+    manifest = json.loads((run_dir / "manifest.json").read_text())
+    # The quality server takes thinking on as its default, for suites that cannot send it (BFCL).
+    flags = manifest["engine"]["flags_quality"]
+    assert json.loads(flags[flags.index("--default-chat-template-kwargs") + 1]) == {"enable_thinking": True}
+    assert manifest["config_snapshot"]["quality"]["temperature"] is None
+
+    with pytest.raises(SmaError, match="started with thinking on, not off"):
+        execute(RunSpec(repo="example/tiny", quant_flag="bf16", resume_run_id=run_dir.name), cfg, services)
+
+
 def test_the_command_record_has_no_hostname_from_the_mount_paths(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(socket, "gethostname", lambda: "secret-host")
     monkeypatch.setattr(socket, "getfqdn", lambda *_args: "secret-host")
@@ -102,8 +120,12 @@ def test_the_command_record_has_no_hostname_from_the_mount_paths(tmp_path: Path,
         config_path=Path("/home/secret-host/runs/x/run_config.yaml"),
         uid=1000,
         gid=1000,
+        hf_home=Path("/home/secret-host/.cache/sma/hf/eval-factory"),
     )
     assert "secret-host" not in json.dumps(scrub_obj(argv))
+    # Datasets a container downloads are kept between runs (LiveCodeBench's is 4.5 GB); no token goes in.
+    assert "/home/<host>/.cache/sma/hf/eval-factory:/hf-home" in scrub_obj(argv) and "HF_HOME=/hf-home" in argv
+    assert not any("HF_TOKEN" in arg for arg in argv)
     assert "/home/<host>/runs/x/attempt-1:/results" in scrub_obj(argv)
 
 
@@ -153,3 +175,71 @@ def test_a_cold_image_pull_gets_the_long_pull_timeout(monkeypatch) -> None:
     assert digest == "sha256:" + "c" * 64
     pull_timeouts = [timeout for argv, timeout in calls if argv[:2] == ["docker", "pull"]]
     assert pull_timeouts == [cfg.timeouts.image_pull_s]
+
+
+LIVECODEBENCH = QualitySuite(
+    "livecodebench",
+    image="nvcr.io/nvidia/eval-factory/livecodebench:26.03",
+    task="codegeneration_release_v6",
+    params={"extra": {"n_samples": 1, "start_date": "2024-08-01", "end_date": "2025-05-01"}},
+    sampling=True,
+)
+
+
+@pytest.mark.parametrize("thinking", ["off", "on"])
+def test_livecodebench_runs_one_answer_per_problem_in_the_runs_thinking_mode(tmp_path: Path, thinking: str) -> None:
+    # Owner decision 2026-10-29: SWE-bench is too slow; LiveCodeBench replaces it. Its container sends
+    # temperature, top_p, and an answer limit itself, so SMA sets them for the run.
+    cfg = make_config(tmp_path)
+    cfg.quality.suites = [LIVECODEBENCH]
+    services, _fetcher, _runtime = make_services(tmp_path, cfg)
+
+    execute(RunSpec(repo="example/tiny", quant_flag="bf16", thinking=thinking), cfg, services)
+
+    [run_config] = services.evaluator.eval_factory_configs
+    params = run_config["config"]["params"]
+    run_dir = _run_dir(tmp_path)
+    context = json.loads((run_dir / "manifest.json").read_text())["memory_plan"]["benchmarks"]["quality"]
+    # The answer may use the stream's context, less room for the prompt; one answer per problem, in the window.
+    assert params["max_new_tokens"] == context - 4096 and params["request_timeout"] == int(cfg.quality.request_timeout_s)
+    assert params["extra"] == {"n_samples": 1, "start_date": "2024-08-01", "end_date": "2025-05-01"}
+    assert params["parallelism"] == cfg.quality.concurrency
+    sampling = json.loads((run_dir / "quality" / "livecodebench" / "command.json").read_text())["sampling"]
+    if thinking == "off":
+        assert (params["temperature"], params["top_p"]) == (0.0, 1.0) and sampling["source"] == "thinking off: greedy"
+    else:
+        # vLLM applies the checkpoint's generation_config.json; this one sets neither, so 1.0, as vLLM does.
+        assert (params["temperature"], params["top_p"]) == (1.0, 1.0) and "generation_config" in sampling["source"]
+
+    scores = json.loads((run_dir / "quality" / "livecodebench" / "scores.json").read_text())
+    assert (scores["primary_metric"], scores["n"]) == ("pass@1", 3)
+    assert scores["primary_score"] == pytest.approx(2 / 3)
+    assert scores["categories"] == {"easy": {"correct": 1, "total": 1}, "hard": {"correct": 0, "total": 1}, "medium": {"correct": 1, "total": 1}}
+    rows = [json.loads(line) for line in (run_dir / "quality" / "livecodebench" / "samples.jsonl").read_text().splitlines()]
+    assert {row["id"]: row["correct"] for row in rows} == {"abc390_a": True, "abc390_f": False, "3781": True}
+    assert rows[0]["code"] and rows[0]["answer"]
+
+
+def test_container_settings_belong_to_eval_factory_suites() -> None:
+    with pytest.raises(SmaError, match="params and sampling are for an eval-factory container"):
+        validate_config(config_from_mapping({"quality": {"suites": [{"name": "x", "sampling": True}]}}))
+
+
+def test_teardown_stops_a_suite_container_left_running(tmp_path: Path) -> None:
+    # 2026-10-30: a worker stopped mid-BFCL; teardown stopped the servers but not BFCL's container, then
+    # failed with "Containers still present after teardown".
+    cfg = make_config(tmp_path)
+    cfg.quality.suites = [BFCL]
+    services, _fetcher, runtime = make_services(tmp_path, cfg)
+    services.hooks.kill_step = "determinism"
+    with pytest.raises(SimulatedKill):
+        execute(RunSpec(repo="example/tiny", quant_flag="bf16", tool_parser="hermes"), cfg, services)
+    run_id = _run_dir(tmp_path).name
+    leftover = f"{cfg.engine.container_prefix}-{run_id}-quality-bfcl_v3"
+    runtime.running.add(leftover)  # as if the eval-factory container were still up
+
+    from sma.pipeline import _load, _teardown_containers
+
+    ctx = _load(RunSpec(repo="example/tiny", quant_flag="bf16", resume_run_id=run_id), cfg, services)
+    _teardown_containers(ctx)
+    assert leftover not in runtime.list_sma()

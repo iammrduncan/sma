@@ -91,8 +91,13 @@ memory:
   # llama.cpp sizes its compute buffers by its whole KV cache, so its pool holds its slots at the context
   # per stream and no more, and the plan counts those buffers per token (src/sma/runplan.py). Its prompt
   # cache (engine.llamacpp_cache_ram_mib) is counted on top.
-  # The least context a quality request needs: prompt plus quality.max_tokens.
+  # The least context per stream quality may get, the ladder's floor for its streams. Answers have no
+  # length limit (quality.max_tokens null), so quality gets the largest step that fits.
   quality_min_context: 8192
+  # If the Spark's available memory falls under this many GB, SMA kills this run's containers at once; the
+  # running step fails and says why. GPU memory on a GB10 is charged to no process and earlyoom only sends
+  # SIGTERM, so neither stopped the 2026-10-28 crash. 0 turns it off.
+  guard_free_gb: 12
 
 timeouts:
   server_start_s: 900
@@ -100,7 +105,9 @@ timeouts:
   health_poll_s: 2
   command_s: 120
   bench_s: 7200
-  eval_s: 14400
+  # One quality suite in all. Answers have no length limit, and a thinking model on BFCL's 4,441 questions
+  # can take many hours; this only stops a suite that hangs.
+  eval_s: 86400
   docker_s: 300
   # Cold pulls of the arm64 CUDA images are large. This is not the short inspect timeout.
   image_pull_s: 3600
@@ -138,35 +145,46 @@ quality:
   # chat API. Requests in flight per suite. Recorded.
   concurrency: 8
   executable: nel
-  max_tokens: 4096
+  # Output tokens per answer. null sends no limit: an answer may use all the context its stream has left,
+  # which the memory plan sets (owner decision 2026-10-29). With 4,096, LFM3-1.7B ran out on 30% of its
+  # MMLU-Pro answers and 60% of its GPQA answers with thinking off. scores.json counts the answers that
+  # stop at the limit (answers_cut_off).
+  max_tokens: null
   # One request to the model server, for nel's proxy and its model client alike (nemo-evaluator 0.3.0 fixes the
-  # client at 120 s; SMA raises it). Failed requests are retried retries.attempts times in all.
-  request_timeout_s: 900
-  # Quality is scored with thinking off. SMA decodes greedily (temperature 0) with an 8192-token
-  # context. Qwen3's model card says not to decode thinking mode greedily and to allow 32,768
-  # output tokens, so thinking-mode scores would be cut off or degraded. Templates that do not
-  # read enable_thinking ignore it. Merged into every request body.
-  chat_template_kwargs:
-    enable_thinking: false
+  # client at 120 s; SMA raises it). Long enough for an answer that fills a 256K context at 20 tok/s per
+  # stream. Failed requests are retried retries.attempts times in all.
+  request_timeout_s: 14400
+  # Each run has a thinking mode (owner decision 2026-10-29): sma run ... --thinking off (the default) or
+  # --thinking on. Off: thinking off, greedy at this temperature. On: thinking on, no temperature sent, so
+  # the engine applies the model's own sampling (generation_config.json, or a GGUF's general.sampling
+  # metadata). The mode also sets enable_thinking for KernelBench, SWE-bench, and BrowseComp-Plus.
+  temperature: 0.0
+  # Merged into every request body and set as the quality server's default. The thinking mode adds
+  # enable_thinking; it cannot be set here. Templates that do not read it ignore it.
+  chat_template_kwargs: {}
   # bench is a nel benchmark: a built-in name, lm-eval://<task> (generative tasks only), or
   # sma:<name> for a file in src/sma/nel_benchmarks/. It defaults to the suite name. limit picks
   # that many questions by a seeded shuffle of the whole dataset, the same ones for every model.
   # Clear a limit to run the whole dataset. These are not the arena's pinned bench scorers.
   suites:
+    # Owner decision 2026-10-29: IFEval all 541 prompts, GSM8K 150 of 1,319, GPQA Diamond all 198. At 20
+    # GPQA questions LFM3-1.7B's BF16 and Q4 intervals (20-60%, 10-45%) could not tell them apart.
     - name: ifeval
       bench: lm-eval://ifeval
-      limit: 50
+      limit: null
+      questions: 541
     # Both GSM8K graders in nemo-evaluator 0.3.0 mark answers wrongly. SMA ships nel's prompt with a
     # numeric answer check.
     - name: gsm8k
       bench: sma:gsm8k
-      limit: 50
+      limit: 150
     - name: mmlu_pro
       limit: 700
     # GPQA Diamond. The dataset (Idavidrein/gpqa) is gated: accept its terms with the HF account.
     - name: gpqa_diamond
       bench: gpqa
-      limit: 20
+      limit: null
+      questions: 198
     # MuSiQue-Ans (owner decision 2026-10-28): multi-hop questions, each with its own 17 to 20 Wikipedia
     # paragraphs, answered in one reply and scored by rule with MuSiQue's answer F1 (exact match is kept too).
     # The dev split, from a mirror checked against the official file. See src/sma/nel_benchmarks/musique.py.
@@ -184,6 +202,23 @@ quality:
       tools: true
       # The dataset's size inside the container, for `sma watch`'s answered/total only.
       questions: 4441
+    # LiveCodeBench (owner decision 2026-10-29: it replaces SWE-bench, which was too slow). One answer per
+    # contest problem, scored by running the problem's hidden tests in NVIDIA's container; the headline is
+    # pass@1. The window is LiveCodeBench's leaderboard default for release v6, August 2024 to May 2025.
+    # LiveCodeBench has no problems after April 2025, so models trained since may have seen these. The
+    # container sends temperature, top_p, and an answer limit itself, so SMA sets them for the run's thinking
+    # mode (sampling: true). It downloads the dataset (4.5 GB) into hf.cache_dir/eval-factory once.
+    - name: livecodebench
+      image: nvcr.io/nvidia/eval-factory/livecodebench:26.03
+      task: codegeneration_release_v6
+      sampling: true
+      params:
+        extra:
+          n_samples: 1
+          start_date: "2024-08-01"
+          end_date: "2025-05-01"
+      # 454 problems in the window (110 easy, 141 medium, 203 hard), counted with the container's own loader.
+      questions: 454
 
 # KernelBench Level 1 (owner decision 2026-10-27). The model writes a kernel for each of the 100
 # problems with KernelBench's own one-shot CUDA prompt. A separate GB10 compiles, checks, and times them
@@ -194,21 +229,25 @@ kernelbench:
   enabled: true
   level: 1
   concurrency: 8
-  # Output tokens per answer, reasoning included. Capped at the server's context minus 4,096.
-  max_tokens: 32768
-  request_timeout_s: 3600
+  # Output tokens per answer, reasoning included. null: the server's context per stream minus 4,096 for
+  # the prompt, as for quality (owner decision 2026-10-29).
+  max_tokens: null
+  request_timeout_s: 14400
   # The service's evaluation options; empty uses its defaults, which match its stored baselines.
   options: {}
   poll_s: 60
   wait_s: 21600
 
+# SWE-bench is off (owner decision 2026-10-29): a run spent most of its time there, and small models
+# mostly hit the step limit. LiveCodeBench, a quality suite, replaces it. The code stays; enabled: true
+# brings it back.
 # SWE-bench Verified-mini (50 tasks) with mini-swe-agent's swebench.yaml on the x86_64 runner
 # (services/swe-runner), reached over SSH with SWE_RUNNER_HOST, SWE_RUNNER_USER, and SWE_RUNNER_SSH_KEY
 # from the root .env. 8 agents (owner decision 2026-10-29; 4 before: the model was the bottleneck, and
 # 4 agents left the GPU at a quarter of its throughput) and 250 steps (2026-10-27), the model's own
 # sampling and thinking mode. The agent acts through a bash tool call, so the run needs --tool-parser.
 swebench:
-  enabled: true
+  enabled: false
   workers: 8
   step_limit: 250
   # Each agent's stream gets the largest step of the context ladder that fits all of them, at least this.

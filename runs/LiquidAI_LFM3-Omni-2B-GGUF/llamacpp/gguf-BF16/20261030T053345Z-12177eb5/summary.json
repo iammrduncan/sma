@@ -1,0 +1,91 @@
+{
+  "batch_invariant": false,
+  "delta_ppl": null,
+  "deployment": {
+    "computed": {
+      "kv_bytes_per_token": null,
+      "kv_pool_gb": null,
+      "kv_pool_tokens": null,
+      "memory_budget_gb": null,
+      "planned_footprint_gb": null,
+      "streams_32k": null,
+      "streams_full_context": null,
+      "weights_gb": null
+    },
+    "context_per_stream": null,
+    "context_reason": null,
+    "engine": "llamacpp",
+    "kv_cache_type": "q8_0",
+    "measured": {
+      "kv_pool_tokens": null,
+      "output_tok_s_c1": null,
+      "output_tok_s_c4": null,
+      "output_tok_s_c8": null,
+      "peak_memory_gb": null,
+      "streams_32k": null,
+      "streams_full_context": null
+    },
+    "sentence": null,
+    "weight_format": "BF16"
+  },
+  "determinism_passed": null,
+  "energy": {
+    "joules": null,
+    "joules_per_bench_request": null,
+    "method": "nvml-energy-counter-per-window",
+    "note": "Each valid speed-cell window is measured on its own and the joules are summed. nvml-energy-counter is the GPU's cumulative energy counter read before and after the bench command. nvidia-smi-1hz-trapezoid integrates sampled power and is used only when the counter was not read; gaps longer than telemetry.max_sample_gap_s are not bridged. Invalid or unverified windows are excluded. GPU only: on a DGX Spark the CPU shares the 140 W SoC budget and is not counted. Not joules per correct answer, and not a wall meter. Null means it was not measured.",
+    "sample_hz": 1.0,
+    "scope": "gpu"
+  },
+  "engine": "llamacpp",
+  "engine_image": "ghcr.io/ggml-org/llama.cpp:full-cuda13-b11960",
+  "engine_image_digest": null,
+  "host_alias": "gpu-host-1",
+  "kl_k": null,
+  "kl_mean": null,
+  "kl_method": null,
+  "model_repo": "LiquidAI/LFM3-Omni-2B-GGUF",
+  "model_slug": "LiquidAI_LFM3-Omni-2B-GGUF",
+  "params_active": null,
+  "params_active_b": null,
+  "params_total": null,
+  "params_total_b": null,
+  "perplexity": null,
+  "perplexity_tokens": null,
+  "quality": {},
+  "quant_detected": null,
+  "quant_flag": "gguf",
+  "quant_label": "BF16",
+  "reference_run_id": null,
+  "revision_sha": null,
+  "run_id": "20261030T053345Z-12177eb5",
+  "schema_version": 2,
+  "size_class": null,
+  "speed": {
+    "bandwidth_ceiling_note": "Derived from the configured spec bandwidth (273 GB/s) divided by approximate active weight bytes. Not a measurement. NVFP4/MXFP4 use 0.5 bytes per parameter and ignore scale overhead.",
+    "bandwidth_ceiling_tok_s": null,
+    "cells": [],
+    "decode_tok_s": null,
+    "decode_tok_s_stat": "p50",
+    "invalid_cells": 0,
+    "output_tok_s_c4": null,
+    "output_tok_s_c8": null,
+    "prefill_tok_s": null,
+    "prefill_tok_s_stat": "p50",
+    "unverified_cells": 0
+  },
+  "status": "pending",
+  "thermal": {
+    "clock_cap_mhz": null,
+    "log": "telemetry.csv",
+    "sw_power_cap_invalidates": false,
+    "temp_end_c": null,
+    "temp_start_c": null,
+    "throttle_samples": 0
+  },
+  "thinking": "off",
+  "top1_agreement": null,
+  "warnings": [
+    "Page cache was not dropped. The next model may see leftover file cache."
+  ]
+}

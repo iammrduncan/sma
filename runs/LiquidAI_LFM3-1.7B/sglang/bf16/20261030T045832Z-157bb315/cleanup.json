@@ -1,0 +1,15 @@
+{
+  "idle_until_cool": {
+    "elapsed_s": 0.009,
+    "end_c": 47.0,
+    "reached": true,
+    "start_c": 47.0,
+    "target_c": 55
+  },
+  "page_cache": {
+    "attempted": true,
+    "error": "[Errno 13] Permission denied: '/proc/sys/vm/drop_caches'",
+    "ok": false,
+    "permitted": false
+  }
+}

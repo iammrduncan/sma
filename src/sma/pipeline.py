@@ -24,6 +24,7 @@ from sma.commands import (
     docker_argv,
     eval_factory_argv,
     eval_factory_config,
+    find_executable,
     moe_backend_chain,
     nel_argv,
     nel_with_client_timeout,
@@ -36,7 +37,7 @@ from sma.commands import (
 )
 from sma import agentic
 from sma.compare import compare_run_dirs
-from sma.config import Config, QualitySuite
+from sma.config import Config, QualitySuite, for_thinking
 from sma.corpus import build_windows, load_corpus
 from sma.errors import CompareRefused, RunIncomplete, SmaError
 from sma.fetch import TOKENIZER_FILES, FetchResult, download_snapshot, inspect_snapshot
@@ -52,6 +53,7 @@ from sma.qualityout import normalize_eval_factory, normalize_suite, scrub_output
 from sma.records import (
     STEP_NAMES,
     blank_step,
+    git_identity,
     large_file_hashes,
     large_file_problem,
     load_manifest,
@@ -82,7 +84,7 @@ from sma.speedmath import (
     summarize_cells,
 )
 from sma.telemetry import TelemetryRecorder, throttled_between
-from sma.httpapi import scrape_metrics, wait_until_healthy
+from sma.httpapi import request_json, scrape_metrics, wait_until_healthy
 from sma.engines import (
     batch_invariance_replaces_kernels,
     compatibility_error,
@@ -142,6 +144,8 @@ class RunSpec:
     # Why this engine serves the run: "format", "flag", "default", or "preflight". Set by execute().
     selected_by: str | None = None
     selection_reason: str | None = None
+    # The run's thinking mode, part of its identity: "off" (greedy) or "on" (config.for_thinking).
+    thinking: str = "off"
 
 
 @dataclass
@@ -160,6 +164,8 @@ class Ctx:
     bench_tokenizer_dir: Path | None = None
     # Steps that failed in this process without stopping the run (_run_step).
     failed_steps: list[str] = field(default_factory=list)
+    # Set by the memory guard on the telemetry thread; the step that ends next records it (_guard_note).
+    memory_guard_note: str | None = None
 
     @property
     def base_url(self) -> str:
@@ -315,15 +321,14 @@ class CommandEvaluator:
         self, argv: list[str], output_dir: Path, timeout_s: float, log_path: Path, client_timeout_s: float | None = None
     ) -> None:
         """Run a command in output_dir. client_timeout_s: argv is nel, and its model client may wait this long."""
-        import shutil
-
         output_dir.mkdir(parents=True, exist_ok=True)
-        found = shutil.which(argv[0])
+        found = find_executable(argv[0])
         if found is None:
             raise SmaError(
-                f"{argv[0]} is not on PATH. Install the quality extra "
+                f"{argv[0]} is not on PATH or beside SMA's Python. Install the quality extra "
                 "(`uv sync --extra quality`) or set quality.executable."
             )
+        argv = [found, *argv[1:]]
         if client_timeout_s:
             interpreter = script_interpreter(Path(found))
             if interpreter is None:
@@ -383,6 +388,8 @@ def execute(
     on_created: Callable[[str], None] | None = None,
 ) -> str:
     assert_alias_safe(cfg.host_alias)
+    # Every step reads the mode's settings from cfg: the quality server's default, nel's requests.
+    cfg = for_thinking(cfg, spec.thinking)
     if (spec.quant_flag == "gguf") != bool(spec.gguf):
         raise SmaError("A GGUF run needs --gguf <quant>, and --gguf goes with a GGUF repo only.")
     explicit = spec.engine
@@ -418,6 +425,8 @@ def execute(
                 ctx.manifest["timestamps"]["started"] = utc_now()
             publish(cfg, ctx.run_dir, ctx.manifest)
             ctx.telemetry = services.telemetry_factory(ctx.run_dir, cfg)
+            if cfg.memory.guard_free_gb > 0:
+                ctx.telemetry.guard_memory(int(cfg.memory.guard_free_gb * 1e9), lambda available: _memory_guard(ctx, available))
             ctx.telemetry.set_phase("startup")
             backend = get_backend(ctx.manifest["engine"]["name"])
             ctx.telemetry.watch_engine(ctx.base_url, backend.metrics_path(), backend.serving_metrics())
@@ -430,12 +439,12 @@ def execute(
                 _run_step(ctx, "kernelbench", _step_kernelbench)
                 _run_step(ctx, "swebench", _step_swebench)
                 _run_step(ctx, "browsecomp_plus", _step_browsecomp)
+                # Scores come before speed (owner, 2026-10-29). The judge is on lab hardware; a judge outage
+                # fails this step only. The service has timed the kernels while SWE-bench and BrowseComp-Plus ran.
+                _run_step(ctx, "browsecomp_plus_results", _step_browsecomp_results)
+                _run_step(ctx, "kernelbench_results", _step_kernelbench_results)
                 _run_step(ctx, "serve_speed", _step_serve_speed)
                 _run_step(ctx, "speed", _step_speed)
-                # The service times the kernels on its own GPU while SWE-bench and speed run here.
-                _run_step(ctx, "kernelbench_results", _step_kernelbench_results)
-                # The judge runs on lab hardware, after speed, so a judge outage cannot hold up the measurements.
-                _run_step(ctx, "browsecomp_plus_results", _step_browsecomp_results)
                 ctx.manifest["timestamps"]["finished"] = utc_now()
                 publish(cfg, ctx.run_dir, ctx.manifest)
                 if ctx.failed_steps:
@@ -457,7 +466,7 @@ def execute(
 
 def _create(spec: RunSpec, cfg: Config, services: Services) -> Ctx:
     run_id = new_run_id()
-    run_dir = run_dir_for(cfg, spec.repo, spec.quant_flag, run_id, spec.engine or "vllm", gguf=spec.gguf)
+    run_dir = run_dir_for(cfg, spec.repo, spec.quant_flag, run_id, spec.engine or "vllm", gguf=spec.gguf, thinking=spec.thinking)
     run_dir.mkdir(parents=True, exist_ok=False)
     for name in ("fetch", "logprobs", "quality", "speed", "logs", "steps"):
         (run_dir / name).mkdir(parents=True, exist_ok=True)
@@ -474,6 +483,7 @@ def _create(spec: RunSpec, cfg: Config, services: Services) -> Ctx:
         gguf=spec.gguf,
         selected_by=spec.selected_by,
         selection_reason=spec.selection_reason,
+        thinking=spec.thinking,
     )
     add_run_log(run_dir / "logs" / "sma.log")
     publish(cfg, run_dir, manifest)
@@ -503,6 +513,13 @@ def _load(spec: RunSpec, cfg: Config, services: Services) -> Ctx:
         raise SmaError(
             f"Run {spec.resume_run_id} was started with tool parser {recorded_parser or 'none'}, "
             f"not {spec.tool_parser}. A resumed run keeps its server flags."
+        )
+    # A run from before the setting scored quality with thinking off.
+    recorded_thinking = manifest.get("thinking") or "off"
+    if recorded_thinking != spec.thinking:
+        raise SmaError(
+            f"Run {spec.resume_run_id} was started with thinking {recorded_thinking}, not {spec.thinking}. "
+            "The thinking mode is part of the run."
         )
     if spec.gguf and (manifest.get("gguf") or {}).get("selector") not in (None, spec.gguf):
         raise SmaError(f"Run {spec.resume_run_id} is GGUF {manifest['gguf'].get('selector')}, not {spec.gguf}.")
@@ -643,11 +660,15 @@ def _run_step(ctx: Ctx, name: str, fn: Callable[[Ctx], None]) -> None:
         done["status"] = "done"
         done["finished"] = utc_now()
         done["error"] = None
+        _guard_note(ctx)
         publish(ctx.cfg, ctx.run_dir, ctx.manifest)
         log_event("step_done", step=name, run_id=ctx.run_id)
     except Exception as exc:
         note = _stopped_server_note(ctx, name)
         message = str(exc) if note is None else f"{exc}\n{note}"
+        guarded = _guard_note(ctx)
+        if guarded:
+            message = f"{guarded}\n{message}"
         failed = ctx.manifest["steps"][name]
         failed["status"] = "failed"
         failed["finished"] = utc_now()
@@ -672,6 +693,27 @@ class SimulatedKill(BaseException):
 # Steps nothing after them can do without: the checkpoint and the quality server. Any other step may fail
 # and the run goes on (owner decision 2026-10-29).
 _REQUIRED_STEPS = {"fetch", "serve_quality"}
+
+
+def _memory_guard(ctx: Ctx, available: int) -> None:
+    """The memory guard (memory.guard_free_gb), on the telemetry thread: kill this run's containers at once.
+    The step that ends next records why (_guard_note)."""
+    names = [name for name in ctx.services.runtime.list_sma() if ctx.run_id in name]
+    for name in names:
+        ctx.services.runtime.kill(name)
+    ctx.memory_guard_note = (
+        f"The memory guard killed {', '.join(names) or 'no container'}: the Spark had {available / 1e9:.1f} GB "
+        f"available, under memory.guard_free_gb ({ctx.cfg.memory.guard_free_gb:g} GB). memory.csv has the readings."
+    )
+    log_event("memory_guard", run_id=ctx.run_id, available=available, killed=names)
+
+
+def _guard_note(ctx: Ctx) -> str | None:
+    """The memory guard's note, once, as a warning; on the main thread, which owns the manifest."""
+    note, ctx.memory_guard_note = ctx.memory_guard_note, None
+    if note:
+        _warn(ctx, note)
+    return note
 
 
 def _stopped_server_note(ctx: Ctx, step: str) -> str | None:
@@ -1131,6 +1173,59 @@ def _step_browsecomp_results(ctx: Ctx) -> None:
     agentic.browsecomp_results_step(ctx, warn=_warn)
 
 
+def rescore(cfg: Config, run_id: str) -> list[str]:
+    """Score a finished run's quality suites again, with this SMA, from the output their harness saved.
+
+    Nothing is asked of a model. Each suite with a .done marker is normalized again from its last attempt,
+    so fields SMA has learned to record since (IFEval's four measures, answers_cut_off) reach old records.
+    The context and concurrency the suite ran with are kept. The manifest lists each rescore; the summary
+    and the catalog are rebuilt. A run with a step still running is refused: its own process owns it.
+    """
+    from sma.catalog import Catalog
+
+    found = Catalog(cfg.runs_path()).find(run_id)
+    if found is None:
+        raise SmaError(f"No run with id {run_id}")
+    manifest = load_manifest(found)
+    running = [name for name, step in (manifest.get("steps") or {}).items() if isinstance(step, dict) and step.get("status") == "running"]
+    if running:
+        raise SmaError(
+            f"Run {run_id} has a step running ({running[0]}). Rescore it after it ends, or after `sma resume` finishes it."
+        )
+    suites = ((manifest.get("config_snapshot") or {}).get("quality") or {}).get("suites") or []
+    redone: list[str] = []
+    for suite in suites:
+        suite_dir = found / "quality" / str(suite.get("name"))
+        attempts = sorted(
+            (path for path in suite_dir.glob("attempt-*") if path.is_dir() and path.name.split("-")[1].isdigit()),
+            key=lambda path: int(path.name.split("-")[1]),
+        )
+        before = _optional(suite_dir / "scores.json")
+        if not (suite_dir / ".done").is_file() or not attempts or not isinstance(before, dict):
+            continue
+        if suite.get("image"):
+            command = _optional(suite_dir / "command.json") or {}
+            normalize_eval_factory(suite_dir, attempts[-1], suite["name"], image=str(command.get("image") or suite["image"]), task=suite["task"])
+        else:
+            normalize_suite(
+                suite_dir, attempts[-1], suite["name"], bench=suite.get("bench") or suite["name"],
+                limit=suite.get("limit"), metric=suite.get("metric"),
+            )  # fmt: skip
+        scores = _optional(suite_dir / "scores.json") or {}
+        for key in ("context_per_stream", "concurrency"):
+            if key in before:
+                scores[key] = before[key]
+        atomic_write_json(suite_dir / "scores.json", scores)
+        redone.append(str(suite["name"]))
+    commit, dirty = git_identity()
+    manifest.setdefault("rescored", []).append(
+        {"at": utc_now(), "sma_commit": commit, "sma_dirty": dirty, "suites": redone}
+    )
+    publish(cfg, found, manifest)
+    log_event("rescored", run_id=run_id, suites=redone)
+    return redone
+
+
 def _record_suite_context(ctx: Ctx, suite_dir: Path) -> None:
     """Each suite records the context per stream it ran with: the plan's step for quality's streams."""
     path = suite_dir / "scores.json"
@@ -1174,14 +1269,49 @@ def _run_nel_suite(ctx: Ctx, suite: QualitySuite, suite_dir: Path, attempt_dir: 
     normalize_suite(suite_dir, attempt_dir, suite.name, bench=suite.bench or suite.name, limit=suite.limit, metric=suite.metric)
 
 
+def _container_sampling(ctx: Ctx) -> tuple[dict[str, Any], dict[str, Any]]:
+    """The run's settings for a container that sends temperature, top_p, and an answer limit itself
+    (suite.sampling), and where the sampling came from.
+
+    Thinking off: greedy. Thinking on: what the engine applies to a request that sets none. llama-server
+    reports its own at /props (a GGUF's general.sampling metadata, else its defaults); vLLM and SGLang apply
+    the checkpoint's generation_config.json, and 1.0 for a field it leaves out. The answer limit is the
+    context per stream minus 4,096 for the prompt, as for KernelBench: vLLM and SGLang refuse a request whose
+    prompt and limit pass the context.
+    """
+    plan = ctx.manifest.get("memory_plan") or {}
+    context = int((plan.get("benchmarks") or {}).get("quality") or plan.get("context") or ctx.cfg.memory.quality_min_context)
+    params: dict[str, Any] = {"max_new_tokens": max(1024, context - 4096), "request_timeout": int(ctx.cfg.quality.request_timeout_s)}
+    if (ctx.manifest.get("thinking") or "off") == "off":
+        return {**params, "temperature": 0.0, "top_p": 1.0}, {"source": "thinking off: greedy", "temperature": 0.0, "top_p": 1.0}
+    if ctx.manifest["engine"]["name"] == "llamacpp":
+        props = request_json("GET", ctx.base_url + "/props", timeout_s=ctx.cfg.timeouts.metrics_s)
+        found = ((props.get("default_generation_settings") or {}).get("params") or {}) if isinstance(props, dict) else {}
+        source = "llama-server's /props: what it applies to a request that sets no sampling"
+    else:
+        found = agentic.model_defaults(ctx)["sampling"]
+        source = "the checkpoint's generation_config.json; 1.0 for a field it leaves out, as the engine does"
+    temperature, top_p = found.get("temperature"), found.get("top_p")
+    if ctx.manifest["engine"]["name"] == "llamacpp" and not isinstance(temperature, (int, float)):
+        raise SmaError("llama-server's /props did not report its temperature, so the thinking-on sampling is unknown.")
+    chosen = {
+        "temperature": round(float(temperature if isinstance(temperature, (int, float)) else 1.0), 6),
+        "top_p": round(float(top_p if isinstance(top_p, (int, float)) else 1.0), 6),
+    }
+    return {**params, **chosen}, {"source": source, **chosen}
+
+
 def _run_eval_factory_suite(ctx: Ctx, suite: QualitySuite, suite_dir: Path, attempt_dir: Path) -> None:
     assert suite.image is not None and suite.task is not None
     digest = ctx.services.runtime.ensure_image(suite.image)
     image = image_ref(suite.image, digest)
     config_path = suite_dir / EVAL_FACTORY_CONFIG
-    config = eval_factory_config(ctx.cfg, served_name=ctx.served_name, base_url=ctx.base_url, suite=suite)
+    run_params, sampling = _container_sampling(ctx) if suite.sampling else (None, None)
+    config = eval_factory_config(ctx.cfg, served_name=ctx.served_name, base_url=ctx.base_url, suite=suite, run_params=run_params)
     atomic_write_text(config_path, yaml.safe_dump(config, sort_keys=False))
     attempt_dir.mkdir(parents=True, exist_ok=True)
+    hf_home = ctx.cfg.cache_path() / "eval-factory"
+    hf_home.mkdir(parents=True, exist_ok=True)
     argv = eval_factory_argv(
         name=container_name(ctx.cfg, ctx.run_id, f"quality-{suite.name}"),
         image=image,
@@ -1189,11 +1319,12 @@ def _run_eval_factory_suite(ctx: Ctx, suite: QualitySuite, suite_dir: Path, atte
         config_path=config_path.resolve(),
         uid=os.getuid(),
         gid=os.getgid(),
+        hf_home=hf_home.resolve(),
     )
     # The mounts are absolute host paths, which can hold the hostname.
     atomic_write_json(
         suite_dir / "command.json",
-        {"argv": scrub_obj(argv), "concurrency": ctx.cfg.quality.concurrency, "image": image},
+        {"argv": scrub_obj(argv), "concurrency": ctx.cfg.quality.concurrency, "image": image, "sampling": sampling},
     )
     try:
         ctx.services.evaluator.run(
@@ -1939,6 +2070,11 @@ def _teardown_containers(ctx: Ctx) -> None:
     # logprobs (llama-perplexity) and bench (llama.cpp speed) are one-shot containers with --rm.
     for mode in ("quality", "speed", "logprobs", "bench"):
         _stop_mode(ctx, mode)
+    # An eval-factory suite's container (BFCL, LiveCodeBench) is named for its suite, not a mode. A stop
+    # mid-suite left BFCL's running against a stopped server, and teardown failed on it (2026-10-30).
+    for name in ctx.services.runtime.list_sma():
+        if name.startswith(container_name(ctx.cfg, ctx.run_id, "quality-")):
+            ctx.services.runtime.stop(name)
     leftover = [name for name in ctx.services.runtime.list_sma() if ctx.run_id in name]
     if leftover:
         raise SmaError(f"Containers still present after teardown: {', '.join(leftover)}")

@@ -170,13 +170,18 @@ def test_kernelbench_asks_for_every_level1_kernel_with_the_models_defaults_and_s
     cfg, services = _setup(tmp_path, kernelbench=True, swebench=False, template=QWEN3_TEMPLATE)
     service = FakeKernelBench()
     services.kernelbench = service
-    run_dir = _run_dir(tmp_path, execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services))
+    run_dir = _run_dir(tmp_path, execute(RunSpec(repo="example/tiny", quant_flag="bf16", thinking="on"), cfg, services))
 
     requests = [request for batch in seen for request in batch]
     assert len(requests) == 100
-    # The model's own sampling: no sampling field. Its own thinking mode: on, from the template.
+    # The model's own sampling: no sampling field. The run's thinking mode: on (owner decision 2026-10-29).
     assert not any(key in requests[0] for key in ("temperature", "top_p", "top_k"))
     assert requests[0]["chat_template_kwargs"] == {"enable_thinking": True}
+    # A thinking-on run is its own subject, beside the quant's thinking-off runs.
+    assert run_dir.parent.name == "bf16-thinking" and _json(run_dir / "manifest.json")["thinking"] == "on"
+    # No kernelbench.max_tokens: the context per stream minus room for the prompt.
+    context = _json(run_dir / "manifest.json")["memory_plan"]["context"]
+    assert requests[0]["max_tokens"] == context - 4096
     assert requests[0]["messages"][0] == {"role": "system", "content": "You are a helpful assistant"}
 
     suite = run_dir / "quality" / "kernelbench_l1"
@@ -191,6 +196,7 @@ def test_kernelbench_asks_for_every_level1_kernel_with_the_models_defaults_and_s
     assert scores["context_per_stream"] is not None
     settings = _json(suite / "settings.json")
     assert settings["thinking"]["enable_thinking"] is True
+    assert settings["thinking"]["template_default"]["enable_thinking"] is True
 
     summary = _json(run_dir / "summary.json")
     validate_instance(summary, "summary.schema.json")
