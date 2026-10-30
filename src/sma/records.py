@@ -357,6 +357,9 @@ def build_summary(run_dir: Path, manifest: dict[str, Any], cfg: Config) -> dict[
                 "ci_upper": scores.get("ci_upper"),
                 "context_per_stream": scores.get("context_per_stream"),
                 "error": scores.get("error"),
+                # Each measure the harness reported besides the headline (IFEval: strict and loose, by
+                # prompt and by instruction).
+                "measures": scores.get("measures"),
             }
     speed_block = {
         "prefill_tok_s": _dig(speed, "prefill_tok_s"),

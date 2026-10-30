@@ -125,6 +125,7 @@ def normalize_suite(
                 details.append(row.get("scoring_details") if isinstance(row.get("scoring_details"), dict) else {})
             rows.append(json.dumps(row, sort_keys=True))
     payload["scorer_shares"] = None if incomplete else boolean_shares(details)
+    payload["measures"] = None if incomplete else lm_eval_measures(details)
     atomic_write_json(suite_dir / "scores.json", payload)
     atomic_write_text(suite_dir / "samples.jsonl", "".join(row + "\n" for row in rows))
     return payload
@@ -139,6 +140,26 @@ def boolean_shares(details: list[dict[str, Any]]) -> dict[str, float]:
         return {}
     names = set.intersection(*(set(key for key, value in row.items() if isinstance(value, bool)) for row in details))
     return {name: sum(1 for row in details if row[name]) / len(details) for name in sorted(names)}
+
+
+def lm_eval_measures(details: list[dict[str, Any]]) -> dict[str, float] | None:
+    """Every measure an lm-eval task reported per question (scoring_details.lm_eval_metrics), over the run.
+
+    A true-or-false measure is the share of questions. A list is pooled over all its items: IFEval's
+    inst_level_* lists one result per instruction, so instruction-level accuracy counts instructions, not
+    prompts. The headline (pass@1) is IFEval's prompt_level_strict_acc; papers often quote the loose or
+    instruction-level ones, up to 13 points higher (LFM3-1.7B: 72.0% strict by prompt, 85.1% loose by
+    instruction). None when the task reported none.
+    """
+    totals: dict[str, list[int]] = {}
+    for row in details:
+        metrics = row.get("lm_eval_metrics") if isinstance(row.get("lm_eval_metrics"), dict) else {}
+        for name, value in metrics.items():
+            items = value if isinstance(value, list) else [value]
+            if items and all(isinstance(item, bool) for item in items):
+                hit, seen = totals.setdefault(name, [0, 0])
+                totals[name] = [hit + sum(items), seen + len(items)]
+    return {name: hit / seen for name, (hit, seen) in sorted(totals.items()) if seen} or None
 
 
 def wilson_interval(correct: int, total: int, z: float = 1.959964) -> tuple[float | None, float | None]:

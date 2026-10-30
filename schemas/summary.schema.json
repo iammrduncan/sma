@@ -135,7 +135,12 @@
         "n": { "type": ["integer", "null"] },
         "ci_lower": { "type": ["number", "null"] },
         "ci_upper": { "type": ["number", "null"] },
-        "error": { "type": ["string", "null"] }
+        "error": { "type": ["string", "null"] },
+        "measures": {
+          "description": "Each measure the harness reported besides the headline, as a share (IFEval: by prompt and by instruction, strict and loose). Null when it reported none. Older records lack it.",
+          "type": ["object", "null"],
+          "additionalProperties": { "type": "number" }
+        }
       }
     },
     "cell": {

@@ -27,7 +27,7 @@
   "django__django-11951": {
     "instance_id": "django__django-11951",
     "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
-    "model_patch": ""
+    "model_patch": "diff --git a/django/db/models/query.py b/django/db/models/query.py\nindex 794e0faae7..39db0a6e61 100644\n--- a/django/db/models/query.py\n+++ b/django/db/models/query.py\n@@ -1209,7 +1209,8 @@ class QuerySet:\n         if ignore_conflicts and not connections[self.db].features.supports_ignore_conflicts:\n             raise NotSupportedError('This database backend does not support ignoring conflicts.')\n         ops = connections[self.db].ops\n-        batch_size = (batch_size or max(ops.bulk_batch_size(fields, objs), 1))\n+        max_batch_size = ops.bulk_batch_size(fields, objs)\n+        batch_size = min(batch_size, max_batch_size) if batch_size else max_batch_size\n         inserted_rows = []\n         bulk_return = connections[self.db].features.can_return_rows_from_bulk_insert\n         for item in [objs[i:i + batch_size] for i in range(0, len(objs), batch_size)]:\n"
   },
   "django__django-11964": {
     "instance_id": "django__django-11964",
@@ -47,22 +47,22 @@
   "django__django-12050": {
     "instance_id": "django__django-12050",
     "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
-    "model_patch": ""
+    "model_patch": "diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py\nindex ea51912e8b..ea3a570059 100644\n--- a/django/db/models/sql/query.py\n+++ b/django/db/models/sql/query.py\n@@ -1073,7 +1073,10 @@ class Query(BaseExpression):\n                         ))\n                 else:\n                     resolved_values.append(sub_value)\n-            value = tuple(resolved_values)\n+            if isinstance(value, list):\n+                value = resolved_values\n+            else:\n+                value = tuple(resolved_values)\n         return value\n \n     def solve_lookup_type(self, lookup):\n"
   },
   "django__django-12143": {
     "instance_id": "django__django-12143",
     "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
-    "model_patch": ""
+    "model_patch": "diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py\nindex 137e6faa0f..a100f1c499 100644\n--- a/django/contrib/admin/options.py\n+++ b/django/contrib/admin/options.py\n@@ -1631,7 +1631,7 @@ class ModelAdmin(BaseModelAdmin):\n \n     def _get_edited_object_pks(self, request, prefix):\n         \"\"\"Return POST data values of list_editable primary keys.\"\"\"\n-        pk_pattern = re.compile(r'{}-\\d+-{}$'.format(prefix, self.model._meta.pk.name))\n+        pk_pattern = re.compile(r'{}-\\d+-{}$'.format(re.escape(prefix), self.model._meta.pk.name))\n         return [value for key, value in request.POST.items() if pk_pattern.match(key)]\n \n     def _get_list_editable_queryset(self, request, prefix):\n"
   },
   "django__django-12155": {
     "instance_id": "django__django-12155",
     "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
-    "model_patch": ""
+    "model_patch": "diff --git a/django/contrib/admindocs/utils.py b/django/contrib/admindocs/utils.py\nindex 4c0e7e2a56..5e926726ff 100644\n--- a/django/contrib/admindocs/utils.py\n+++ b/django/contrib/admindocs/utils.py\n@@ -34,7 +34,13 @@ def trim_docstring(docstring):\n         return ''\n     # Convert tabs to spaces and split into lines\n     lines = docstring.expandtabs().splitlines()\n-    indent = min(len(line) - len(line.lstrip()) for line in lines if line.lstrip())\n+    # The first line may not be indented, so skip it when computing the\n+    # minimum indentation of the remaining lines.\n+    indents = [\n+        len(line) - len(line.lstrip())\n+        for line in lines[1:] if line.lstrip()\n+    ]\n+    indent = min(indents) if indents else 0\n     trimmed = [lines[0].lstrip()] + [line[indent:].rstrip() for line in lines[1:]]\n     return \"\\n\".join(trimmed).strip()\n \n"
   },
   "django__django-12193": {
     "instance_id": "django__django-12193",
     "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
-    "model_patch": ""
+    "model_patch": "diff --git a/django/contrib/postgres/forms/array.py b/django/contrib/postgres/forms/array.py\nindex 2e19cd574a..6808de94e2 100644\n--- a/django/contrib/postgres/forms/array.py\n+++ b/django/contrib/postgres/forms/array.py\n@@ -144,10 +144,11 @@ class SplitArrayWidget(forms.Widget):\n                 widget_value = value[i]\n             except IndexError:\n                 widget_value = None\n+            new_final_attrs = {**final_attrs}\n             if id_:\n-                final_attrs = {**final_attrs, 'id': '%s_%s' % (id_, i)}\n+                new_final_attrs['id'] = '%s_%s' % (id_, i)\n             context['widget']['subwidgets'].append(\n-                self.widget.get_context(name + '_%s' % i, widget_value, final_attrs)['widget']\n+                self.widget.get_context(name + '_%s' % i, widget_value, new_final_attrs)['widget']\n             )\n         return context\n \n"
   },
   "django__django-12209": {
     "instance_id": "django__django-12209",
@@ -82,7 +82,7 @@
   "django__django-12276": {
     "instance_id": "django__django-12276",
     "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
-    "model_patch": ""
+    "model_patch": "diff --git a/django/forms/widgets.py b/django/forms/widgets.py\nindex 338d54d72f..40ac1d3162 100644\n--- a/django/forms/widgets.py\n+++ b/django/forms/widgets.py\n@@ -387,6 +387,9 @@ class FileInput(Input):\n     def value_omitted_from_data(self, data, files, name):\n         return name not in files\n \n+    def use_required_attribute(self, initial):\n+        return super().use_required_attribute(initial) and not initial\n+\n \n FILE_INPUT_CONTRADICTION = object()\n \n@@ -451,9 +454,6 @@ class ClearableFileInput(FileInput):\n             return False\n         return upload\n \n-    def use_required_attribute(self, initial):\n-        return super().use_required_attribute(initial) and not initial\n-\n     def value_omitted_from_data(self, data, files, name):\n         return (\n             super().value_omitted_from_data(data, files, name) and\n"
   },
   "django__django-12304": {
     "instance_id": "django__django-12304",
@@ -92,7 +92,7 @@
   "django__django-12308": {
     "instance_id": "django__django-12308",
     "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
-    "model_patch": ""
+    "model_patch": "diff --git a/django/contrib/admin/utils.py b/django/contrib/admin/utils.py\nindex e4ddc8f017..831778c4af 100755\n--- a/django/contrib/admin/utils.py\n+++ b/django/contrib/admin/utils.py\n@@ -388,6 +388,8 @@ def display_for_field(value, field, empty_value_display):\n         return _boolean_icon(value)\n     elif value is None:\n         return empty_value_display\n+    elif isinstance(field, models.JSONField):\n+        return field.get_prep_value(value)\n     elif isinstance(field, models.DateTimeField):\n         return formats.localize(timezone.template_localtime(value))\n     elif isinstance(field, (models.DateField, models.TimeField)):\n"
   },
   "django__django-12325": {
     "instance_id": "django__django-12325",
@@ -112,7 +112,7 @@
   "django__django-12713": {
     "instance_id": "django__django-12713",
     "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
-    "model_patch": ""
+    "model_patch": "diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py\nindex 69a5fbf389..5c606af16c 100644\n--- a/django/contrib/admin/options.py\n+++ b/django/contrib/admin/options.py\n@@ -250,11 +250,11 @@ class BaseModelAdmin(metaclass=forms.MediaDefiningClass):\n         db = kwargs.get('using')\n \n         autocomplete_fields = self.get_autocomplete_fields(request)\n-        if db_field.name in autocomplete_fields:\n+        if 'widget' not in kwargs and db_field.name in autocomplete_fields:\n             kwargs['widget'] = AutocompleteSelectMultiple(db_field.remote_field, self.admin_site, using=db)\n-        elif db_field.name in self.raw_id_fields:\n+        elif 'widget' not in kwargs and db_field.name in self.raw_id_fields:\n             kwargs['widget'] = widgets.ManyToManyRawIdWidget(db_field.remote_field, self.admin_site, using=db)\n-        elif db_field.name in [*self.filter_vertical, *self.filter_horizontal]:\n+        elif 'widget' not in kwargs and db_field.name in [*self.filter_vertical, *self.filter_horizontal]:\n             kwargs['widget'] = widgets.FilteredSelectMultiple(\n                 db_field.verbose_name,\n                 db_field.name in self.filter_vertical\n"
   },
   "django__django-12774": {
     "instance_id": "django__django-12774",
@@ -237,7 +237,7 @@
   "sphinx-doc__sphinx-9367": {
     "instance_id": "sphinx-doc__sphinx-9367",
     "model_name_or_path": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF",
-    "model_patch": ""
+    "model_patch": "diff --git a/sphinx/pycode/ast.py b/sphinx/pycode/ast.py\nindex f541ec0a9..68c0bdf87 100644\n--- a/sphinx/pycode/ast.py\n+++ b/sphinx/pycode/ast.py\n@@ -213,10 +213,14 @@ class _UnparseVisitor(ast.NodeVisitor):\n         return \"%s %s\" % (self.visit(node.op), self.visit(node.operand))\n \n     def visit_Tuple(self, node: ast.Tuple) -> str:\n-        if node.elts:\n-            return \"(\" + \", \".join(self.visit(e) for e in node.elts) + \")\"\n-        else:\n+        if not node.elts:\n             return \"()\"\n+        elif len(node.elts) == 1:\n+            elt = self.visit(node.elts[0])\n+            return \"(%s,)\" % elt\n+        else:\n+            elts = \", \".join(self.visit(e) for e in node.elts)\n+            return \"(%s)\" % elts\n \n     if sys.version_info < (3, 8):\n         # these ast nodes were deprecated in python 3.8\n"
   },
   "sphinx-doc__sphinx-9461": {
     "instance_id": "sphinx-doc__sphinx-9461",

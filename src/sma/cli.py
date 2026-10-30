@@ -499,6 +499,25 @@ def _cmd_watch(args: argparse.Namespace) -> int:
         except SmaError:
             return None
 
+    def swe_progress(run_id: str):
+        """A run's finished SWE-bench tasks on the runner, by exit status. None when it cannot be read."""
+        from collections import Counter
+
+        from sma.swebench import dataset_size, runner_from_env, task_statuses
+
+        runner = runner_from_env(cfg)
+        if runner is None:
+            return None
+        try:
+            statuses = task_statuses(runner, run_id)
+            return {
+                "done": len(statuses),
+                "total": dataset_size(cfg, runner),
+                "statuses": dict(Counter(str(item.get("exit_status")) for item in statuses)),
+            }
+        except SmaError:
+            return None
+
     def scrape(base_url: str, path: str) -> str:
         try:
             return scrape_metrics(base_url, cfg.timeouts.metrics_s, path=path)
@@ -515,6 +534,7 @@ def _cmd_watch(args: argparse.Namespace) -> int:
         scrape=scrape,
         machines=lambda: gather(cfg),
         started_at=started_at,
+        swe_progress=swe_progress,
     )
     return 0
 

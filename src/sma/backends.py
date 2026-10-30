@@ -257,6 +257,8 @@ class VllmBackend:
             )
         if quality and tool_parser:
             flags.extend(["--enable-auto-tool-choice", "--tool-call-parser", tool_parser])
+        if cfg.engine.reasoning_parser:
+            flags.extend(["--reasoning-parser", cfg.engine.reasoning_parser])
         if cfg.engine.trust_remote_code:
             flags.append("--trust-remote-code")
         flags.extend(cfg.engine.extra_args)
@@ -462,6 +464,8 @@ class SglangBackend:
             flags.append("--enable-deterministic-inference")
             if tool_parser:
                 flags.extend(["--tool-call-parser", tool_parser])
+        if cfg.engine.reasoning_parser:
+            flags.extend(["--reasoning-parser", cfg.engine.reasoning_parser])
         if cfg.engine.trust_remote_code:
             flags.append("--trust-remote-code")
         flags.extend(cfg.engine.extra_args)

@@ -1,5 +1,5 @@
 {
-  "agent_command": ".venv/bin/mini-extra swebench --subset data/verified-mini --split test --output runs/20261029T020534Z-1522375e --workers 4 -c swebench.yaml -c runs/20261029T020534Z-1522375e/sma-agent.yaml",
+  "agent_command": ".venv/bin/mini-extra swebench --subset data/verified-mini --split test --output runs/20261029T020534Z-1522375e --workers 8 -c swebench.yaml -c runs/20261029T020534Z-1522375e/sma-agent.yaml",
   "agent_overlay": {
     "agent": {
       "step_limit": 250
@@ -21,5 +21,5 @@
     "enable_thinking": null,
     "how": "the chat template did not render here (TemplateSyntaxError)"
   },
-  "workers": 4
+  "workers": 8
 }

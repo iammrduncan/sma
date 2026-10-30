@@ -141,3 +141,31 @@ def test_a_partial_credit_scorer_reports_its_mean_with_the_suites_name_and_true_
     assert (scores["primary_metric"], scores["primary_score"], scores["ci_lower"], scores["ci_upper"]) == ("answer_f1", 0.7, 0.4, 1.0)
     assert scores["scorer_shares"] == {"exact_match": 0.5}
     assert (scores["dataset_size"], scores["error"]) == (2417, None)
+
+
+def test_ifeval_records_strict_and_loose_by_prompt_and_by_instruction(tmp_path: Path) -> None:
+    # LFM3-1.7B's IFEval on a Spark scored 72% (strict, by prompt) while its card quotes a higher number;
+    # the other three measures were in results.jsonl but not in scores.json. The rows' shape is nel 0.3.0's.
+    _bundle(tmp_path / "attempt-1" / "lm-eval___ifeval", value=0.5, failures=0)
+    rows = [
+        {"prompt_level_strict_acc": True, "inst_level_strict_acc": [True, True], "prompt_level_loose_acc": True, "inst_level_loose_acc": [True, True]},
+        {"prompt_level_strict_acc": False, "inst_level_strict_acc": [True, False, False], "prompt_level_loose_acc": True, "inst_level_loose_acc": [True, True, True]},
+    ]
+    (tmp_path / "attempt-1" / "lm-eval___ifeval" / "results.jsonl").write_text(
+        "".join(
+            json.dumps({"problem_idx": i, "reward": float(r["prompt_level_strict_acc"]), "scoring_details": {"method": "lm-eval://ifeval", "lm_eval_metrics": r}}) + "\n"
+            for i, r in enumerate(rows)
+        ),
+        encoding="utf-8",
+    )
+    scores = normalize_suite(tmp_path, tmp_path / "attempt-1", "ifeval", bench="lm-eval://ifeval", limit=2)
+    # By prompt: a share of the 2 prompts. By instruction: pooled over all 5 instructions.
+    assert scores["measures"] == {
+        "inst_level_loose_acc": 1.0,
+        "inst_level_strict_acc": 0.6,
+        "prompt_level_loose_acc": 1.0,
+        "prompt_level_strict_acc": 0.5,
+    }
+    # A suite whose rows report no lm-eval metrics records none.
+    _bundle(tmp_path / "gpqa" / "attempt-1" / "gpqa", value=0.3, failures=0)
+    assert normalize_suite(tmp_path / "gpqa", tmp_path / "gpqa" / "attempt-1", "gpqa_diamond", bench="gpqa", limit=20)["measures"] is None

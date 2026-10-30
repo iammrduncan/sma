@@ -44,6 +44,17 @@
 # The safetensors lines (BF16, NVFP4, FP8, Base) stay blocked: Lfm3ForCausalLM is not in vLLM v0.32.0
 # (2026-10-18) or vLLM main, and SGLang's support is still an open PR (sgl-project/sglang#46858; SGLang
 # v0.5.22 does not have it). LiquidAI's NVFP4 card names SGLang only.
+# Update 2026-10-29 (from LiquidAI): SGLang serves LFM3 from lmsysorg/sglang:dev-lfm3 (arm64 published
+# 2026-10-27), with --trust-remote-code, --reasoning-parser qwen3, and --tool-call-parser qwen3_coder
+# (docs.sglang.io cookbook, LiquidAI/LFM3). The cookbook lists DGX Spark as inferred, not verified, and names
+# only BF16/FP16 checkpoints, so NVFP4 on it is untested. SMA has engine.reasoning_parser for it now, and
+# .sma/lfm3/sma-lfm3-sglang.yaml is sma-lfm3.yaml with that image, trust_remote_code, and the parser. Plan
+# (owner, 2026-10-29): after the 1.7B QAD-Q4_0 run, a serve test of BF16 and NVFP4 on the free Spark, then
+#   sma run LiquidAI/LFM3-1.7B --bf16 --engine sglang --tool-parser qwen3_coder --config sma-lfm3-sglang.yaml
+#   sma run LiquidAI/LFM3-1.7B-NVFP4 --nvfp4 --engine sglang --tool-parser qwen3_coder --config sma-lfm3-sglang.yaml --reference @LiquidAI/LFM3-1.7B:BF16
+# and the same for LFM3-VL-2B, before the remaining GGUF runs. Quality keeps SMA's protocol (thinking off,
+# 4,096 tokens) though LiquidAI evaluates thinking on and uncapped (about 1,100 reasoning tokens per GSM8K
+# answer): owner decision, gap G2.
 # All LFM3 models: 24 layers, 6 attend fully, 5 use a sliding window, 13 are convolutions.
 
 # LFM3-1.7B. 262,144 native. Thinking on by default; tool calls use <function=...> XML.
@@ -90,6 +101,19 @@ sma run LiquidAI/LFM3-Omni-2B-GGUF --gguf Q4_0 --config sma-lfm3.yaml --referenc
 # the 1.7B QAD-Q4_0 run on. The 1.7B BF16 run (20261029T020534Z-1522375e) started before that code, so
 # .sma/lfm3/sidecar_metrics.py records its counters with the same sampler from 2026-10-29 04:05 UTC (two
 # hours into the run, during MuSiQue) until it finishes: its file covers the rest of the run only.
+# Drivers: driver.sh started the batch; driver2.sh, driver3.sh, and now driver4.sh took over in turn to resume
+# the 1.7B BF16 run for MuSiQue (F11), SWE-bench (F12), and speed (F13) before its Q4 pair. From 2026-10-29 a
+# failed step does not stop a run (owner decision; README "What a run does"), and driver4.sh logs a run that
+# still has failed steps after one resume and goes on to the next model. KernelBench and BrowseComp-Plus were
+# scored early by .sma/lfm3/score_now.py (no Spark GPU needed): 1.7B BF16 fast_1 1.0% (5 of 100 correct,
+# 11 compiled), BrowseComp-Plus accuracy 7.0%.
+# 1.7B BF16 (20261029T020534Z-1522375e), complete 2026-10-29 23:34 UTC after resumes for F11-F14: perplexity
+#   24.02; IFEval 72.0%, GSM8K 90.0%, MMLU-Pro 52.4% (700), GPQA Diamond 40.0% (20), MuSiQue answer F1 17.0%,
+#   BFCL v3 70.4% (4,441); KernelBench fast_1 1.0% (5 of 100 correct); SWE-bench Verified-mini 14% resolved
+#   (7 of 50; 41 of 50 hit the 250-step limit; 4 agents for 17 tasks, then 8); BrowseComp-Plus 7.0% (most
+#   questions searched until the 262,144-token context filled); determinism failed (batch 8 and 64 differ
+#   from batch 1, llama.cpp). Speed: prefill 10,823 tok/s and decode 68.1 tok/s at 1 stream, 182 tok/s at 4,
+#   277 tok/s at 8. Thinking off for the quality suites; the agent steps use the model's own thinking mode.
 
 
 # ==== LFM2.5 (LiquidAI) =============================================================================
@@ -450,6 +474,23 @@ sma queue add unsloth/Qwen3.8-Flash-Next-GGUF --gguf UD-Q2_K_XL
 #     LiquidAI/LFM3-1.7B-Base at a pinned commit) after checking it against the GGUF: 125,033 ids and 293,320
 #     merges equal, the GGUF's other 2,967 ids unused padding. engine.bench_tokenizer records it.
 #     tests/test_bench_tokenizer.py.
+# F14 SWE-bench grading lost its report (found 2026-10-29; fixed in the working tree, not yet committed). The
+#     runner's start script added `> runs/<id>/grade.log; echo $? > runs/<id>/grade.exit` after a command that
+#     starts with `cd eval`, so both paths pointed into eval/ and failed: the harness graded all 50 tasks, but the
+#     report was never copied and the step saw no exit status. Commands now run in a subshell
+#     (swebench.start_script; tests/test_agentic.py runs the script for real). The 1.7B BF16 harness report on
+#     the runner says 7 of 50 resolved (9 patches, 41 empty after the 250-step limit); driver5.sh resumes the
+#     run so SMA collects and records it. SWE-bench through SMA had never reached grading before.
+# F15 LFM3's agent suites ran with thinking off (found 2026-10-29; fixed in the working tree, not yet
+#     committed). SMA could not render LFM3's chat template (unknown tag `generation`, which transformers
+#     supports), so KernelBench, SWE-bench, and BrowseComp-Plus sent no enable_thinking and the quality
+#     server's setting (off) applied. The template thinks by default. The 1.7B BF16 run's KernelBench answers
+#     have no reasoning (100 of 100); the 1.7B Q4_0 run, already in flight with the old code, will match it.
+#     Sampling was llama-server's defaults (a GGUF has no generation_config.json). tests/test_thinking.py.
+# F16 The 4,096-token output cap cuts LFM3's answers even with thinking off (found 2026-10-29; not changed).
+#     LFM3 reasons in its reply anyway. Answers that hit the cap, 1.7B BF16 / Q4_0: MMLU-Pro 213 / 224 of 700,
+#     GPQA 12 / 12 of 20, MuSiQue 23 / 34 of 100 (cut answers average F1 0.002), IFEval 1 / 2, GSM8K 0 / 3.
+#     Almost every cut answer scored wrong, so these suites understate the model. Owner to decide the cap.
 
 # ==== Benchmark gaps =================================================================================
 # What SMA does not measure for these models, most models affected first. SMA today: IFEval 50,

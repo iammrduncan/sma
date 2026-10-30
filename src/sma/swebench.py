@@ -161,10 +161,7 @@ class SshRunner:
 
     def start(self, rel_dir: str, name: str, command: str) -> None:
         """Start command detached from remote_dir; it writes <name>.log and, when it ends, <name>.exit."""
-        log, done, pid = (shlex.quote(f"{rel_dir}/{name}.{ext}") for ext in ("log", "exit", "pid"))
-        inner = f"{command} > {log} 2>&1; echo $? > {done}"
-        script = f"mkdir -p {shlex.quote(rel_dir)} && rm -f {done} && (nohup sh -c {shlex.quote(inner)} > /dev/null 2>&1 & echo $! > {pid})"
-        self._run(script, what=f"start {name} on the {self.label}")
+        self._run(start_script(rel_dir, name, command), what=f"start {name} on the {self.label}")
 
     def status(self, rel_dir: str, name: str) -> tuple[int | None, bool]:
         """(exit code once it has ended, whether its process is alive)."""
@@ -207,6 +204,16 @@ class SshRunner:
         """Put a server on the runner's loopback on this machine's loopback, the other way from tunnel()."""
         argv = [*self._ssh(), "-o", "ExitOnForwardFailure=yes", "-N", "-L", f"127.0.0.1:{local_port}:127.0.0.1:{remote_port}", self.target]
         return follow_to_file(argv, log_path, what=f"forward to the {self.label}")
+
+
+def start_script(rel_dir: str, name: str, command: str) -> str:
+    """Shell that starts command detached, with its output in <rel_dir>/<name>.log and its exit status in
+    <name>.exit. The command runs in a subshell: grading starts with `cd eval`, and outside one that cd
+    moved the log and exit paths into eval/, where they could not be written. The harness graded every
+    task, and the run lost the report and the exit status (LFM3-1.7B, 2026-10-29)."""
+    log, done, pid = (shlex.quote(f"{rel_dir}/{name}.{ext}") for ext in ("log", "exit", "pid"))
+    inner = f"( {command} ) > {log} 2>&1; echo $? > {done}"
+    return f"mkdir -p {shlex.quote(rel_dir)} && rm -f {done} && (nohup sh -c {shlex.quote(inner)} > /dev/null 2>&1 & echo $! > {pid})"
 
 
 def runner_from_env(cfg: Any, *, remote_dir: str | None = None, label: str = "SWE-bench runner") -> SshRunner | None:

@@ -65,7 +65,8 @@ def test_watch_shows_the_current_runs_steps_scores_and_answered_counts(tmp_path:
     (run_dir / "logprobs" / "perplexity.json").write_text(json.dumps({"perplexity": 24.019}))
     ifeval = run_dir / "quality" / "ifeval"
     ifeval.mkdir(parents=True)
-    (ifeval / "scores.json").write_text(json.dumps({"primary_score": 0.72, "primary_metric": "pass@1", "n": 50}))
+    measures = {"prompt_level_strict_acc": 0.72, "prompt_level_loose_acc": 0.82, "inst_level_strict_acc": 0.77, "inst_level_loose_acc": 0.851}
+    (ifeval / "scores.json").write_text(json.dumps({"primary_score": 0.72, "primary_metric": "pass@1", "n": 50, "measures": measures}))
     (ifeval / ".done").write_text("{}")
     answers = run_dir / "quality" / "mmlu_pro" / "attempt-1" / "mmlu_pro"
     answers.mkdir(parents=True)
@@ -80,7 +81,7 @@ def test_watch_shows_the_current_runs_steps_scores_and_answered_counts(tmp_path:
     assert names == ["determinism", "perplexity", "ifeval", "mmlu_pro", "bfcl_v3", "kernelbench", "swebench", "browsecomp", "speed"]
     # A failed check is marked failed, with the batch sizes that differ; scores are percentages.
     assert "✗ determinism      failed: batch 8, 64 differ from batch 1" in run and "perplexity       24.019" in run
-    assert "ifeval           72.0% pass@1  n=50" in run
+    assert "ifeval           72.0% pass@1  n=50  (loose 82.0% · instr strict 77.0% · instr loose 85.1%)" in run
     assert "mmlu_pro         3/700 answered" in run
     assert "bfcl_v3          queued" in run and "fetch" not in run
     assert "memory 90.0 of 121.0 GiB free" in screen
@@ -101,7 +102,7 @@ def test_watch_plan_counts_only_runs_since_its_start(tmp_path: Path) -> None:
     cfg = make_config(tmp_path)
     repo = "LiquidAI/LFM3-1.7B-GGUF"
     _run(cfg, "20261028T212249Z-old1", repo, "QAD-Q4_0", steps={"serve_quality": "failed"})
-    _run(cfg, "20261029T020534Z-bf16", repo, "BF16", steps={"fetch": "done"}, finished=True)
+    _run(cfg, "20261029T020534Z-bf16", repo, "BF16", steps={name: "done" for name in STEP_NAMES}, finished=True)
     _run(cfg, "20261029T040000Z-q4aa", repo, "QAD-Q4_0", steps={"quality": "running"})
     plan = tmp_path / "plan.txt"
     plan.write_text(f"# order\nsince 2026-10-29T02:05:00Z\n{repo} BF16\n{repo} qad-q4_0\nLiquidAI/LFM3-VL-2B-GGUF BF16\n")
@@ -415,3 +416,39 @@ def test_kernelbench_shows_its_correct_and_compiled_counts(tmp_path: Path) -> No
     Catalog(cfg.runs_path()).rebuild()
     screen = render(cfg, View(["sma-20261029T020534Z-aaaa-quality"], None, NOW))
     assert "kernelbench      1.0% fast_1  n=99  (5 of 100 correct, 11 compiled)" in screen
+
+
+def test_swebench_shows_tasks_done_by_how_they_ended_and_time_since_this_attempt_began(tmp_path: Path) -> None:
+    from sma.watch import _run_lines
+
+    cfg = make_config(tmp_path)
+    run_dir = _run(cfg, "20261029T020534Z-aaaa", "LiquidAI/LFM3-1.7B-GGUF", "BF16", steps={"swebench": "running"})
+    manifest = json.loads((run_dir / "manifest.json").read_text())
+    manifest["steps"]["swebench"]["attempts"] = 2
+    folder = run_dir / "quality" / "swebench_verified_mini"
+    folder.mkdir(parents=True)
+    (folder / "settings.json").write_text("{}")
+    began = NOW.timestamp() - 3725  # This attempt began 1h02m ago.
+    os.utime(folder / "settings.json", (began, began))
+    row = {"run_id": "20261029T020534Z-aaaa", "model_repo": "m", "quant": "q", "engine": "llamacpp", "run_dir": str(run_dir), "manifest": manifest}
+    swe = {"run_id": "20261029T020534Z-aaaa", "done": 17, "total": 50, "statuses": {"Submitted": 7, "LimitsExceeded": 9, "APIError": 1}}
+    line = next(text for text in _run_lines(row, NOW, lambda text, style: text, {}, swe) if " swebench " in text)
+    assert "17/50 tasks (7 submitted, 9 hit the step limit, 1 other)" in line
+    assert "1h02m · attempt 2" in line
+
+
+def test_a_run_with_steps_left_is_stopped_and_resumable_not_failed(tmp_path: Path) -> None:
+    # The catalog says failed (speed failed) and finished (its process was stopped to switch settings), though
+    # SWE-bench and the scoring steps were still to run. Nothing was lost; the watch must not say otherwise.
+    cfg = make_config(tmp_path)
+    _run(cfg, "20261029T020534Z-aaaa", "LiquidAI/LFM3-1.7B-GGUF", "BF16",
+         steps={name: "done" for name in ("fetch", "quality", "kernelbench")} | {"speed": "failed", "swebench": "running"}, finished=True)
+    _run(cfg, "20261029T030000Z-bbbb", "Org/Done", "BF16", steps={name: "done" for name in STEP_NAMES}, finished=True)
+    plan = tmp_path / "plan.txt"
+    plan.write_text("LiquidAI/LFM3-1.7B-GGUF BF16\n")
+    Catalog(cfg.runs_path()).rebuild()
+    screen = render(cfg, View([], None, NOW), plan=plan)
+    assert any("LFM3-1.7B-GGUF BF16" in line and "stopped" in line for line in screen.split("CURRENT RUN")[0].splitlines())
+    finished = screen.split("FINISHED")[1]
+    assert "◼ LiquidAI/LFM3-1.7B-GGUF BF16 (stopped, resumable)" in finished
+    assert "✓ Org/Done BF16" in finished

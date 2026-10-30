@@ -64,6 +64,9 @@ engine:
   # Qwen3, llama3_json for Llama 3. It depends on the model, so pass --tool-parser per run. null
   # serves no tools, and quality suites with tools: true record a null score with the reason.
   tool_call_parser: null
+  # The engine's parser that moves a thinking model's reasoning out of the answer: vLLM and SGLang
+  # --reasoning-parser (qwen3 for LFM3 on SGLang). llama.cpp does it with --jinja. null passes none.
+  reasoning_parser: null
   extra_args: []
   server_stop_timeout_s: 30
   clock_cap_mhz: null
@@ -201,13 +204,14 @@ kernelbench:
 
 # SWE-bench Verified-mini (50 tasks) with mini-swe-agent's swebench.yaml on the x86_64 runner
 # (services/swe-runner), reached over SSH with SWE_RUNNER_HOST, SWE_RUNNER_USER, and SWE_RUNNER_SSH_KEY
-# from the root .env. 4 agents and 250 steps (owner decision 2026-10-27), the model's own sampling
-# and thinking mode. The agent acts through a bash tool call, so the run needs --tool-parser.
+# from the root .env. 8 agents (owner decision 2026-10-29; 4 before: the model was the bottleneck, and
+# 4 agents left the GPU at a quarter of its throughput) and 250 steps (2026-10-27), the model's own
+# sampling and thinking mode. The agent acts through a bash tool call, so the run needs --tool-parser.
 swebench:
   enabled: true
-  workers: 4
+  workers: 8
   step_limit: 250
-  # Each agent's stream gets the largest step of the context ladder that fits 4 of them, at least this.
+  # Each agent's stream gets the largest step of the context ladder that fits all of them, at least this.
   min_context: 32768
   remote_dir: sma-swe
   subset: data/verified-mini

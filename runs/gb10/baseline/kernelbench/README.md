@@ -1,6 +1,6 @@
 # KernelBench on the GB10: baseline and how to call it
 
-Written by hack-lab on 2026-10-27. Machine identifiers are `${NAME}` placeholders. Their values are in the repository root's `.env` (git-ignored); from the root, load them with `set -a; . ./.env; set +a`.
+Written by hack-lab on 2026-10-27; baselines re-recorded at 2000 MHz on 2026-10-29, when every Spark's GPU clock was locked there. Machine identifiers are `${NAME}` placeholders. Their values are in the repository root's `.env` (git-ignored); from the root, load them with `set -a; . ./.env; set +a`.
 
 SMA generates kernels on `${SMA_HOST}`. A separate DGX Spark, `${KERNELBENCH_HOST}`, compiles each one, checks it against KernelBench's PyTorch reference and times both on its GB10, so evaluation never competes with SMA's own model serving. The service is reached at `${KERNELBENCH_URL}`, from `${SMA_HOST}` only, and needs no key.
 
@@ -12,26 +12,25 @@ SMA generates kernels on `${SMA_HOST}`. A separate DGX Spark, `${KERNELBENCH_HOS
 | `summary.csv` | One row per problem: level, id, name, mean/std/min/max ms, peak GPU memory, error |
 | `environment.json` | What the service probed for these runs: GPU, driver, CUDA, PyTorch, KernelBench commit, clocks under load, sandbox |
 | `settings.json` | The GB10's settings and locks, the container's limits and the image pins |
-| `level1-fp32-cuda_event-100.unlocked.json` | Level 1 before the clock lock, for reference only (another fingerprint) |
+| `level1-fp32-cuda_event-100.2200mhz.json`, `level2-…`, `level3-…` | The same at 2200 MHz (2026-10-27), for reference only (another fingerprint) |
+| `level1-fp32-cuda_event-100.unlocked.json` | Level 1 before any clock lock, for reference only (another fingerprint) |
 | `kb_client.py` | A standard-library client: submit a batch, poll, save the results |
 
-## Results (fp32, `cuda_event`, 100 trials; GPU clock locked at 2200 MHz)
+## Results (fp32, `cuda_event`, 100 trials; GPU clock locked at 2000 MHz)
 
-Fingerprint `5975f7a6360573f7`. All three levels ran on the same environment.
+Fingerprint `7816e61e5539da95` (2026-10-29). All three levels ran in one job on the same environment. The 2200 MHz baselines of 2026-10-27 (fingerprint `5975f7a6360573f7`) are kept as `*.2200mhz.json`.
 
 | Level | Timed | Failed | Mean time: min / median / max | Peak GPU memory | Run |
 |---|---|---|---|---|---|
-| 1 | **99 of 100** | 1 | 0.619 ms (12) / 44.8 ms / 861.0 ms (68) | 24.0 GiB (39) | `kb-20261027-221930-65782d55` |
-| 2 | **100 of 100** | 0 | 4.71 ms (6) / 37.4 ms / 217.0 ms (78) | 10.1 GiB (100) | `kb-20261027-224309-d967b4e1` |
-| 3 | **50 of 50** | 0 | 0.643 ms (32) / 26.5 ms / 266.0 ms (31) | 16.1 GiB (31) | `kb-20261027-231216-90cc43ba` |
+| 1 | **99 of 100** | 1 | 0.615 ms (12) / 45.2 ms / 948.0 ms (68) | 24.0 GiB (39) | `kb-20261029-185237-5f74f847` |
+| 2 | **100 of 100** | 0 | 4.86 ms (6) / 37.9 ms / 236.0 ms (78) | 10.1 GiB (100) | `kb-20261029-185237-5f74f847` |
+| 3 | **50 of 50** | 0 | 0.671 ms (32) / 27.3 ms / 267.0 ms (31) | 16.1 GiB (31) | `kb-20261029-185237-5f74f847` |
 
 **Problems with no time** (they fail for any kernel here, so leave them out):
 
 - Level 1, 95 (95_CrossEntropyLoss.py): `"nll_loss_forward_reduce_cuda_kernel_2d_index" not implemented for 'Float'`
 
-Level 1's problem 95 fails inside KernelBench at this commit, on any GPU: its precision cast turns the class-index targets into float, and `nll_loss` refuses them. Level 3's problems 48 and 49 (Mamba2) import `einops`, which the first image lacked; Level 3 was rerun on the image with it (`kb-20261027-231216-90cc43ba`), same fingerprint.
-
-The baselines' `problems[].stats` are what `baseline_ref_runtime_ms` in a job's results comes from. A job's own `ref_runtime_ms` is measured again next to each kernel, so `speedup` doesn't depend on these files.
+**Against 2200 MHz** (249 problems timed at both): times are 2.4% longer (geometric mean; median 1.3%), from 0.953 (level 3 problem 40) to 1.11 (level 2 problem 14). Over the whole run the GPU averaged 52.9 °C (max 63.0) and 21.4 W (max 51.3), against 55.0 °C (max 71.0) and 28.4 W (max 98.1) at 2200 MHz, on another day (room temperature not measured).
 
 ## How to call it during an eval
 
