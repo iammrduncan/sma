@@ -574,3 +574,24 @@ def test_bf16_on_vllm_keeps_batch_invariance(tmp_path: Path) -> None:
     run_id = execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
     engine = _json(_run_dir(tmp_path, run_id) / "manifest.json")["engine"]
     assert engine["batch_invariant_quality"] is True and engine["env_quality"]["VLLM_BATCH_INVARIANT"] == "1"
+
+
+def test_a_reasoning_parser_reaches_vllm_and_sglang_but_not_llama_cpp() -> None:
+    # LFM3 on SGLang thinks by default; --reasoning-parser qwen3 moves the reasoning out of the answer the
+    # agent steps read. llama.cpp does the same with --jinja.
+    from sma.commands import serve_argv
+    from tests.harness import SERVE_PLAN
+
+    cfg = default_config()
+    cfg.engine.reasoning_parser = "qwen3"
+    for engine, quant in (("vllm", "bf16"), ("sglang", "bf16"), ("llamacpp", "gguf")):
+        argv = serve_argv(cfg, mode="quality", served_name="m", is_moe=False, quant_flag=quant, moe_backend=None,
+                          batch_invariant=False, plan=SERVE_PLAN, engine=engine)
+        if engine == "llamacpp":
+            assert "--reasoning-parser" not in argv
+        else:
+            assert argv[argv.index("--reasoning-parser") + 1] == "qwen3"
+    cfg.engine.reasoning_parser = None
+    argv = serve_argv(cfg, mode="quality", served_name="m", is_moe=False, quant_flag="bf16", moe_backend=None,
+                      batch_invariant=False, plan=SERVE_PLAN, engine="sglang")
+    assert "--reasoning-parser" not in argv

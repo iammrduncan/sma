@@ -1,29 +1,28 @@
 {
-  "ci_lower": null,
-  "ci_upper": null,
-  "concurrency": 4,
+  "ci_lower": 0.0695083338917044,
+  "ci_upper": 0.2618619382368978,
+  "concurrency": 8,
   "context_per_stream": 262144,
-  "error": "50 of 50 tasks got no answer from the model (RuntimeError 50). The score is null. Resume the run to retry those tasks.",
+  "error": null,
   "exit_statuses": {
-    "RuntimeError": 50
+    "LimitsExceeded": 41,
+    "Submitted": 9
   },
   "harness": {
-    "completed_instances": null,
-    "empty_patch_instances": null,
-    "error_instances": null,
-    "resolved_instances": null,
-    "submitted_instances": null,
-    "total_instances": null,
-    "unresolved_instances": null
+    "completed_instances": 9,
+    "empty_patch_instances": 41,
+    "error_instances": 0,
+    "resolved_instances": 7,
+    "submitted_instances": 50,
+    "total_instances": 50,
+    "unresolved_instances": 2
   },
   "limit": null,
   "n": 50,
   "primary_metric": "resolved",
-  "primary_score": null,
-  "resolved": null,
+  "primary_score": 0.14,
+  "resolved": 7,
   "scorer": "SWE-bench harness 5.0.2 on mini-swe-agent 2.4.6 patches (swebench.yaml, bash tool calls)",
   "suite": "swebench_verified_mini",
-  "unanswered": {
-    "RuntimeError": 50
-  }
+  "unanswered": {}
 }

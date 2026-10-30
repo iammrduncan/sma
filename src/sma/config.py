@@ -68,6 +68,9 @@ class EngineConfig:
     # The engine's parser for the model's tool calls, for example hermes for Qwen3. It depends on
     # the model, so `--tool-parser` on the command line sets it per run. null serves no tools.
     tool_call_parser: str | None = None
+    # The engine's parser that moves a thinking model's reasoning out of the answer (vLLM and SGLang
+    # --reasoning-parser), for example qwen3 for LFM3 on SGLang. llama.cpp does this with --jinja. null: none.
+    reasoning_parser: str | None = None
     extra_args: list[str] = field(default_factory=list)
     server_stop_timeout_s: int = 30
     clock_cap_mhz: int | None = None
@@ -217,7 +220,7 @@ class SweBenchConfig:
 
     enabled: bool = True
     # Agents at once (owner decision 2026-10-27). The memory plan gives each one a stream.
-    workers: int = 4
+    workers: int = 8
     step_limit: int = 250
     # The least context each agent's stream must get; each gets the largest step of the ladder that fits.
     min_context: int = 32768

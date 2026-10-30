@@ -284,6 +284,13 @@
     "batch_invariant_supported": false,
     "batch_invariant_warning": "llama.cpp has no batch-invariant mode. The determinism probe still runs and records what it sees.",
     "bench_image": "nvcr.io/nvidia/vllm:26.05.post1-py3@sha256:94e21552f644e0c1627464ba89d2f7a4ce7442e196f72afa0bb5d7fba23cbb03",
+    "bench_tokenizer": {
+      "check": "every token id and BPE merge matches the GGUF's; its other ids are unused padding",
+      "reason": "the bench image's transformers cannot read GGUF architecture lfm3",
+      "repo": "LiquidAI/LFM3-1.7B-Base",
+      "revision": "545fc8f4c7b5fa9f405105274cd29c4f8f44b526",
+      "source": "repo"
+    },
     "build_info": "b11960-8642541b2",
     "clock_cap_mhz": null,
     "context_per_stream": 262144,
@@ -372,14 +379,14 @@
       "quality": {
         "build_info": "b11960-8642541b2",
         "kv_type": "q8_0,q8_0",
-        "kv_type_line": "0.01.468.609 I llama_kv_cache: size =   13.28 MiB (  2560 cells,   5 layers,  8/1 seqs), K (q8_0):    6.64 MiB, V (q8_0):    6.64 MiB",
+        "kv_type_line": "0.01.598.661 I llama_kv_cache: size =   13.28 MiB (  2560 cells,   5 layers,  8/1 seqs), K (q8_0):    6.64 MiB, V (q8_0):    6.64 MiB",
         "pool_tokens": 2099712,
         "scale_1_0": null
       },
       "speed": {
         "build_info": "b11960-8642541b2",
         "kv_type": "q8_0,q8_0",
-        "kv_type_line": "0.01.609.047 I llama_kv_cache: size =   13.28 MiB (  2560 cells,   5 layers,  8/1 seqs), K (q8_0):    6.64 MiB, V (q8_0):    6.64 MiB",
+        "kv_type_line": "0.01.460.943 I llama_kv_cache: size =   13.28 MiB (  2560 cells,   5 layers,  8/1 seqs), K (q8_0):    6.64 MiB, V (q8_0):    6.64 MiB",
         "pool_tokens": 2099712,
         "scale_1_0": null
       }
@@ -433,9 +440,13 @@
       "bytes": 2095235028,
       "sha256": "sha256:cbfe0aa5d30eac531432bdd9be69c59cf52a2df171277dc98c011bf457a62bd9"
     },
+    "quality/browsecomp_plus/trajectories.jsonl.gz": {
+      "bytes": 8298284,
+      "sha256": "sha256:fb97f24f04ca134adf201ab3b2407356be6e485e3be1718c817c5fec7bb9a445"
+    },
     "quality/swebench_verified_mini/trajectories.jsonl.gz": {
-      "bytes": 39624,
-      "sha256": "sha256:fe6e001f58ea315868a8255635cad9f6d16dc415e1c53be82518b88dafb69fab"
+      "bytes": 6122708,
+      "sha256": "sha256:ae2ee6e87ed836c0772394886b15c73f3abd11f2385dd0f44e52f0b9bbd57b63"
     }
   },
   "logprobs_reference_file": "logprobs/kld-base.bin",
@@ -530,11 +541,11 @@
       "status": "done"
     },
     "browsecomp_plus_results": {
-      "attempts": 0,
+      "attempts": 1,
       "error": null,
-      "finished": null,
-      "started": null,
-      "status": "pending"
+      "finished": "2026-10-29T23:31:44Z",
+      "started": "2026-10-29T23:31:44Z",
+      "status": "done"
     },
     "cleanup": {
       "attempts": 1,
@@ -565,11 +576,11 @@
       "status": "done"
     },
     "kernelbench_results": {
-      "attempts": 0,
+      "attempts": 1,
       "error": null,
-      "finished": null,
-      "started": null,
-      "status": "pending"
+      "finished": "2026-10-29T23:31:43Z",
+      "started": "2026-10-29T23:31:43Z",
+      "status": "done"
     },
     "logprobs": {
       "attempts": 1,
@@ -600,18 +611,18 @@
       "status": "done"
     },
     "speed": {
-      "attempts": 1,
-      "error": "bench failed (exit 1): ine 200, in from_pretrained\n    raise e\n  File \"/usr/local/lib/python3.12/dist-packages/vllm/tokenizers/hf.py\", line 172, in from_pretrained\n    tokenizer = AutoTokenizer.from_pretrained(\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/dist-packages/transformers/models/auto/tokenization_auto.py\", line 682, in from_pretrained\n    config_dict = load_gguf_checkpoint(gguf_path, return_tensors=False)[\"config\"]\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/dist-packages/transformers/modeling_gguf_pytorch_utils.py\", line 648, in load_gguf_checkpoint\n    raise ValueError(f\"GGUF model with architecture {architecture} is not supported yet.\")\nValueError: GGUF model with architecture lfm3 is not supported yet.",
-      "finished": "2026-10-29T16:03:27Z",
-      "started": "2026-10-29T16:02:34Z",
-      "status": "failed"
-    },
-    "swebench": {
       "attempts": 2,
       "error": null,
-      "finished": "2026-10-29T08:55:25Z",
+      "finished": "2026-10-29T23:31:43Z",
+      "started": "2026-10-29T16:02:34Z",
+      "status": "done"
+    },
+    "swebench": {
+      "attempts": 4,
+      "error": null,
+      "finished": "2026-10-29T23:34:20Z",
       "started": "2026-10-29T08:52:15Z",
-      "status": "running"
+      "status": "done"
     },
     "teardown": {
       "attempts": 1,
@@ -637,13 +648,15 @@
   },
   "timestamps": {
     "created": "2026-10-29T02:05:34Z",
-    "finished": "2026-10-29T16:03:27Z",
+    "finished": "2026-10-29T23:34:22Z",
     "started": "2026-10-29T02:05:34Z"
   },
   "tokenizer_fingerprint": "sha256:8a0206d02d98207a0d9596774b1bdfff17f60e5b08ae2410f6c5e152466e46df",
   "warnings": [
     "Determinism probe failed. The run continues. Use the recorded concurrency for both quants and treat quality deltas against a wider noise band.",
     "50 of 50 tasks got no answer from the model (RuntimeError 50). The score is null. Resume the run to retry those tasks.",
-    "Page cache was not dropped. The next model may see leftover file cache."
+    "Page cache was not dropped. The next model may see leftover file cache.",
+    "Step swebench failed, and the run goes on: SWE-bench's grade stopped on the runner without an exit status. Resume the run to start it again.",
+    "Speed cell sweep_c4_r1 bench failed on attempt 1: bench completed 31 requests, and speed.num_prompts is 32. A speed cell is invalid unless every prompt finished.. Retrying after backoff. This is not a thermal or power throttle, so there is no cool-down."
   ]
 }

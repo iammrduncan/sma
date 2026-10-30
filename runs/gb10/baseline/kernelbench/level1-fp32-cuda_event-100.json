@@ -15,7 +15,7 @@
   "sandbox": {
    "landlock_abi": 7,
    "writable": [
-    "/tmp/kernelbench/kb-8525680f15c1",
+    "/tmp/kernelbench/kb-7d16f556921a",
     "/dev",
     "/proc/self"
    ],
@@ -34,30 +34,30 @@
    "compute_capability": "12.1"
   },
   "clocks_under_load": {
-   "sm_mhz": "2184",
+   "sm_mhz": "1982",
    "mem_mhz": "[N/A]",
-   "power_w": "86.21",
-   "temp_c": "66",
+   "power_w": "63.86",
+   "temp_c": "49",
    "event_reasons": "0x0000000000000000"
   },
-  "clock_lock_mhz": "2200",
-  "fingerprint": "5975f7a6360573f7",
+  "clock_lock_mhz": "2000",
+  "fingerprint": "7816e61e5539da95",
   "host_memory_budget_gib": 94.0,
   "host_memory_floor_gib": 8.0,
-  "probed_at": "2026-10-27T22:19:33Z"
+  "probed_at": "2026-10-29T18:52:41Z"
  },
- "job": "kb-20261027-221930-65782d55",
- "recorded_at": "2026-10-27T22:38:44Z",
+ "job": "kb-20261029-185237-5f74f847",
+ "recorded_at": "2026-10-29T19:31:49Z",
  "problems": [
   {
    "level": 1,
    "problem_id": 1,
    "problem_name": "1_Square_matrix_multiplication_.py",
    "stats": {
-    "mean": 8.11,
-    "std": 0.377,
-    "min": 7.83,
-    "max": 9.08,
+    "mean": 8.79,
+    "std": 0.286,
+    "min": 8.63,
+    "max": 9.62,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -69,10 +69,10 @@
    "problem_id": 2,
    "problem_name": "2_Standard_matrix_multiplication_.py",
    "stats": {
-    "mean": 7.49,
-    "std": 0.279,
-    "min": 7.27,
-    "max": 8.05,
+    "mean": 8.15,
+    "std": 0.253,
+    "min": 7.99,
+    "max": 9.15,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -84,10 +84,10 @@
    "problem_id": 3,
    "problem_name": "3_Batched_matrix_multiplication.py",
    "stats": {
-    "mean": 25.4,
+    "mean": 27.9,
     "std": 2.07,
-    "min": 24.8,
-    "max": 45.0,
+    "min": 27.4,
+    "max": 48.2,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -99,10 +99,10 @@
    "problem_id": 4,
    "problem_name": "4_Matrix_vector_multiplication_.py",
    "stats": {
-    "mean": 35.7,
-    "std": 0.189,
-    "min": 35.5,
-    "max": 36.3,
+    "mean": 35.5,
+    "std": 0.22,
+    "min": 35.4,
+    "max": 36.7,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -114,10 +114,10 @@
    "problem_id": 5,
    "problem_name": "5_Matrix_scalar_multiplication.py",
    "stats": {
-    "mean": 39.3,
-    "std": 13.1,
-    "min": 37.7,
-    "max": 170.0,
+    "mean": 39.2,
+    "std": 13.0,
+    "min": 37.6,
+    "max": 168.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -129,10 +129,10 @@
    "problem_id": 6,
    "problem_name": "6_Matmul_with_large_K_dimension_.py",
    "stats": {
-    "mean": 7.22,
-    "std": 0.266,
+    "mean": 7.14,
+    "std": 0.203,
     "min": 6.99,
-    "max": 8.26,
+    "max": 7.94,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -144,10 +144,10 @@
    "problem_id": 7,
    "problem_name": "7_Matmul_with_small_K_dimension_.py",
    "stats": {
-    "mean": 25.4,
-    "std": 15.2,
-    "min": 23.6,
-    "max": 176.0,
+    "mean": 25.7,
+    "std": 13.7,
+    "min": 23.9,
+    "max": 162.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -159,10 +159,10 @@
    "problem_id": 8,
    "problem_name": "8_Matmul_with_irregular_shapes_.py",
    "stats": {
-    "mean": 20.6,
-    "std": 0.349,
-    "min": 20.4,
-    "max": 21.8,
+    "mean": 22.7,
+    "std": 0.427,
+    "min": 22.4,
+    "max": 24.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -175,9 +175,9 @@
    "problem_name": "9_Tall_skinny_matrix_multiplication_.py",
    "stats": {
     "mean": 24.7,
-    "std": 15.0,
+    "std": 13.2,
     "min": 23.0,
-    "max": 174.0,
+    "max": 155.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -189,10 +189,10 @@
    "problem_id": 10,
    "problem_name": "10_3D_tensor_matrix_multiplication.py",
    "stats": {
-    "mean": 3.03,
-    "std": 0.19,
-    "min": 2.94,
-    "max": 3.69,
+    "mean": 3.35,
+    "std": 0.227,
+    "min": 3.21,
+    "max": 4.03,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -204,10 +204,10 @@
    "problem_id": 11,
    "problem_name": "11_4D_tensor_matrix_multiplication.py",
    "stats": {
-    "mean": 33.1,
-    "std": 11.3,
-    "min": 31.2,
-    "max": 145.0,
+    "mean": 34.4,
+    "std": 11.2,
+    "min": 32.7,
+    "max": 146.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -219,10 +219,10 @@
    "problem_id": 12,
    "problem_name": "12_Matmul_with_diagonal_matrices_.py",
    "stats": {
-    "mean": 0.619,
-    "std": 0.045,
-    "min": 0.605,
-    "max": 1.05,
+    "mean": 0.615,
+    "std": 0.0185,
+    "min": 0.606,
+    "max": 0.776,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -234,10 +234,10 @@
    "problem_id": 13,
    "problem_name": "13_Matmul_for_symmetric_matrices.py",
    "stats": {
-    "mean": 8.07,
-    "std": 0.325,
-    "min": 7.82,
-    "max": 8.66,
+    "mean": 8.78,
+    "std": 0.267,
+    "min": 8.64,
+    "max": 9.99,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -249,10 +249,10 @@
    "problem_id": 14,
    "problem_name": "14_Matmul_for_upper_triangular_matrices.py",
    "stats": {
-    "mean": 8.45,
-    "std": 0.294,
-    "min": 8.24,
-    "max": 9.07,
+    "mean": 9.16,
+    "std": 0.206,
+    "min": 9.06,
+    "max": 9.85,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -264,10 +264,10 @@
    "problem_id": 15,
    "problem_name": "15_Matmul_for_lower_triangular_matrices.py",
    "stats": {
-    "mean": 8.46,
-    "std": 0.298,
-    "min": 8.25,
-    "max": 9.04,
+    "mean": 9.18,
+    "std": 0.23,
+    "min": 9.07,
+    "max": 9.84,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -279,10 +279,10 @@
    "problem_id": 16,
    "problem_name": "16_Matmul_with_transposed_A.py",
    "stats": {
-    "mean": 7.15,
-    "std": 0.249,
-    "min": 6.94,
-    "max": 7.64,
+    "mean": 7.84,
+    "std": 0.263,
+    "min": 7.66,
+    "max": 8.7,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -294,10 +294,10 @@
    "problem_id": 17,
    "problem_name": "17_Matmul_with_transposed_B.py",
    "stats": {
-    "mean": 21.6,
-    "std": 0.604,
-    "min": 21.0,
-    "max": 25.3,
+    "mean": 21.4,
+    "std": 0.27,
+    "min": 21.1,
+    "max": 22.4,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -309,10 +309,10 @@
    "problem_id": 18,
    "problem_name": "18_Matmul_with_transposed_both.py",
    "stats": {
-    "mean": 8.12,
-    "std": 0.319,
-    "min": 7.86,
-    "max": 8.77,
+    "mean": 8.77,
+    "std": 0.257,
+    "min": 8.61,
+    "max": 9.45,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -324,10 +324,10 @@
    "problem_id": 19,
    "problem_name": "19_ReLU.py",
    "stats": {
-    "mean": 58.9,
-    "std": 19.4,
+    "mean": 58.6,
+    "std": 19.1,
     "min": 56.5,
-    "max": 252.0,
+    "max": 249.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -339,10 +339,10 @@
    "problem_id": 20,
    "problem_name": "20_LeakyReLU.py",
    "stats": {
-    "mean": 58.9,
-    "std": 19.5,
-    "min": 56.4,
-    "max": 252.0,
+    "mean": 58.7,
+    "std": 18.9,
+    "min": 56.5,
+    "max": 247.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -354,10 +354,10 @@
    "problem_id": 21,
    "problem_name": "21_Sigmoid.py",
    "stats": {
-    "mean": 58.8,
-    "std": 19.5,
-    "min": 56.4,
-    "max": 252.0,
+    "mean": 58.7,
+    "std": 19.1,
+    "min": 56.5,
+    "max": 249.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -369,10 +369,10 @@
    "problem_id": 22,
    "problem_name": "22_Tanh.py",
    "stats": {
-    "mean": 59.0,
-    "std": 21.4,
-    "min": 56.4,
-    "max": 272.0,
+    "mean": 58.8,
+    "std": 19.4,
+    "min": 56.6,
+    "max": 252.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -383,6 +383,21 @@
    "level": 1,
    "problem_id": 23,
    "problem_name": "23_Softmax.py",
+   "stats": {
+    "mean": 115.0,
+    "std": 19.5,
+    "min": 113.0,
+    "max": 309.0,
+    "num_trials": 100,
+    "hardware": "NVIDIA GB10",
+    "device": "cuda:0"
+   },
+   "peak_bytes": 19327352832
+  },
+  {
+   "level": 1,
+   "problem_id": 24,
+   "problem_name": "24_LogSoftmax.py",
    "stats": {
     "mean": 115.0,
     "std": 21.8,
@@ -396,28 +411,13 @@
   },
   {
    "level": 1,
-   "problem_id": 24,
-   "problem_name": "24_LogSoftmax.py",
-   "stats": {
-    "mean": 115.0,
-    "std": 19.9,
-    "min": 113.0,
-    "max": 313.0,
-    "num_trials": 100,
-    "hardware": "NVIDIA GB10",
-    "device": "cuda:0"
-   },
-   "peak_bytes": 19327352832
-  },
-  {
-   "level": 1,
    "problem_id": 25,
    "problem_name": "25_Swish.py",
    "stats": {
     "mean": 143.0,
-    "std": 20.5,
+    "std": 20.9,
     "min": 140.0,
-    "max": 347.0,
+    "max": 350.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -429,10 +429,10 @@
    "problem_id": 26,
    "problem_name": "26_GELU_.py",
    "stats": {
-    "mean": 59.0,
-    "std": 22.0,
-    "min": 56.3,
-    "max": 278.0,
+    "mean": 59.1,
+    "std": 21.4,
+    "min": 56.6,
+    "max": 272.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -444,10 +444,10 @@
    "problem_id": 27,
    "problem_name": "27_SELU_.py",
    "stats": {
-    "mean": 59.0,
-    "std": 22.2,
-    "min": 56.3,
-    "max": 280.0,
+    "mean": 58.8,
+    "std": 19.4,
+    "min": 56.6,
+    "max": 252.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -459,9 +459,9 @@
    "problem_id": 28,
    "problem_name": "28_HardSigmoid.py",
    "stats": {
-    "mean": 58.7,
-    "std": 19.2,
-    "min": 56.4,
+    "mean": 58.8,
+    "std": 19.1,
+    "min": 56.6,
     "max": 249.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
@@ -475,9 +475,9 @@
    "problem_name": "29_Softplus.py",
    "stats": {
     "mean": 59.1,
-    "std": 22.0,
-    "min": 56.3,
-    "max": 278.0,
+    "std": 21.7,
+    "min": 56.6,
+    "max": 275.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -490,9 +490,9 @@
    "problem_name": "30_Softsign.py",
    "stats": {
     "mean": 199.0,
-    "std": 20.2,
+    "std": 18.5,
     "min": 196.0,
-    "max": 400.0,
+    "max": 382.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -504,10 +504,10 @@
    "problem_id": 31,
    "problem_name": "31_ELU.py",
    "stats": {
-    "mean": 59.0,
+    "mean": 59.1,
     "std": 21.4,
-    "min": 56.4,
-    "max": 271.0,
+    "min": 56.7,
+    "max": 272.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -520,9 +520,9 @@
    "problem_name": "32_HardTanh.py",
    "stats": {
     "mean": 59.0,
-    "std": 21.7,
-    "min": 56.3,
-    "max": 275.0,
+    "std": 21.6,
+    "min": 56.6,
+    "max": 274.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -534,10 +534,10 @@
    "problem_id": 33,
    "problem_name": "33_BatchNorm.py",
    "stats": {
-    "mean": 62.3,
-    "std": 13.0,
-    "min": 60.1,
-    "max": 192.0,
+    "mean": 61.9,
+    "std": 13.4,
+    "min": 60.0,
+    "max": 195.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -549,10 +549,10 @@
    "problem_id": 34,
    "problem_name": "34_InstanceNorm.py",
    "stats": {
-    "mean": 107.0,
-    "std": 22.8,
+    "mean": 108.0,
+    "std": 25.6,
     "min": 104.0,
-    "max": 334.0,
+    "max": 362.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -565,9 +565,9 @@
    "problem_name": "35_GroupNorm_.py",
    "stats": {
     "mean": 104.0,
-    "std": 22.5,
+    "std": 24.1,
     "min": 101.0,
-    "max": 328.0,
+    "max": 343.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -579,10 +579,10 @@
    "problem_id": 36,
    "problem_name": "36_RMSNorm_.py",
    "stats": {
-    "mean": 174.0,
-    "std": 24.9,
+    "mean": 173.0,
+    "std": 22.2,
     "min": 169.0,
-    "max": 421.0,
+    "max": 394.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -594,10 +594,10 @@
    "problem_id": 37,
    "problem_name": "37_FrobeniusNorm_.py",
    "stats": {
-    "mean": 102.0,
-    "std": 21.9,
-    "min": 99.1,
-    "max": 319.0,
+    "mean": 101.0,
+    "std": 22.5,
+    "min": 98.5,
+    "max": 325.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -610,9 +610,9 @@
    "problem_name": "38_L1Norm_.py",
    "stats": {
     "mean": 196.0,
-    "std": 25.6,
+    "std": 28.1,
     "min": 191.0,
-    "max": 451.0,
+    "max": 475.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -625,9 +625,9 @@
    "problem_name": "39_L2Norm_.py",
    "stats": {
     "mean": 120.0,
-    "std": 25.1,
+    "std": 27.5,
     "min": 116.0,
-    "max": 370.0,
+    "max": 393.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -639,10 +639,10 @@
    "problem_id": 40,
    "problem_name": "40_LayerNorm.py",
    "stats": {
-    "mean": 9.44,
-    "std": 0.0808,
-    "min": 9.41,
-    "max": 10.0,
+    "mean": 9.93,
+    "std": 0.0859,
+    "min": 9.9,
+    "max": 10.5,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -654,10 +654,10 @@
    "problem_id": 41,
    "problem_name": "41_Max_Pooling_1D.py",
    "stats": {
-    "mean": 62.6,
-    "std": 20.1,
-    "min": 60.1,
-    "max": 262.0,
+    "mean": 62.7,
+    "std": 21.1,
+    "min": 60.2,
+    "max": 273.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -669,10 +669,10 @@
    "problem_id": 42,
    "problem_name": "42_Max_Pooling_2D.py",
    "stats": {
-    "mean": 40.5,
-    "std": 13.9,
-    "min": 38.7,
-    "max": 178.0,
+    "mean": 40.7,
+    "std": 14.8,
+    "min": 38.8,
+    "max": 187.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -685,9 +685,9 @@
    "problem_name": "43_Max_Pooling_3D.py",
    "stats": {
     "mean": 25.7,
-    "std": 3.16,
-    "min": 25.3,
-    "max": 57.1,
+    "std": 3.4,
+    "min": 25.2,
+    "max": 59.5,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -699,10 +699,10 @@
    "problem_id": 44,
    "problem_name": "44_Average_Pooling_1D.py",
    "stats": {
-    "mean": 23.8,
-    "std": 7.7,
-    "min": 22.9,
-    "max": 100.0,
+    "mean": 24.7,
+    "std": 7.84,
+    "min": 23.8,
+    "max": 103.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -714,10 +714,10 @@
    "problem_id": 45,
    "problem_name": "45_Average_Pooling_2D.py",
    "stats": {
-    "mean": 88.1,
-    "std": 0.625,
-    "min": 87.8,
-    "max": 93.0,
+    "mean": 88.4,
+    "std": 0.31,
+    "min": 88.2,
+    "max": 89.1,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -729,10 +729,10 @@
    "problem_id": 46,
    "problem_name": "46_Average_Pooling_3D.py",
    "stats": {
-    "mean": 43.1,
-    "std": 3.82,
-    "min": 42.5,
-    "max": 80.8,
+    "mean": 42.7,
+    "std": 3.24,
+    "min": 42.2,
+    "max": 74.9,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -744,10 +744,10 @@
    "problem_id": 47,
    "problem_name": "47_Sum_reduction_over_a_dimension.py",
    "stats": {
-    "mean": 45.9,
-    "std": 0.48,
-    "min": 45.6,
-    "max": 48.9,
+    "mean": 45.7,
+    "std": 0.221,
+    "min": 45.5,
+    "max": 46.4,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -759,10 +759,10 @@
    "problem_id": 48,
    "problem_name": "48_Mean_reduction_over_a_dimension.py",
    "stats": {
-    "mean": 45.8,
-    "std": 0.236,
-    "min": 45.6,
-    "max": 46.5,
+    "mean": 45.6,
+    "std": 0.256,
+    "min": 45.4,
+    "max": 46.8,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -774,10 +774,10 @@
    "problem_id": 49,
    "problem_name": "49_Max_reduction_over_a_dimension.py",
    "stats": {
-    "mean": 45.8,
-    "std": 0.256,
-    "min": 45.6,
-    "max": 46.8,
+    "mean": 45.7,
+    "std": 0.268,
+    "min": 45.5,
+    "max": 47.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -789,10 +789,10 @@
    "problem_id": 50,
    "problem_name": "50_conv_standard_2D__square_input__square_kernel.py",
    "stats": {
-    "mean": 11.5,
-    "std": 1.55,
-    "min": 10.8,
-    "max": 26.3,
+    "mean": 11.8,
+    "std": 1.49,
+    "min": 11.2,
+    "max": 26.4,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -804,10 +804,10 @@
    "problem_id": 51,
    "problem_name": "51_Argmax_over_a_dimension.py",
    "stats": {
-    "mean": 45.8,
-    "std": 0.264,
-    "min": 45.6,
-    "max": 46.8,
+    "mean": 45.7,
+    "std": 0.286,
+    "min": 45.4,
+    "max": 47.4,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -819,10 +819,10 @@
    "problem_id": 52,
    "problem_name": "52_Argmin_over_a_dimension.py",
    "stats": {
-    "mean": 45.8,
-    "std": 0.234,
-    "min": 45.6,
-    "max": 46.5,
+    "mean": 45.7,
+    "std": 0.24,
+    "min": 45.5,
+    "max": 46.4,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -835,9 +835,9 @@
    "problem_name": "53_Min_reduction_over_a_dimension.py",
    "stats": {
     "mean": 45.8,
-    "std": 0.23,
-    "min": 45.7,
-    "max": 46.5,
+    "std": 0.499,
+    "min": 45.5,
+    "max": 49.2,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -849,10 +849,10 @@
    "problem_id": 54,
    "problem_name": "54_conv_standard_3D__square_input__square_kernel.py",
    "stats": {
-    "mean": 9.91,
-    "std": 3.23,
-    "min": 9.44,
-    "max": 42.0,
+    "mean": 10.9,
+    "std": 3.6,
+    "min": 10.4,
+    "max": 46.7,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -864,10 +864,10 @@
    "problem_id": 55,
    "problem_name": "55_conv_standard_2D__asymmetric_input__square_kernel.py",
    "stats": {
-    "mean": 30.4,
-    "std": 6.58,
-    "min": 28.7,
-    "max": 95.7,
+    "mean": 31.5,
+    "std": 7.56,
+    "min": 29.7,
+    "max": 107.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -879,10 +879,10 @@
    "problem_id": 56,
    "problem_name": "56_conv_standard_2D__asymmetric_input__asymmetric_kernel.py",
    "stats": {
-    "mean": 20.8,
-    "std": 2.57,
-    "min": 20.1,
-    "max": 46.2,
+    "mean": 22.3,
+    "std": 2.94,
+    "min": 21.4,
+    "max": 51.2,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -894,10 +894,10 @@
    "problem_id": 57,
    "problem_name": "57_conv_transposed_2D__square_input__square_kernel.py",
    "stats": {
-    "mean": 65.4,
-    "std": 14.6,
-    "min": 63.0,
-    "max": 211.0,
+    "mean": 66.0,
+    "std": 14.5,
+    "min": 63.5,
+    "max": 210.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -909,10 +909,10 @@
    "problem_id": 58,
    "problem_name": "58_conv_transposed_3D__asymmetric_input__asymmetric_kernel.py",
    "stats": {
-    "mean": 43.9,
-    "std": 0.394,
-    "min": 43.5,
-    "max": 45.4,
+    "mean": 48.6,
+    "std": 0.69,
+    "min": 48.4,
+    "max": 55.1,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -924,10 +924,10 @@
    "problem_id": 59,
    "problem_name": "59_conv_standard_3D__asymmetric_input__square_kernel.py",
    "stats": {
-    "mean": 20.4,
-    "std": 8.88,
-    "min": 19.4,
-    "max": 109.0,
+    "mean": 22.3,
+    "std": 8.56,
+    "min": 21.3,
+    "max": 107.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -939,10 +939,10 @@
    "problem_id": 60,
    "problem_name": "60_conv_standard_3D__square_input__asymmetric_kernel.py",
    "stats": {
-    "mean": 16.3,
-    "std": 3.11,
-    "min": 15.4,
-    "max": 47.1,
+    "mean": 16.9,
+    "std": 3.08,
+    "min": 16.1,
+    "max": 47.4,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -954,10 +954,10 @@
    "problem_id": 61,
    "problem_name": "61_conv_transposed_3D__square_input__square_kernel.py",
    "stats": {
-    "mean": 119.0,
-    "std": 1.89,
-    "min": 118.0,
-    "max": 137.0,
+    "mean": 131.0,
+    "std": 1.71,
+    "min": 130.0,
+    "max": 145.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -969,10 +969,10 @@
    "problem_id": 62,
    "problem_name": "62_conv_standard_2D__square_input__asymmetric_kernel.py",
    "stats": {
-    "mean": 39.4,
-    "std": 2.4,
-    "min": 38.5,
-    "max": 62.9,
+    "mean": 42.9,
+    "std": 1.86,
+    "min": 42.5,
+    "max": 60.7,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -984,10 +984,10 @@
    "problem_id": 63,
    "problem_name": "63_conv_standard_2D__square_input__square_kernel.py",
    "stats": {
-    "mean": 98.6,
-    "std": 26.4,
-    "min": 95.4,
-    "max": 362.0,
+    "mean": 108.0,
+    "std": 29.7,
+    "min": 104.0,
+    "max": 403.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -999,10 +999,10 @@
    "problem_id": 64,
    "problem_name": "64_conv_transposed_1D.py",
    "stats": {
-    "mean": 63.2,
-    "std": 14.7,
-    "min": 60.6,
-    "max": 209.0,
+    "mean": 64.3,
+    "std": 13.3,
+    "min": 62.1,
+    "max": 196.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1014,10 +1014,10 @@
    "problem_id": 65,
    "problem_name": "65_conv_transposed_2D__square_input__asymmetric_kernel.py",
    "stats": {
-    "mean": 19.4,
-    "std": 3.69,
-    "min": 18.6,
-    "max": 55.7,
+    "mean": 19.9,
+    "std": 3.61,
+    "min": 19.3,
+    "max": 55.8,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1029,9 +1029,9 @@
    "problem_id": 66,
    "problem_name": "66_conv_standard_3D__asymmetric_input__asymmetric_kernel.py",
    "stats": {
-    "mean": 8.24,
+    "mean": 8.34,
     "std": 1.51,
-    "min": 7.82,
+    "min": 7.97,
     "max": 23.1,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
@@ -1044,9 +1044,9 @@
    "problem_id": 67,
    "problem_name": "67_conv_standard_1D.py",
    "stats": {
-    "mean": 35.1,
-    "std": 6.99,
-    "min": 34.0,
+    "mean": 35.4,
+    "std": 7.01,
+    "min": 34.3,
     "max": 105.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
@@ -1059,10 +1059,10 @@
    "problem_id": 68,
    "problem_name": "68_conv_transposed_3D__square_input__asymmetric_kernel.py",
    "stats": {
-    "mean": 861.0,
-    "std": 4.74,
-    "min": 858.0,
-    "max": 905.0,
+    "mean": 948.0,
+    "std": 5.49,
+    "min": 946.0,
+    "max": 1000.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1074,10 +1074,10 @@
    "problem_id": 69,
    "problem_name": "69_conv_transposed_2D__asymmetric_input__asymmetric_kernel.py",
    "stats": {
-    "mean": 31.1,
-    "std": 5.14,
-    "min": 29.7,
-    "max": 82.1,
+    "mean": 32.1,
+    "std": 5.83,
+    "min": 31.0,
+    "max": 90.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1089,10 +1089,10 @@
    "problem_id": 70,
    "problem_name": "70_conv_transposed_3D__asymmetric_input__square_kernel.py",
    "stats": {
-    "mean": 233.0,
-    "std": 3.19,
-    "min": 232.0,
-    "max": 263.0,
+    "mean": 258.0,
+    "std": 3.23,
+    "min": 256.0,
+    "max": 287.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1104,10 +1104,10 @@
    "problem_id": 71,
    "problem_name": "71_conv_transposed_2D__asymmetric_input__square_kernel.py",
    "stats": {
-    "mean": 16.8,
-    "std": 3.59,
-    "min": 16.0,
-    "max": 52.4,
+    "mean": 17.2,
+    "std": 3.95,
+    "min": 16.4,
+    "max": 56.4,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1119,10 +1119,10 @@
    "problem_id": 72,
    "problem_name": "72_conv_transposed_3D_asymmetric_input_asymmetric_kernel___strided_padded_grouped_.py",
    "stats": {
-    "mean": 12.9,
-    "std": 0.196,
-    "min": 12.8,
-    "max": 13.8,
+    "mean": 14.1,
+    "std": 0.2,
+    "min": 14.0,
+    "max": 14.9,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1134,10 +1134,10 @@
    "problem_id": 73,
    "problem_name": "73_conv_transposed_3D_asymmetric_input_square_kernel__strided_padded__grouped.py",
    "stats": {
-    "mean": 50.0,
-    "std": 3.97,
-    "min": 48.8,
-    "max": 89.3,
+    "mean": 54.1,
+    "std": 3.8,
+    "min": 52.9,
+    "max": 91.7,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1152,7 +1152,7 @@
     "mean": 23.5,
     "std": 5.0,
     "min": 22.6,
-    "max": 73.1,
+    "max": 73.2,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1164,10 +1164,10 @@
    "problem_id": 75,
    "problem_name": "75_conv_transposed_2D_asymmetric_input_asymmetric_kernel_strided__grouped____padded____dilated__.py",
    "stats": {
-    "mean": 29.4,
-    "std": 2.71,
-    "min": 28.8,
-    "max": 56.2,
+    "mean": 31.8,
+    "std": 2.78,
+    "min": 31.4,
+    "max": 59.3,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1180,9 +1180,9 @@
    "problem_name": "76_conv_standard_1D_dilated_strided__.py",
    "stats": {
     "mean": 192.0,
-    "std": 17.4,
-    "min": 189.0,
-    "max": 365.0,
+    "std": 17.0,
+    "min": 190.0,
+    "max": 361.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1194,10 +1194,10 @@
    "problem_id": 77,
    "problem_name": "77_conv_transposed_3D_square_input_square_kernel___padded____dilated____strided__.py",
    "stats": {
-    "mean": 16.7,
-    "std": 2.06,
-    "min": 16.1,
-    "max": 36.9,
+    "mean": 17.7,
+    "std": 2.04,
+    "min": 17.2,
+    "max": 37.9,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1209,10 +1209,10 @@
    "problem_id": 78,
    "problem_name": "78_conv_transposed_2D_asymmetric_input_asymmetric_kernel___padded__.py",
    "stats": {
-    "mean": 20.9,
-    "std": 3.64,
-    "min": 20.2,
-    "max": 57.0,
+    "mean": 22.2,
+    "std": 3.5,
+    "min": 21.3,
+    "max": 56.6,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1224,10 +1224,10 @@
    "problem_id": 79,
    "problem_name": "79_conv_transposed_1D_asymmetric_input_square_kernel___padded____strided____dilated__.py",
    "stats": {
-    "mean": 33.2,
-    "std": 4.06,
-    "min": 32.6,
-    "max": 73.6,
+    "mean": 34.4,
+    "std": 3.77,
+    "min": 33.8,
+    "max": 71.8,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1239,10 +1239,10 @@
    "problem_id": 80,
    "problem_name": "80_conv_standard_2D_square_input_asymmetric_kernel___dilated____padded__.py",
    "stats": {
-    "mean": 41.9,
-    "std": 2.01,
-    "min": 41.1,
-    "max": 61.3,
+    "mean": 45.2,
+    "std": 1.83,
+    "min": 44.7,
+    "max": 62.8,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1254,10 +1254,10 @@
    "problem_id": 81,
    "problem_name": "81_conv_transposed_2D_asymmetric_input_square_kernel___dilated____padded____strided__.py",
    "stats": {
-    "mean": 14.2,
-    "std": 2.72,
-    "min": 13.9,
-    "max": 41.3,
+    "mean": 14.4,
+    "std": 2.8,
+    "min": 14.0,
+    "max": 42.2,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1269,10 +1269,10 @@
    "problem_id": 82,
    "problem_name": "82_conv_depthwise_2D_square_input_square_kernel.py",
    "stats": {
-    "mean": 12.3,
-    "std": 3.69,
-    "min": 11.8,
-    "max": 49.0,
+    "mean": 12.8,
+    "std": 3.59,
+    "min": 12.3,
+    "max": 48.4,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1284,10 +1284,10 @@
    "problem_id": 83,
    "problem_name": "83_conv_depthwise_2D_square_input_asymmetric_kernel.py",
    "stats": {
-    "mean": 7.27,
-    "std": 1.74,
-    "min": 7.03,
-    "max": 24.5,
+    "mean": 7.84,
+    "std": 1.76,
+    "min": 7.6,
+    "max": 25.2,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1299,10 +1299,10 @@
    "problem_id": 84,
    "problem_name": "84_conv_depthwise_2D_asymmetric_input_square_kernel.py",
    "stats": {
-    "mean": 50.2,
-    "std": 14.1,
-    "min": 48.1,
-    "max": 190.0,
+    "mean": 51.8,
+    "std": 14.3,
+    "min": 50.0,
+    "max": 194.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1314,10 +1314,10 @@
    "problem_id": 85,
    "problem_name": "85_conv_depthwise_2D_asymmetric_input_asymmetric_kernel.py",
    "stats": {
-    "mean": 8.22,
-    "std": 1.9,
-    "min": 7.93,
-    "max": 27.0,
+    "mean": 8.84,
+    "std": 1.88,
+    "min": 8.54,
+    "max": 27.5,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1329,10 +1329,10 @@
    "problem_id": 86,
    "problem_name": "86_conv_depthwise_separable_2D.py",
    "stats": {
-    "mean": 27.8,
-    "std": 6.87,
-    "min": 26.4,
-    "max": 96.0,
+    "mean": 28.3,
+    "std": 7.08,
+    "min": 26.8,
+    "max": 98.6,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1344,10 +1344,10 @@
    "problem_id": 87,
    "problem_name": "87_conv_pointwise_2D.py",
    "stats": {
-    "mean": 62.8,
-    "std": 30.8,
-    "min": 59.4,
-    "max": 369.0,
+    "mean": 62.9,
+    "std": 29.9,
+    "min": 59.6,
+    "max": 361.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1359,10 +1359,10 @@
    "problem_id": 88,
    "problem_name": "88_MinGPTNewGelu.py",
    "stats": {
-    "mean": 21.9,
-    "std": 0.942,
-    "min": 21.7,
-    "max": 31.1,
+    "mean": 21.8,
+    "std": 0.885,
+    "min": 21.6,
+    "max": 30.5,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1375,9 +1375,9 @@
    "problem_name": "89_cumsum.py",
    "stats": {
     "mean": 44.8,
-    "std": 14.2,
-    "min": 43.0,
-    "max": 186.0,
+    "std": 14.6,
+    "min": 43.1,
+    "max": 190.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1390,9 +1390,9 @@
    "problem_name": "90_cumprod.py",
    "stats": {
     "mean": 44.9,
-    "std": 15.5,
+    "std": 14.6,
     "min": 43.1,
-    "max": 199.0,
+    "max": 190.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1405,9 +1405,9 @@
    "problem_name": "91_cumsum_reverse.py",
    "stats": {
     "mean": 120.0,
-    "std": 12.2,
+    "std": 13.4,
     "min": 118.0,
-    "max": 241.0,
+    "max": 253.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1420,9 +1420,9 @@
    "problem_name": "92_cumsum_exclusive.py",
    "stats": {
     "mean": 133.0,
-    "std": 12.8,
+    "std": 13.0,
     "min": 130.0,
-    "max": 261.0,
+    "max": 262.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1434,10 +1434,10 @@
    "problem_id": 93,
    "problem_name": "93_masked_cumsum.py",
    "stats": {
-    "mean": 102.0,
-    "std": 13.6,
-    "min": 98.9,
-    "max": 237.0,
+    "mean": 101.0,
+    "std": 14.4,
+    "min": 98.6,
+    "max": 244.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1450,7 +1450,7 @@
    "problem_name": "94_MSELoss.py",
    "stats": {
     "mean": 112.0,
-    "std": 0.561,
+    "std": 0.551,
     "min": 111.0,
     "max": 116.0,
     "num_trials": 100,
@@ -1470,10 +1470,10 @@
    "problem_id": 96,
    "problem_name": "96_HuberLoss.py",
    "stats": {
-    "mean": 75.8,
-    "std": 14.3,
-    "min": 74.2,
-    "max": 218.0,
+    "mean": 75.7,
+    "std": 13.0,
+    "min": 74.1,
+    "max": 205.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1485,9 +1485,9 @@
    "problem_id": 97,
    "problem_name": "97_ScaledDotProductAttention.py",
    "stats": {
-    "mean": 100.0,
-    "std": 7.64,
-    "min": 97.8,
+    "mean": 108.0,
+    "std": 6.89,
+    "min": 106.0,
     "max": 175.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
@@ -1500,10 +1500,10 @@
    "problem_id": 98,
    "problem_name": "98_KLDivLoss.py",
    "stats": {
-    "mean": 52.0,
-    "std": 0.222,
-    "min": 51.8,
-    "max": 52.7,
+    "mean": 51.8,
+    "std": 0.395,
+    "min": 51.6,
+    "max": 54.5,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1515,10 +1515,10 @@
    "problem_id": 99,
    "problem_name": "99_TripletMarginLoss.py",
    "stats": {
-    "mean": 56.2,
-    "std": 0.394,
+    "mean": 56.0,
+    "std": 0.263,
     "min": 55.9,
-    "max": 58.2,
+    "max": 57.3,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",
     "device": "cuda:0"
@@ -1530,9 +1530,9 @@
    "problem_id": 100,
    "problem_name": "100_HingeLoss.py",
    "stats": {
-    "mean": 130.0,
-    "std": 0.884,
-    "min": 130.0,
+    "mean": 129.0,
+    "std": 0.868,
+    "min": 129.0,
     "max": 136.0,
     "num_trials": 100,
     "hardware": "NVIDIA GB10",

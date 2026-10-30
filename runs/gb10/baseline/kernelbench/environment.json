@@ -8,7 +8,7 @@
  "sandbox": {
   "landlock_abi": 7,
   "writable": [
-   "/tmp/kernelbench/kb-92a9f7f05580",
+   "/tmp/kernelbench/kb-7d16f556921a",
    "/dev",
    "/proc/self"
   ],
@@ -27,15 +27,15 @@
   "compute_capability": "12.1"
  },
  "clocks_under_load": {
-  "sm_mhz": "2184",
+  "sm_mhz": "1982",
   "mem_mhz": "[N/A]",
-  "power_w": "82.43",
-  "temp_c": "54",
+  "power_w": "63.86",
+  "temp_c": "49",
   "event_reasons": "0x0000000000000000"
  },
- "clock_lock_mhz": "2200",
- "fingerprint": "5975f7a6360573f7",
+ "clock_lock_mhz": "2000",
+ "fingerprint": "7816e61e5539da95",
  "host_memory_budget_gib": 94.0,
  "host_memory_floor_gib": 8.0,
- "probed_at": "2026-10-27T23:12:19Z"
+ "probed_at": "2026-10-29T18:52:41Z"
 }

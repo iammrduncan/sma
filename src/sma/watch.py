@@ -31,8 +31,8 @@ from sma.telemetry import ENGINE_METRICS_FILE, engine_values
 
 # Steps that send work elsewhere and report their own progress in the run folder.
 _AGENT_SUITES = {"kernelbench": "kernelbench_l1", "swebench": "swebench_verified_mini", "browsecomp_plus": "browsecomp_plus"}
-_MARK = {"done": "✓", "running": "▶", "failed": "✗", "pending": "·", "queued": "·"}
-_COLOR = {"done": "32", "running": "33", "failed": "31", "pending": "2", "queued": "2", "head": "1;36"}
+_MARK = {"done": "✓", "running": "▶", "failed": "✗", "pending": "·", "queued": "·", "stopped": "◼"}
+_COLOR = {"done": "32", "running": "33", "failed": "31", "pending": "2", "queued": "2", "stopped": "33", "head": "1;36"}
 _FINISHED_SHOWN = 3
 # The machines are asked again this often: whether each answers can change, what it is does not.
 _MACHINES_EVERY_S = 60.0
@@ -69,6 +69,8 @@ class View:
     # The machines SMA uses (sma.machines.gather). None: only this one, from what the view has.
     machines: list[Machine] | None = None
     interval_s: float | None = None
+    # SWE-bench progress read from the runner for the current run (read_swe), or None.
+    swe: dict[str, Any] | None = None
 
 
 def render(cfg: Config, view: View, *, plan: Path | None = None) -> str:
@@ -80,7 +82,8 @@ def render(cfg: Config, view: View, *, plan: Path | None = None) -> str:
     lines += _queue_lines(cfg, runs, current, plan, paint)
     # A run's own config names its suites; a total added to sma.yaml since then still counts for it.
     totals = {suite.name: suite.questions for suite in cfg.quality.suites if suite.questions}
-    lines += (_run_lines(current, view.now, paint, totals) if current else [paint("CURRENT RUN", "head") + "  none"]) + [""]
+    swe = view.swe if current and view.swe and view.swe.get("run_id") == current["run_id"] else None
+    lines += (_run_lines(current, view.now, paint, totals, swe) if current else [paint("CURRENT RUN", "head") + "  none"]) + [""]
     lines += _serving_lines(cfg, view, paint) + [""]
     lines += _finished_lines(runs, current, paint)
     text = scrub_text("\n".join(lines))
@@ -98,6 +101,7 @@ def watch(
     scrape: Callable[[str, str], str],
     machines: Callable[[], list[Machine]] | None = None,
     started_at: Callable[[str], datetime | None] | None = None,
+    swe_progress: Callable[[str], dict[str, Any] | None] | None = None,
     out: TextIO | None = None,
 ) -> None:
     """Print the screen once, or redraw it every interval_s seconds until Ctrl-C. scrape(base_url, path)
@@ -107,13 +111,21 @@ def watch(
     live = Live(interval_s=interval_s)
     known: list[Machine] | None = None
     asked = 0.0
+    swe: dict[str, Any] | None = None
+    swe_asked = 0.0
     while True:
         up, now = containers(), datetime.now(timezone.utc)
         read_live(cfg, live, up, now, scrape, started_at)
         if machines is not None and time.monotonic() - asked >= _MACHINES_EVERY_S:
             known, asked = machines(), time.monotonic()
+        # SWE-bench's progress lives on the runner: read it at most once a minute, while the step runs.
+        if swe_progress is not None and live.run_id and time.monotonic() - swe_asked >= _MACHINES_EVERY_S:
+            swe_asked = time.monotonic()
+            swe = swe_progress(live.run_id) if _swe_running(cfg, live.run_id) else None
+            if swe is not None:
+                swe["run_id"] = live.run_id
         width = shutil.get_terminal_size().columns if out.isatty() else None
-        view = View(up, memory(), now, color, live, width, known, None if once else interval_s)
+        view = View(up, memory(), now, color, live, width, known, None if once else interval_s, swe)
         text = render(cfg, view, plan=plan)
         if once:
             out.write(text + "\n")
@@ -121,6 +133,11 @@ def watch(
         out.write("\033[H\033[2J" + text + "\n")
         out.flush()
         time.sleep(interval_s)
+
+
+def _swe_running(cfg: Config, run_id: str) -> bool:
+    row = next((row for row in _runs(cfg) if row["run_id"] == run_id), None)
+    return bool(row) and ((row["manifest"].get("steps") or {}).get("swebench") or {}).get("status") == "running"
 
 
 def read_live(
@@ -266,9 +283,7 @@ def _plan_lines(plan: Path, runs, current, paint) -> list[str]:
             if row["model_repo"] == repo and str(row["quant"]).lower() == quant.lower() and row["run_id"] >= since
         ]
         row = max(matches, key=lambda r: r["run_id"]) if matches else None
-        state = "queued" if row is None else row["status"]
-        if row is not None and state == "running" and current is not None and row["run_id"] != current["run_id"]:
-            state = "failed"  # Marked running, but another run has the Spark: it stopped mid-step.
+        state = "queued" if row is None else _label(row, current)
         lines.append(f"  {paint(_MARK.get(state, '?'), state)} {repo + ' ' + quant:44} {paint(state, state):8}  {row['run_id'] if row else ''}")
     return lines
 
@@ -286,7 +301,9 @@ def _run_id_time(value: str) -> str:
     return moment.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
-def _run_lines(row: dict[str, Any], now: datetime, paint, totals: dict[str, int] | None = None) -> list[str]:
+def _run_lines(
+    row: dict[str, Any], now: datetime, paint, totals: dict[str, int] | None = None, swe: dict[str, Any] | None = None
+) -> list[str]:
     """The run's title, then one line per benchmark: its score, its progress, or queued. Setup and
     bookkeeping steps (fetch, servers, results, teardown) get a line only while running or failed."""
     manifest, run_dir = row["manifest"], Path(row["run_dir"])
@@ -301,7 +318,7 @@ def _run_lines(row: dict[str, Any], now: datetime, paint, totals: dict[str, int]
         if name not in _BENCHMARK_STEPS and status in ("running", "failed"):
             error = paint(str(steps[name].get("error") or "")[:100], "failed")
             lines.append(f"  {paint(_MARK[status], status)} {name:16} {status}  {error}".rstrip())
-    for name, status, detail in _benchmarks(manifest, run_dir, steps, now, totals or {}, paint):
+    for name, status, detail in _benchmarks(manifest, run_dir, steps, now, totals or {}, paint, swe):
         detail = re.sub(r"\s*\n\s*", " ", detail)  # An error's traceback would break the one-line layout.
         lines.append(f"  {paint(_MARK.get(status, '?'), status)} {name:16} {detail if status != 'queued' else paint('queued', 'queued')}")
     return lines
@@ -312,7 +329,8 @@ _BENCHMARK_STEPS = ("determinism", "logprobs", "quality", "kernelbench", "sweben
 
 
 def _benchmarks(
-    manifest, run_dir: Path, steps: dict[str, dict], now: datetime, totals: dict[str, int], paint=_identity
+    manifest, run_dir: Path, steps: dict[str, dict], now: datetime, totals: dict[str, int], paint=_identity,
+    swe: dict[str, Any] | None = None,
 ) -> list[tuple[str, str, str]]:
     """(name, state, detail) for each benchmark, in the order the run does them."""
 
@@ -340,7 +358,7 @@ def _benchmarks(
     rows.append(("perplexity", state("logprobs"), detail or took("logprobs")))
     for suite in _suites(manifest):
         rows.append(_suite_row(run_dir, {"questions": totals.get(suite["name"]), **{k: v for k, v in suite.items() if v is not None}}, now, paint))
-    rows += _agent_rows(manifest, run_dir, state, took, paint)
+    rows += _agent_rows(manifest, run_dir, state, took, paint, now, swe)
     speed = _read_json(run_dir / "speed" / "summary.json") or {}
     parts = [
         f"prefill {_number(speed.get('prefill_tok_s'))} tok/s" if isinstance(speed.get("prefill_tok_s"), (int, float)) else "",
@@ -375,7 +393,19 @@ def _suite_row(run_dir: Path, suite: dict[str, Any], now: datetime, paint=_ident
     if scores and (folder / ".done").is_file():
         if scores.get("primary_score") is None:
             return name, "failed", f"null  {str(scores.get('error') or '')[:90]}"
-        return name, "done", f"{_percent(scores['primary_score'], paint)} {scores.get('primary_metric')}  n={scores.get('n')}"
+        detail = f"{_percent(scores['primary_score'], paint)} {scores.get('primary_metric')}  n={scores.get('n')}"
+        # IFEval's headline is strict by prompt; the loose and by-instruction measures follow it.
+        measures = scores.get("measures") if isinstance(scores.get("measures"), dict) else {}
+        shown = [
+            f"{label} {_percent(measures[key], paint)}"
+            for key, label in (
+                ("prompt_level_loose_acc", "loose"),
+                ("inst_level_strict_acc", "instr strict"),
+                ("inst_level_loose_acc", "instr loose"),
+            )
+            if isinstance(measures.get(key), (int, float))
+        ]
+        return name, "done", detail + (f"  ({' · '.join(shown)})" if shown else "")
     attempts = sorted(folder.glob("attempt-*"), key=lambda p: int(p.name.split("-")[1]) if p.name.split("-")[1].isdigit() else 0)
     if not attempts:
         return name, "queued", ""
@@ -397,7 +427,9 @@ def _suite_row(run_dir: Path, suite: dict[str, Any], now: datetime, paint=_ident
     return name, "running", f"{answered}  {_elapsed(begun, None, now)}"
 
 
-def _agent_rows(manifest, run_dir: Path, state, took, paint=_identity) -> list[tuple[str, str, str]]:
+def _agent_rows(
+    manifest, run_dir: Path, state, took, paint=_identity, now: datetime | None = None, swe: dict[str, Any] | None = None
+) -> list[tuple[str, str, str]]:
     """KernelBench, SWE-bench, and BrowseComp-Plus. KernelBench and BrowseComp-Plus are scored after speed."""
     rows = []
     for step, label in (("kernelbench", "kernelbench"), ("swebench", "swebench"), ("browsecomp_plus", "browsecomp")):
@@ -417,6 +449,11 @@ def _agent_rows(manifest, run_dir: Path, state, took, paint=_identity) -> list[t
             rows.append((label, "failed", str(scores["error"])[:90]))
             continue
         detail = took(step)
+        if status == "running" and now is not None:
+            # Each attempt writes settings.json as it starts: the time since then, and the attempt when redone.
+            begun = _mtime(folder / "settings.json")
+            since = _elapsed(begun, None, now) if begun else ""
+            detail = " · ".join(part for part in (since, detail if detail.startswith("attempt") else "") if part)
         if step == "kernelbench":
             written = sum(1 for _ in (folder / "generations").glob("*")) if (folder / "generations").is_dir() else 0
             detail = "kernels sent; scored after speed" if (folder / "job.json").is_file() else f"{written}/100 kernels written  {detail}"
@@ -425,13 +462,31 @@ def _agent_rows(manifest, run_dir: Path, state, took, paint=_identity) -> list[t
             answered = sum(1 for _ in (folder / "queries").glob("*.json")) if (folder / "queries").is_dir() else 0
             detail = f"{answered}/{limit} answered" + ("; judged after speed" if status == "done" else f"  {detail}")
         elif status == "running":
-            detail = f"agents on the runner; scored at the end  {detail}"
+            detail = f"{_swe_progress(swe)}  {detail}"
         if status == "failed":
             detail = took(step)
         elif status == "done":
             status = "running"  # Measured, not yet scored.
         rows.append((label, status, detail))
     return rows
+
+
+def _swe_progress(swe: dict[str, Any] | None) -> str:
+    """Finished tasks of the total, by how each ended, as the runner last reported them."""
+    if not swe or not swe.get("total"):
+        return "agents on the runner"
+    statuses = swe.get("statuses") or {}
+    submitted, limited = statuses.get("Submitted", 0), statuses.get("LimitsExceeded", 0)
+    other = int(swe.get("done") or 0) - submitted - limited
+    parts = [f"{submitted} submitted", f"{limited} hit the step limit"] + ([f"{other} other"] if other else [])
+    return f"{swe['done']}/{swe['total']} tasks ({', '.join(parts)})"
+
+
+def _mtime(path: Path) -> datetime | None:
+    try:
+        return datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+    except OSError:
+        return None
 
 
 # The SERVING table's rows: (label, key in serving_rates). Columns are the windows.
@@ -495,8 +550,22 @@ def _number(value: float | None) -> str:
     return f"{value:,.0f}" if abs(value) >= 100 else f"{value:,.1f}"
 
 
+def _label(row: dict[str, Any], current: dict[str, Any] | None) -> str:
+    """running: it has the Spark. stopped: steps are left, and `sma resume` goes on from them. failed: every
+    step ran and some failed. done: every step succeeded. The catalog calls a run failed as soon as one step
+    is, and finished whenever its process ends, even when it was stopped on purpose to be resumed."""
+    if current is not None and row["run_id"] == current["run_id"]:
+        return "running"
+    statuses = [step.get("status") for step in (row["manifest"].get("steps") or {}).values() if isinstance(step, dict)]
+    if any(status in ("pending", "running") for status in statuses):
+        return "stopped"
+    if "failed" in statuses:
+        return "failed"
+    return "done" if statuses else str(row["status"])
+
+
 def _finished_lines(runs, current, paint) -> list[str]:
-    done = [row for row in runs if row["status"] in ("done", "failed") and row is not current]
+    done = [row for row in runs if row is not current and _label(row, current) in ("done", "failed", "stopped")]
     done.sort(key=lambda row: row["run_id"], reverse=True)
     lines = [paint("FINISHED", "head") + f"  latest {min(len(done), _FINISHED_SHOWN)} of {len(done)}"]
     for row in done[:_FINISHED_SHOWN]:
@@ -509,9 +578,10 @@ def _finished_lines(runs, current, paint) -> list[str]:
         for suite, item in (summary.get("quality") or {}).items():
             if isinstance(item, dict) and isinstance(item.get("score"), (int, float)):
                 parts.append(f"{suite} {_percent(item['score'], paint)}")
-        state = row["status"]
+        state = _label(row, current)
         scores = "  " + " · ".join(parts) if parts else ""
-        lines.append(f"  {paint(_MARK[state], state)} {row['model_repo']} {row['quant']}{scores}")
+        note = paint(" (stopped, resumable)", "stopped") if state == "stopped" else ""
+        lines.append(f"  {paint(_MARK[state], state)} {row['model_repo']} {row['quant']}{note}{scores}")
     return lines
 
 

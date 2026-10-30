@@ -246,3 +246,24 @@ def test_every_committed_run_still_validates_against_the_schemas() -> None:
     for path in manifests:
         validate_instance(_json(path), "manifest.schema.json")
         validate_instance(_json(path.parent / "summary.json"), "summary.schema.json")
+
+
+def test_a_started_command_that_changes_folder_still_writes_its_log_and_exit_status(tmp_path: Path) -> None:
+    # Grading runs `cd eval && ... && cp report ../runs/<id>/report.json`. Without a subshell the cd moved the
+    # log and exit paths into eval/, so the copy and the exit status were lost though the harness had graded.
+    import subprocess
+    import time
+
+    from sma.swebench import start_script
+
+    (tmp_path / "eval").mkdir()
+    (tmp_path / "eval" / "report.json").write_text("{}")
+    command = "cd eval && echo graded && cp -- report.json ../runs/r1/report.json"
+    subprocess.run(["sh", "-c", start_script("runs/r1", "grade", command)], cwd=tmp_path, check=True, timeout=30)
+    done = tmp_path / "runs" / "r1" / "grade.exit"
+    deadline = time.monotonic() + 20
+    while not done.is_file() and time.monotonic() < deadline:
+        time.sleep(0.1)
+    assert done.read_text().strip() == "0"
+    assert "graded" in (tmp_path / "runs" / "r1" / "grade.log").read_text()
+    assert (tmp_path / "runs" / "r1" / "report.json").is_file()

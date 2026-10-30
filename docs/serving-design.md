@@ -53,7 +53,7 @@ The checkpoint format picks the engine before launch.
   the run before launch and say why.
 - This is computed before launch and recorded as the model's context.
 - Each benchmark gets the largest step that fits the number of streams it runs at once. A SWE-bench
-  run with 4 agents needs 4 full-length streams. Each suite records the context it ran with.
+  run with 8 agents needs 8 full-length streams. Each suite records the context it ran with.
 
 ## Memory budget: 100 GB
 
@@ -147,7 +147,7 @@ These were build details, not owner decisions.
   mode.
 - **A benchmark's context.** The quality suites need at most `memory.quality_min_context` (8,192)
   per request, so the server's context is the only limit and each suite records its step. KernelBench
-  (8 streams) and SWE-bench (4 agents, at least 32,768 each) record theirs the same way. mini-swe-agent
+  (8 streams) and SWE-bench (8 agents, at least 32,768 each) record theirs the same way. mini-swe-agent
   has no client-side cap, so an agent that outgrows its step still runs; the server may then queue
   others behind it.
 - **vLLM batch invariance with an FP8 KV cache.** It starts on the GB10 (checked 2026-10-27,
@@ -183,7 +183,7 @@ These were build details, not owner decisions.
   checkpoint's `generation_config.json`), not greedy decoding.
 - KernelBench: Level 1 only, one answer per problem, KernelBench's own prompt and scoring at the
   service's commit. The headline is fast_1.
-- SWE-bench Verified-mini: mini-swe-agent's `swebench.yaml`, 4 agents, 250 steps. The runner's
+- SWE-bench Verified-mini: mini-swe-agent's `swebench.yaml`, 8 agents (4 until 2026-10-29), 250 steps. The runner's
   gold-patch baseline is in
   [`runs/cpu/baseline/sweverified/`](../runs/cpu/baseline/sweverified/README.md).
 

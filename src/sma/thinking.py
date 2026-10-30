@@ -54,12 +54,29 @@ def thinking_default(template: str | None) -> dict[str, Any]:
 
 
 def _render(template: str, extra: dict[str, Any]) -> str:
+    from jinja2 import nodes
+    from jinja2.ext import Extension
     from jinja2.sandbox import ImmutableSandboxedEnvironment
 
     def _raise(message: str) -> None:
         raise SmaError(message)
 
-    env = ImmutableSandboxedEnvironment(trim_blocks=True, lstrip_blocks=True, extensions=["jinja2.ext.loopcontrols"])
+    class Generation(Extension):
+        """{% generation %}...{% endgeneration %}, which transformers' templates use to mark the assistant's
+        tokens (LFM3's does). It renders its body; SMA needs no mask. Without it LFM3's template did not
+        render, and its agent suites ran with the server's thinking setting (off) instead of its default (on)."""
+
+        tags = {"generation"}
+
+        def parse(self, parser):
+            lineno = next(parser.stream).lineno
+            body = parser.parse_statements(("name:endgeneration",), drop_needle=True)
+            return nodes.CallBlock(self.call_method("_body"), [], [], body).set_lineno(lineno)
+
+        def _body(self, caller):
+            return caller()
+
+    env = ImmutableSandboxedEnvironment(trim_blocks=True, lstrip_blocks=True, extensions=["jinja2.ext.loopcontrols", Generation])
     env.filters["tojson"] = lambda value, **kwargs: json.dumps(value, ensure_ascii=False, **kwargs)
     env.globals["raise_exception"] = _raise
     env.globals["strftime_now"] = lambda fmt: datetime.now().strftime(fmt)

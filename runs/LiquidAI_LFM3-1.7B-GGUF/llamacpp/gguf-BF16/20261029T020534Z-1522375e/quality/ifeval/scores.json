@@ -10,6 +10,12 @@
   "error": null,
   "failures": 1,
   "limit": 50,
+  "measures": {
+    "inst_level_loose_acc": 0.8513513513513513,
+    "inst_level_strict_acc": 0.7702702702702703,
+    "prompt_level_loose_acc": 0.82,
+    "prompt_level_strict_acc": 0.72
+  },
   "n": 50,
   "pass_at_1_failures_as_wrong": null,
   "primary_metric": "pass@1",
