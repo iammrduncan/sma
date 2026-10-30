@@ -111,3 +111,43 @@ def test_recent_series_reads_each_runs_samples_with_its_engine(tmp_path: Path) -
     (series,) = recent_series(tmp_path / "runs", now=1035, span_s=86400)
     assert series.engine == "llamacpp" and len(series.samples) == 3  # The cut-short last row is skipped.
     assert recent_series(tmp_path / "runs", now=1035, span_s=20)[0].samples == SERIES.samples[1:]
+
+
+def test_rates_over_two_engines_are_one_average_from_summed_tokens_and_seconds() -> None:
+    # Owner, 2026-10-29: sma watch shows one SERVING table, whatever engine served.
+    from sma.serving import Series, combined_rates, window
+
+    llamacpp = Series("llamacpp", [
+        (0.0, {"llamacpp:tokens_predicted_total": 0, "llamacpp:tokens_predicted_seconds_total": 0}),
+        (10.0, {"llamacpp:tokens_predicted_total": 100, "llamacpp:tokens_predicted_seconds_total": 10}),
+    ])  # fmt: skip
+    sglang = Series("sglang", [
+        (20.0, {"sglang:inter_token_latency_seconds_count": 0, "sglang:inter_token_latency_seconds_sum": 0, "sglang:generation_tokens_total": 0}),
+        (30.0, {"sglang:inter_token_latency_seconds_count": 300, "sglang:inter_token_latency_seconds_sum": 10, "sglang:generation_tokens_total": 300}),
+    ])  # fmt: skip
+    rates = combined_rates(window([llamacpp, sglang], start=0.0, max_gap_s=60.0))
+    # 400 tokens in 20 decode-seconds: 20 tok/s per stream, 50 ms between tokens; 400 tokens in 20 s of wall time.
+    assert rates["decode_tok_s"] == 20.0 and rates["itl_ms"] == 50.0 and rates["generated_tok_s_all"] == 20.0
+    # Neither reported prefill here; SGLang never does. Not measured, not zero.
+    assert rates["prefill_tok_s"] is None
+
+
+def test_sglang_prefill_comes_from_its_per_stage_latency_and_only_the_prefill_stage_counts() -> None:
+    # SGLang dev-lfm3 on a Spark (2026-10-30) reports each request's prefill time as one stage of a labelled
+    # metric; v0.5.10 had none. Summing every stage would count request processing as prefill.
+    from sma.telemetry import engine_values
+
+    text = "\n".join([
+        'sglang:prompt_tokens_total{is_streaming="false",model_name="m"} 171986.0',
+        'sglang:per_stage_req_latency_seconds_sum{model_name="m",stage="request_process"} 0.0153',
+        'sglang:per_stage_req_latency_seconds_sum{model_name="m",stage="prefill_forward"} 61.4436',
+        'sglang:inter_token_latency_seconds_sum{model_name="m"} 10.0',
+        'sglang:inter_token_latency_seconds_count{model_name="m"} 400.0',
+    ])  # fmt: skip
+    backend = get_backend("sglang")
+    values = engine_values(text, backend.serving_metrics())
+    assert values['sglang:per_stage_req_latency_seconds_sum{stage="prefill_forward"}'] == 61.4436
+    assert backend.serving_rates(values, {}, 100.0)["prefill_tok_s"] == pytest.approx(171986 / 61.4436)
+    # An SGLang without the stage reports no prefill rate: not measured, not zero.
+    older = engine_values("\n".join(line for line in text.splitlines() if "per_stage" not in line), backend.serving_metrics())
+    assert backend.serving_rates(older, {}, 100.0)["prefill_tok_s"] is None

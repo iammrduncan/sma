@@ -1,0 +1,28 @@
+{
+  "total_steps": 100,
+  "total_failures": 4,
+  "failure_rate": 0.04,
+  "categories": {
+    "refusal": {
+      "count": 4,
+      "percentage": 0.04,
+      "exemplars": [
+        {
+          "problem_idx": 43,
+          "repeat": 0,
+          "error": "refusal"
+        },
+        {
+          "problem_idx": 1147,
+          "repeat": 0,
+          "error": "refusal"
+        },
+        {
+          "problem_idx": 750,
+          "repeat": 0,
+          "error": "refusal"
+        }
+      ]
+    }
+  }
+}

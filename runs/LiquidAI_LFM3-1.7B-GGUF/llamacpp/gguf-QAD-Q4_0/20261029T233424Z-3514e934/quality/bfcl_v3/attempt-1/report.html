@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Example Request-Response Pairs</title>
+    <style>
+        /* Container and general styles */
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            font-style: italic;
+            margin-bottom: 20px;
+            font-size: 1.1em;
+        }
+        .note {
+            color: #546E7A;
+            font-weight: bold;
+            font-style: normal;
+        }
+        .cache-info-header {
+            background-color: #E8F5E9;
+            color: #2E7D32;
+            padding: 12px 16px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 0.95em;
+            border: 1px solid #C8E6C9;
+        }
+        .cache-info-header .note {
+            color: #546E7A;
+            font-weight: bold;
+            font-style: normal;
+            display: block;
+            margin-top: 8px;
+        }
+
+        /* Entry styles */
+        .entry {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .cache-info {
+            padding: 8px 16px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            background-color: #E3F2FD;
+            color: #0D47A1;
+            font-size: 0.9em;
+        }
+        .cache-explanation {
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 4px;
+            font-style: italic;
+        }
+        .request, .response, .curl-command {
+            padding: 8px 16px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .request {
+            background-color: #B2DFDB;
+            color: #00695C;
+        }
+        .response {
+            background-color: #B39DDB;
+            color: #4527A0;
+        }
+        .curl-command {
+            background-color: #EEEEEE;
+            color: #212121;
+            white-space: pre-wrap;
+            display: none;
+        }
+        pre {
+            white-space: pre-wrap;
+            margin: 0;
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .button {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            background-color: #4CAF50;
+            color: white;
+        }
+        .button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+            <h1>Example Request-Response Pairs</h1>
+            <p class="subtitle">Final request (sent directly to the endpoint) and response pairs with curl commands for reproducibility. <span class="note">*Note: Responses may vary due to generation parameters, randomness, and other factors.</span></p>
+            <div class="cache-info-header">
+                <strong>About Cache Keys:</strong> Each request-response pair is identified by a unique cache key generated from the request payload hash. <span class="note">Note: Cache keys may differ across different models because the model field in the request payload will be different.</span>
+            </div>
+            
+                <div class="entry">
+                    <div class="cache-info">
+                        <strong>Cache Key:</strong> 17051f216874fdf70faf9a57e02e6cd893f4cef2d26ba700d7389a367437329e
+                    </div>
+                    <div class="request">
+                        <strong>Request:</strong>
+                        <pre>{
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B-GGUF&quot;,
+  &quot;messages&quot;: [
+    {
+      &quot;role&quot;: &quot;user&quot;,
+      &quot;content&quot;: &quot;Solve the quadratic equation with coefficients a = 1, b = 2, and c = 3.&quot;
+    }
+  ],
+  &quot;temperature&quot;: 0.001,
+  &quot;tools&quot;: [
+    {
+      &quot;type&quot;: &quot;function&quot;,
+      &quot;function&quot;: {
+        &quot;name&quot;: &quot;math_sum&quot;,
+        &quot;description&quot;: &quot;Compute the sum of all numbers in a list. Note that the provided function is in Python 3 syntax.&quot;,
+        &quot;parameters&quot;: {
+          &quot;type&quot;: &quot;object&quot;,
+          &quot;properties&quot;: {
+            &quot;numbers&quot;: {
+              &quot;type&quot;: &quot;array&quot;,
+              &quot;items&quot;: {
+                &quot;type&quot;: &quot;number&quot;
+              },
+              &quot;description&quot;: &quot;The list of numbers to be added up.&quot;
+            },
+            &quot;decimal_places&quot;: {
+              &quot;type&quot;: &quot;integer&quot;,
+              &quot;description&quot;: &quot;The number of decimal places to round to. Default is 2.&quot;
+            }
+          },
+          &quot;required&quot;: [
+            &quot;numbers&quot;
+          ]
+        }
+      }
+    }
+  ]
+}</pre>
+                    </div>
+
+                    <div class="response">
+                        <strong>Response:</strong>
+                        <pre>{
+  &quot;choices&quot;: [
+    {
+      &quot;finish_reason&quot;: &quot;stop&quot;,
+      &quot;index&quot;: 0,
+      &quot;message&quot;: {
+        &quot;role&quot;: &quot;assistant&quot;,
+        &quot;content&quot;: &quot;To solve the quadratic equation \\( ax^2 + bx + c = 0 \\) with coefficients \\( a = 1 \\), \\( b = 2 \\), and \\( c = 3 \\), we use the quadratic formula:\n\n\\[\nx = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}\n\\]\n\n**Step-by-step calculation:**\n\n1. Compute the discriminant:  \n   \\[\n   D = b^2 - 4ac = (2)^2 - 4(1)(3) = 4 - 12 = -8\n   \\]\n   Since \\( D &lt; 0 \\), the roots are complex.\n\n2. Substitute into the formula:\n   \\[\n   x = \\frac{-2 \\pm \\sqrt{-8}}{2(1)} = \\frac{-2 \\pm i\\sqrt{8}}{2} = \\frac{-2 \\pm 2i\\sqrt{2}}{2}\n   \\]\n   Simplify by dividing numerator and denominator by 2:\n   \\[\n   x = -1 \\pm i\\sqrt{2}\n   \\]\n\n**Final answer:**  \nThe solutions are \\( x = -1 + i\\sqrt{2} \\) and \\( x = -1 - i\\sqrt{2} \\).\n\nThus, the quadratic equation has two complex roots.&quot;
+      }
+    }
+  ],
+  &quot;created&quot;: 1793321020,
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B-GGUF&quot;,
+  &quot;system_fingerprint&quot;: &quot;b11960-8642541b2&quot;,
+  &quot;object&quot;: &quot;chat.completion&quot;,
+  &quot;usage&quot;: {
+    &quot;completion_tokens&quot;: 263,
+    &quot;prompt_tokens&quot;: 153,
+    &quot;total_tokens&quot;: 416,
+    &quot;prompt_tokens_details&quot;: {
+      &quot;cached_tokens&quot;: 1
+    }
+  },
+  &quot;id&quot;: &quot;chatcmpl-GQ4QFVfSn3LS7j3nIftYOUOU4AnRnVZJ&quot;,
+  &quot;timings&quot;: {
+    &quot;cache_n&quot;: 1,
+    &quot;prompt_n&quot;: 152,
+    &quot;prompt_ms&quot;: 235.159,
+    &quot;prompt_per_token_ms&quot;: 1.5470986842105263,
+    &quot;prompt_per_second&quot;: 646.3711786493394,
+    &quot;predicted_n&quot;: 263,
+    &quot;predicted_ms&quot;: 3562.01,
+    &quot;predicted_per_token_ms&quot;: 13.595458015267177,
+    &quot;predicted_per_second&quot;: 73.55397654694961
+  }
+}</pre>
+                    </div>
+
+                    <div class="buttons">
+                        <button class="button" onclick="toggleRaw('curl-17051f216874fdf70faf9a57e02e6cd893f4cef2d26ba700d7389a367437329e')">Show Curl Command</button>
+                    </div>
+
+                    <div id="curl-17051f216874fdf70faf9a57e02e6cd893f4cef2d26ba700d7389a367437329e" class="curl-command">
+                        # Save payload to file first:
+                        echo '{"messages": [{"content": "Solve the quadratic equation with coefficients a = 1, b = 2, and c = 3.", "role": "user"}], "model": "LiquidAI/LFM3-1.7B-GGUF", "temperature": 0.001, "tools": [{"function": {"description": "Compute the sum of all numbers in a list. Note that the provided function is in Python 3 syntax.", "name": "math_sum", "parameters": {"properties": {"decimal_places": {"description": "The number of decimal places to round to. Default is 2.", "type": "integer"}, "numbers": {"description": "The list of numbers to be added up.", "items": {"type": "number"}, "type": "array"}}, "required": ["numbers"], "type": "object"}}, "type": "function"}]}' > request.json
+
+                        curl "http://127.0.0.1:8000/v1/chat/completions"                         -H "Content-Type: application/json"                         -H "Authorization: Bearer $API_KEY"                         -H "Accept: application/json"                         -d @request.json
+                    </div>
+                </div>
+            
+                <div class="entry">
+                    <div class="cache-info">
+                        <strong>Cache Key:</strong> 9bb98ed5d0bacd534cea24131e649ab7576a908ed75b8e207e95d5e4d42848f1
+                    </div>
+                    <div class="request">
+                        <strong>Request:</strong>
+                        <pre>{
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B-GGUF&quot;,
+  &quot;messages&quot;: [
+    {
+      &quot;role&quot;: &quot;user&quot;,
+      &quot;content&quot;: &quot;What is the roots of linear equation bx + c = 0?&quot;
+    }
+  ],
+  &quot;temperature&quot;: 0.001,
+  &quot;tools&quot;: [
+    {
+      &quot;type&quot;: &quot;function&quot;,
+      &quot;function&quot;: {
+        &quot;name&quot;: &quot;find_roots&quot;,
+        &quot;description&quot;: &quot;Find the roots of a quadratic equation ax^2 + bx + c = 0. Note that the provided function is in Python 3 syntax.&quot;,
+        &quot;parameters&quot;: {
+          &quot;type&quot;: &quot;object&quot;,
+          &quot;properties&quot;: {
+            &quot;a&quot;: {
+              &quot;type&quot;: &quot;number&quot;,
+              &quot;description&quot;: &quot;Coefficient of x^2. This is a float type value.&quot;,
+              &quot;format&quot;: &quot;float&quot;
+            },
+            &quot;b&quot;: {
+              &quot;type&quot;: &quot;number&quot;,
+              &quot;description&quot;: &quot;Coefficient of x. This is a float type value.&quot;,
+              &quot;format&quot;: &quot;float&quot;
+            },
+            &quot;c&quot;: {
+              &quot;type&quot;: &quot;number&quot;,
+              &quot;description&quot;: &quot;Constant term. This is a float type value.&quot;,
+              &quot;format&quot;: &quot;float&quot;
+            }
+          },
+          &quot;required&quot;: [
+            &quot;a&quot;,
+            &quot;b&quot;,
+            &quot;c&quot;
+          ]
+        }
+      }
+    }
+  ]
+}</pre>
+                    </div>
+
+                    <div class="response">
+                        <strong>Response:</strong>
+                        <pre>{
+  &quot;choices&quot;: [
+    {
+      &quot;finish_reason&quot;: &quot;stop&quot;,
+      &quot;index&quot;: 0,
+      &quot;message&quot;: {
+        &quot;role&quot;: &quot;assistant&quot;,
+        &quot;content&quot;: &quot;The user asked about finding the roots of a **linear** equation \\( bx + c = 0 \\). However, the available tool `find_roots` is designed for **quadratic equations** (i.e., equations of the form \\( ax^2 + bx + c = 0 \\)). A linear equation has no quadratic term (\\( a = 0 \\)), and the standard formula for roots differs.\n\nFor a linear equation \\( bx + c = 0 \\) (with \\( b \\neq 0 \\)), the root is simply:\n\\[\nx = -\\frac{c}{b}\n\\]\n\nSince there&#x27;s no tool provided for linear equations, I can compute it directly. But to use the available `find_roots` function would require setting \\( a = 0 \\), which might not be appropriate because the quadratic formula assumes \\( a \\neq 0 \\). Let me check: if we plug \\( a = 0 \\) into the quadratic formula:\n\\[\nx = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}\n\\]\nThis would involve division by zero when \\( a = 0 \\), so it&#x27;s not valid.\n\nThus, I&#x27;ll just give the direct answer. However, if you intended to ask about a quadratic equation but mistakenly said \&quot;linear\&quot;, please clarify. For now, here is the root for the linear case:\n\n**Root:** \\( x = -\\frac{c}{b} \\)\n\nIf you provide specific values for \\( b \\) and \\( c \\), I can compute it numerically. Otherwise, this is the general solution.\n\nLet me know if you&#x27;d like to proceed!&lt;/think&gt;The function `find_roots` provided is designed for **quadratic equations** (degree 2), but your question asks about a **linear equation** of the form \\( bx + c = 0 \\). A linear equation has no quadratic term (\\(a = 0\\)), and the standard root formula differs.\n\nFor a linear equation \\( bx + c = 0 \\) with \\( b \\neq 0 \\), the solution is straightforward:\n\n\\[\nx = -\\frac{c}{b}\n\\]\n\n**Example:** If \\( b = 2 \\) and \\( c = -4 \\), then  \n\\( x = -\\frac{-4}{2} = 2 \\).\n\nIf you have specific values for \\( b \\) and \\( c \\), just provide them and I can compute the root numerically. Otherwise, this is the general result.\n\n*(Note: Using `find_roots` with \\( a = 0 \\) would cause division by zero in the quadratic formula, so it&#x27;s not suitable here.)*&quot;
+      }
+    }
+  ],
+  &quot;created&quot;: 1793321024,
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B-GGUF&quot;,
+  &quot;system_fingerprint&quot;: &quot;b11960-8642541b2&quot;,
+  &quot;object&quot;: &quot;chat.completion&quot;,
+  &quot;usage&quot;: {
+    &quot;completion_tokens&quot;: 518,
+    &quot;prompt_tokens&quot;: 191,
+    &quot;total_tokens&quot;: 709,
+    &quot;prompt_tokens_details&quot;: {
+      &quot;cached_tokens&quot;: 0
+    }
+  },
+  &quot;id&quot;: &quot;chatcmpl-ZXyjYSmYl2km5HOzkriwyGkRlWQKwzVJ&quot;,
+  &quot;timings&quot;: {
+    &quot;cache_n&quot;: 0,
+    &quot;prompt_n&quot;: 191,
+    &quot;prompt_ms&quot;: 235.567,
+    &quot;prompt_per_token_ms&quot;: 1.2333350785340313,
+    &quot;prompt_per_second&quot;: 810.8096634927643,
+    &quot;predicted_n&quot;: 518,
+    &quot;predicted_ms&quot;: 7577.116,
+    &quot;predicted_per_token_ms&quot;: 14.655930367504835,
+    &quot;predicted_per_second&quot;: 68.23176522571386
+  }
+}</pre>
+                    </div>
+
+                    <div class="buttons">
+                        <button class="button" onclick="toggleRaw('curl-9bb98ed5d0bacd534cea24131e649ab7576a908ed75b8e207e95d5e4d42848f1')">Show Curl Command</button>
+                    </div>
+
+                    <div id="curl-9bb98ed5d0bacd534cea24131e649ab7576a908ed75b8e207e95d5e4d42848f1" class="curl-command">
+                        # Save payload to file first:
+                        echo '{"messages": [{"content": "What is the roots of linear equation bx + c = 0?", "role": "user"}], "model": "LiquidAI/LFM3-1.7B-GGUF", "temperature": 0.001, "tools": [{"function": {"description": "Find the roots of a quadratic equation ax^2 + bx + c = 0. Note that the provided function is in Python 3 syntax.", "name": "find_roots", "parameters": {"properties": {"a": {"description": "Coefficient of x^2. This is a float type value.", "format": "float", "type": "number"}, "b": {"description": "Coefficient of x. This is a float type value.", "format": "float", "type": "number"}, "c": {"description": "Constant term. This is a float type value.", "format": "float", "type": "number"}}, "required": ["a", "b", "c"], "type": "object"}}, "type": "function"}]}' > request.json
+
+                        curl "http://127.0.0.1:8000/v1/chat/completions"                         -H "Content-Type: application/json"                         -H "Authorization: Bearer $API_KEY"                         -H "Accept: application/json"                         -d @request.json
+                    </div>
+                </div>
+            
+                <div class="entry">
+                    <div class="cache-info">
+                        <strong>Cache Key:</strong> a249df60d030c629e6b38cfcaf098865d420c7ec2e6a810242ac4e2176e090a0
+                    </div>
+                    <div class="request">
+                        <strong>Request:</strong>
+                        <pre>{
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B-GGUF&quot;,
+  &quot;messages&quot;: [
+    {
+      &quot;role&quot;: &quot;user&quot;,
+      &quot;content&quot;: &quot;What is the perimeter of a rectangle with length 5 meters and width 4 meters?&quot;
+    }
+  ],
+  &quot;temperature&quot;: 0.001,
+  &quot;tools&quot;: [
+    {
+      &quot;type&quot;: &quot;function&quot;,
+      &quot;function&quot;: {
+        &quot;name&quot;: &quot;solve_quadratic_equation&quot;,
+        &quot;description&quot;: &quot;Solves a quadratic equation and returns the possible solutions. Note that the provided function is in Python 3 syntax.&quot;,
+        &quot;parameters&quot;: {
+          &quot;type&quot;: &quot;object&quot;,
+          &quot;properties&quot;: {
+            &quot;a&quot;: {
+              &quot;type&quot;: &quot;number&quot;,
+              &quot;description&quot;: &quot;Coefficient of the x-squared term in the quadratic equation. This is a float type value.&quot;,
+              &quot;format&quot;: &quot;float&quot;
+            },
+            &quot;b&quot;: {
+              &quot;type&quot;: &quot;number&quot;,
+              &quot;description&quot;: &quot;Coefficient of the x term in the quadratic equation. This is a float type value.&quot;,
+              &quot;format&quot;: &quot;float&quot;
+            },
+            &quot;c&quot;: {
+              &quot;type&quot;: &quot;number&quot;,
+              &quot;description&quot;: &quot;Constant term in the quadratic equation. This is a float type value.&quot;,
+              &quot;format&quot;: &quot;float&quot;
+            }
+          },
+          &quot;required&quot;: [
+            &quot;a&quot;,
+            &quot;b&quot;,
+            &quot;c&quot;
+          ]
+        }
+      }
+    }
+  ]
+}</pre>
+                    </div>
+
+                    <div class="response">
+                        <strong>Response:</strong>
+                        <pre>{
+  &quot;choices&quot;: [
+    {
+      &quot;finish_reason&quot;: &quot;stop&quot;,
+      &quot;index&quot;: 0,
+      &quot;message&quot;: {
+        &quot;role&quot;: &quot;assistant&quot;,
+        &quot;content&quot;: &quot;The user asked about the perimeter of a rectangle with length 5 meters and width 4 meters. The formula for the perimeter of a rectangle is \\( P = 2 \\times (\\text{length} + \\text{width}) \\).\n\nPlugging in the values:\n- Length = 5 m\n- Width = 4 m\n\nSo,\n\\[\nP = 2 \\times (5 + 4) = 2 \\times 9 = 18 \\text{ meters}\n\\]\n\nThus, the perimeter is **18 meters**.\n\nNo tool call is needed for this simple arithmetic.&lt;/think&gt;The perimeter of a rectangle is calculated using the formula:  \n**Perimeter = 2 × (length + width)**  \n\nGiven length = 5 m and width = 4 m:  \n\\[\nP = 2 \\times (5 + 4) = 2 \\times 9 = 18 \\text{ meters}\n\\]\n\n**Answer:** The perimeter is **18 meters**.&quot;
+      }
+    }
+  ],
+  &quot;created&quot;: 1793321019,
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B-GGUF&quot;,
+  &quot;system_fingerprint&quot;: &quot;b11960-8642541b2&quot;,
+  &quot;object&quot;: &quot;chat.completion&quot;,
+  &quot;usage&quot;: {
+    &quot;completion_tokens&quot;: 197,
+    &quot;prompt_tokens&quot;: 206,
+    &quot;total_tokens&quot;: 403,
+    &quot;prompt_tokens_details&quot;: {
+      &quot;cached_tokens&quot;: 0
+    }
+  },
+  &quot;id&quot;: &quot;chatcmpl-s0frbH0xGIOqLQNx8H93hz55t23A8t2c&quot;,
+  &quot;timings&quot;: {
+    &quot;cache_n&quot;: 0,
+    &quot;prompt_n&quot;: 206,
+    &quot;prompt_ms&quot;: 232.358,
+    &quot;prompt_per_token_ms&quot;: 1.1279514563106796,
+    &quot;prompt_per_second&quot;: 886.5629760972294,
+    &quot;predicted_n&quot;: 197,
+    &quot;predicted_ms&quot;: 2597.021,
+    &quot;predicted_per_token_ms&quot;: 13.250107142857145,
+    &quot;predicted_per_second&quot;: 75.47108783486925
+  }
+}</pre>
+                    </div>
+
+                    <div class="buttons">
+                        <button class="button" onclick="toggleRaw('curl-a249df60d030c629e6b38cfcaf098865d420c7ec2e6a810242ac4e2176e090a0')">Show Curl Command</button>
+                    </div>
+
+                    <div id="curl-a249df60d030c629e6b38cfcaf098865d420c7ec2e6a810242ac4e2176e090a0" class="curl-command">
+                        # Save payload to file first:
+                        echo '{"messages": [{"content": "What is the perimeter of a rectangle with length 5 meters and width 4 meters?", "role": "user"}], "model": "LiquidAI/LFM3-1.7B-GGUF", "temperature": 0.001, "tools": [{"function": {"description": "Solves a quadratic equation and returns the possible solutions. Note that the provided function is in Python 3 syntax.", "name": "solve_quadratic_equation", "parameters": {"properties": {"a": {"description": "Coefficient of the x-squared term in the quadratic equation. This is a float type value.", "format": "float", "type": "number"}, "b": {"description": "Coefficient of the x term in the quadratic equation. This is a float type value.", "format": "float", "type": "number"}, "c": {"description": "Constant term in the quadratic equation. This is a float type value.", "format": "float", "type": "number"}}, "required": ["a", "b", "c"], "type": "object"}}, "type": "function"}]}' > request.json
+
+                        curl "http://127.0.0.1:8000/v1/chat/completions"                         -H "Content-Type: application/json"                         -H "Authorization: Bearer $API_KEY"                         -H "Accept: application/json"                         -d @request.json
+                    </div>
+                </div>
+            
+                <div class="entry">
+                    <div class="cache-info">
+                        <strong>Cache Key:</strong> d174caf2786df550c5a0eb1986bdf0b1264fc36ad0c2859c484c903c4142de4c
+                    </div>
+                    <div class="request">
+                        <strong>Request:</strong>
+                        <pre>{
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B-GGUF&quot;,
+  &quot;messages&quot;: [
+    {
+      &quot;role&quot;: &quot;user&quot;,
+      &quot;content&quot;: &quot;Solve for the roots of the equation 3x^2 - 2x - 5.&quot;
+    }
+  ],
+  &quot;temperature&quot;: 0.001,
+  &quot;tools&quot;: [
+    {
+      &quot;type&quot;: &quot;function&quot;,
+      &quot;function&quot;: {
+        &quot;name&quot;: &quot;distance_calculator_calculate&quot;,
+        &quot;description&quot;: &quot;Calculate the distance between two geographical coordinates. Note that the provided function is in Python 3 syntax.&quot;,
+        &quot;parameters&quot;: {
+          &quot;type&quot;: &quot;object&quot;,
+          &quot;properties&quot;: {
+            &quot;coordinate_1&quot;: {
+              &quot;type&quot;: &quot;array&quot;,
+              &quot;items&quot;: {
+                &quot;type&quot;: &quot;number&quot;
+              },
+              &quot;description&quot;: &quot;The first coordinate, a pair of latitude and longitude.&quot;
+            },
+            &quot;coordinate_2&quot;: {
+              &quot;type&quot;: &quot;array&quot;,
+              &quot;items&quot;: {
+                &quot;type&quot;: &quot;number&quot;
+              },
+              &quot;description&quot;: &quot;The second coordinate, a pair of latitude and longitude.&quot;
+            }
+          },
+          &quot;required&quot;: [
+            &quot;coordinate_1&quot;,
+            &quot;coordinate_2&quot;
+          ]
+        }
+      }
+    }
+  ]
+}</pre>
+                    </div>
+
+                    <div class="response">
+                        <strong>Response:</strong>
+                        <pre>{
+  &quot;choices&quot;: [
+    {
+      &quot;finish_reason&quot;: &quot;stop&quot;,
+      &quot;index&quot;: 0,
+      &quot;message&quot;: {
+        &quot;role&quot;: &quot;assistant&quot;,
+        &quot;content&quot;: &quot;I don&#x27;t have access to a tool that can solve quadratic equations or find roots. However, I can help you with that manually.\n\nFor the quadratic equation \\(3x^2 - 2x - 5 = 0\\), we use the quadratic formula:\n\n\\[\nx = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}\n\\]\n\nWhere:\n- \\(a = 3\\)\n- \\(b = -2\\)\n- \\(c = -5\\)\n\n**Step 1: Calculate the discriminant**\n\\[\n\\Delta = b^2 - 4ac = (-2)^2 - 4(3)(-5) = 4 + 60 = 64\n\\]\n\n**Step 2: Apply the quadratic formula**\n\\[\nx = \\frac{-(-2) \\pm \\sqrt{64}}{2 \\cdot 3} = \\frac{2 \\pm 8}{6}\n\\]\n\n**Step 3: Find the two roots**\n\n- First root:\n  \\[\n  x_1 = \\frac{2 + 8}{6} = \\frac{10}{6} = \\frac{5}{3} \\approx 1.6667\n  \\]\n\n- Second root:\n  \\[\n  x_2 = \\frac{2 - 8}{6} = \\frac{-6}{6} = -1\n  \\]\n\n**Final Answer:**\nThe roots of the equation \\(3x^2 - 2x - 5 = 0\\) are:\n\\[\n\\boxed{x = -1 \\quad \\text{and} \\quad x = \\frac{5}{3}}\n\\]&quot;
+      }
+    }
+  ],
+  &quot;created&quot;: 1793321021,
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B-GGUF&quot;,
+  &quot;system_fingerprint&quot;: &quot;b11960-8642541b2&quot;,
+  &quot;object&quot;: &quot;chat.completion&quot;,
+  &quot;usage&quot;: {
+    &quot;completion_tokens&quot;: 333,
+    &quot;prompt_tokens&quot;: 174,
+    &quot;total_tokens&quot;: 507,
+    &quot;prompt_tokens_details&quot;: {
+      &quot;cached_tokens&quot;: 0
+    }
+  },
+  &quot;id&quot;: &quot;chatcmpl-GED45zfYQp2SWw7ZJUdbnn0gyDBFvOSw&quot;,
+  &quot;timings&quot;: {
+    &quot;cache_n&quot;: 0,
+    &quot;prompt_n&quot;: 174,
+    &quot;prompt_ms&quot;: 232.686,
+    &quot;prompt_per_token_ms&quot;: 1.3372758620689655,
+    &quot;prompt_per_second&quot;: 747.7888656816482,
+    &quot;predicted_n&quot;: 333,
+    &quot;predicted_ms&quot;: 4619.0,
+    &quot;predicted_per_token_ms&quot;: 13.912650602409638,
+    &quot;predicted_per_second&quot;: 71.87702966009958
+  }
+}</pre>
+                    </div>
+
+                    <div class="buttons">
+                        <button class="button" onclick="toggleRaw('curl-d174caf2786df550c5a0eb1986bdf0b1264fc36ad0c2859c484c903c4142de4c')">Show Curl Command</button>
+                    </div>
+
+                    <div id="curl-d174caf2786df550c5a0eb1986bdf0b1264fc36ad0c2859c484c903c4142de4c" class="curl-command">
+                        # Save payload to file first:
+                        echo '{"messages": [{"content": "Solve for the roots of the equation 3x^2 - 2x - 5.", "role": "user"}], "model": "LiquidAI/LFM3-1.7B-GGUF", "temperature": 0.001, "tools": [{"function": {"description": "Calculate the distance between two geographical coordinates. Note that the provided function is in Python 3 syntax.", "name": "distance_calculator_calculate", "parameters": {"properties": {"coordinate_1": {"description": "The first coordinate, a pair of latitude and longitude.", "items": {"type": "number"}, "type": "array"}, "coordinate_2": {"description": "The second coordinate, a pair of latitude and longitude.", "items": {"type": "number"}, "type": "array"}}, "required": ["coordinate_1", "coordinate_2"], "type": "object"}}, "type": "function"}]}' > request.json
+
+                        curl "http://127.0.0.1:8000/v1/chat/completions"                         -H "Content-Type: application/json"                         -H "Authorization: Bearer $API_KEY"                         -H "Accept: application/json"                         -d @request.json
+                    </div>
+                </div>
+            
+                <div class="entry">
+                    <div class="cache-info">
+                        <strong>Cache Key:</strong> db03f69cd608aabd367545cd1abb108d0c60ad0c4aef1802dd3430b077b0b150
+                    </div>
+                    <div class="request">
+                        <strong>Request:</strong>
+                        <pre>{
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B-GGUF&quot;,
+  &quot;messages&quot;: [
+    {
+      &quot;role&quot;: &quot;user&quot;,
+      &quot;content&quot;: &quot;Calculate the area of a triangle given the base is 10 meters and height is 5 meters.&quot;
+    }
+  ],
+  &quot;temperature&quot;: 0.001,
+  &quot;tools&quot;: [
+    {
+      &quot;type&quot;: &quot;function&quot;,
+      &quot;function&quot;: {
+        &quot;name&quot;: &quot;determine_body_mass_index&quot;,
+        &quot;description&quot;: &quot;Calculate body mass index given weight and height. Note that the provided function is in Python 3 syntax.&quot;,
+        &quot;parameters&quot;: {
+          &quot;type&quot;: &quot;object&quot;,
+          &quot;properties&quot;: {
+            &quot;weight&quot;: {
+              &quot;type&quot;: &quot;number&quot;,
+              &quot;description&quot;: &quot;Weight of the individual in kilograms. This is a float type value.&quot;,
+              &quot;format&quot;: &quot;float&quot;
+            },
+            &quot;height&quot;: {
+              &quot;type&quot;: &quot;number&quot;,
+              &quot;description&quot;: &quot;Height of the individual in meters. This is a float type value.&quot;,
+              &quot;format&quot;: &quot;float&quot;
+            }
+          },
+          &quot;required&quot;: [
+            &quot;weight&quot;,
+            &quot;height&quot;
+          ]
+        }
+      }
+    }
+  ]
+}</pre>
+                    </div>
+
+                    <div class="response">
+                        <strong>Response:</strong>
+                        <pre>{
+  &quot;choices&quot;: [
+    {
+      &quot;finish_reason&quot;: &quot;stop&quot;,
+      &quot;index&quot;: 0,
+      &quot;message&quot;: {
+        &quot;role&quot;: &quot;assistant&quot;,
+        &quot;content&quot;: &quot;I don&#x27;t have access to a function for calculating the area of a triangle. The available tool only calculates body mass index (BMI) using weight and height parameters.\n\nFor calculating the area of a triangle, you can use the formula:\n**Area = (base × height) / 2**\n\nGiven base = 10 meters and height = 5 meters:\n\nArea = (10 m × 5 m) / 2 = 50/2 = **25 square meters**\n\nSo the area is **25 m²**.&quot;
+      }
+    }
+  ],
+  &quot;created&quot;: 1793321018,
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B-GGUF&quot;,
+  &quot;system_fingerprint&quot;: &quot;b11960-8642541b2&quot;,
+  &quot;object&quot;: &quot;chat.completion&quot;,
+  &quot;usage&quot;: {
+    &quot;completion_tokens&quot;: 106,
+    &quot;prompt_tokens&quot;: 163,
+    &quot;total_tokens&quot;: 269,
+    &quot;prompt_tokens_details&quot;: {
+      &quot;cached_tokens&quot;: 0
+    }
+  },
+  &quot;id&quot;: &quot;chatcmpl-xSpNtAsf6VDsQOWqY4RANGvw1NoeqyYP&quot;,
+  &quot;timings&quot;: {
+    &quot;cache_n&quot;: 0,
+    &quot;prompt_n&quot;: 163,
+    &quot;prompt_ms&quot;: 231.744,
+    &quot;prompt_per_token_ms&quot;: 1.4217423312883435,
+    &quot;prompt_per_second&quot;: 703.3623308478321,
+    &quot;predicted_n&quot;: 106,
+    &quot;predicted_ms&quot;: 1393.887,
+    &quot;predicted_per_token_ms&quot;: 13.275114285714285,
+    &quot;predicted_per_second&quot;: 75.32891834130027
+  }
+}</pre>
+                    </div>
+
+                    <div class="buttons">
+                        <button class="button" onclick="toggleRaw('curl-db03f69cd608aabd367545cd1abb108d0c60ad0c4aef1802dd3430b077b0b150')">Show Curl Command</button>
+                    </div>
+
+                    <div id="curl-db03f69cd608aabd367545cd1abb108d0c60ad0c4aef1802dd3430b077b0b150" class="curl-command">
+                        # Save payload to file first:
+                        echo '{"messages": [{"content": "Calculate the area of a triangle given the base is 10 meters and height is 5 meters.", "role": "user"}], "model": "LiquidAI/LFM3-1.7B-GGUF", "temperature": 0.001, "tools": [{"function": {"description": "Calculate body mass index given weight and height. Note that the provided function is in Python 3 syntax.", "name": "determine_body_mass_index", "parameters": {"properties": {"height": {"description": "Height of the individual in meters. This is a float type value.", "format": "float", "type": "number"}, "weight": {"description": "Weight of the individual in kilograms. This is a float type value.", "format": "float", "type": "number"}}, "required": ["weight", "height"], "type": "object"}}, "type": "function"}]}' > request.json
+
+                        curl "http://127.0.0.1:8000/v1/chat/completions"                         -H "Content-Type: application/json"                         -H "Authorization: Bearer $API_KEY"                         -H "Accept: application/json"                         -d @request.json
+                    </div>
+                </div>
+            
+        
+    </div>
+
+    <script>
+        function toggleRaw(elementId) {
+            const element = document.getElementById(elementId);
+            if (element.style.display === 'none' || element.style.display === '') {
+                element.style.display = 'block';
+            } else {
+                element.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -48,6 +48,20 @@ def render_plan(
     model_file: str | None = None,
 ) -> str:
     run_id = "<run-id>"
+    thinking = "on" if cfg.quality.chat_template_kwargs.get("enable_thinking") else "off"
+    sampling = (
+        "the model's own sampling (no temperature sent)" if cfg.quality.temperature is None else f"temperature {cfg.quality.temperature:g}"
+    )
+    answer = (
+        "no answer limit (an answer may use the rest of its stream's context)"
+        if cfg.quality.max_tokens is None
+        else f"max_tokens {cfg.quality.max_tokens}"
+    )
+    kernel_budget = (
+        "up to the context per stream minus 4,096 output tokens"
+        if cfg.kernelbench.max_tokens is None
+        else f"up to {cfg.kernelbench.max_tokens} output tokens"
+    )
     plan = serve_plan(cfg, memory_plan, model_file=model_file)
     backend_info = get_backend(engine)
     run_dir = Path("<run-dir>")
@@ -163,7 +177,7 @@ def render_plan(
         "6 quality",
         f"  NeMo Evaluator against http://{cfg.engine.bind_host}:{cfg.engine.port}/v1/chat/completions, "
         f"{cfg.quality.concurrency} requests in flight per "
-        f"suite (recorded), temperature 0, seed {cfg.seed}, max_tokens {cfg.quality.max_tokens}, "
+        f"suite (recorded), thinking {thinking}, {sampling}, seed {cfg.seed}, {answer}, "
         f"chat_template_kwargs {cfg.quality.chat_template_kwargs}. Not an arena pinned scorer.",
         f"  Each suite writes <run-dir>/quality/<suite>/{NEL_CONFIG} and runs there: "
         + shlex.join(nel_argv(cfg, output_name="attempt-1")),
@@ -183,14 +197,14 @@ def render_plan(
         lines += [
             "",
             f"6a kernelbench: KernelBench {KB_COMMIT[:8]} Level 1, 100 problems, its one-shot CUDA prompt as a chat, "
-            f"{cfg.kernelbench.concurrency} in flight, up to {cfg.kernelbench.max_tokens} output tokens, with the model's own "
-            "sampling and thinking mode. The kernels go to $KERNELBENCH_URL as one job; 8a collects the results.",
+            f"{cfg.kernelbench.concurrency} in flight, {kernel_budget}, the model's own sampling, thinking "
+            f"{thinking}. The kernels go to $KERNELBENCH_URL as one job; 6e collects the results.",
         ]
     if cfg.swebench.enabled:
         lines += [
             "",
             f"6b swebench: mini-swe-agent on the runner ($SWE_RUNNER_HOST over SSH), {cfg.swebench.workers} agents, "
-            f"{cfg.swebench.step_limit} steps, the model's own sampling and thinking mode, with port {cfg.engine.port} "
+            f"{cfg.swebench.step_limit} steps, the model's own sampling, thinking {thinking}, with port {cfg.engine.port} "
             "forwarded to the runner's loopback. Needs --tool-parser.",
             "  agent: " + agent_command(cfg, run_id),
             "  grade: " + grade_command(cfg, run_id),
@@ -202,12 +216,16 @@ def render_plan(
             "",
             f"6c browsecomp_plus: BrowseComp-Plus {BCP_COMMIT[:8]}, {size}, {bc.workers} at once, as its chat client asks: "
             f"one search tool, top {bc.k}, {bc.snippet_max_tokens}-token snippets, {bc.max_tokens} output tokens per question, "
-            f"up to {bc.max_iterations} replies, the model's own sampling and thinking mode. Needs --tool-parser.",
+            f"up to {bc.max_iterations} replies, the model's own sampling, thinking {thinking}. Needs --tool-parser.",
             f"  The BM25 index and its search server run on the runner ($SWE_RUNNER_HOST, folder {bc.remote_dir}), "
             f"forwarded over SSH to 127.0.0.1:{bc.local_port} here.",
             "  search: " + search_command(cfg, run_id),
-            f"  8b grades the answers with the judge {bc.judge_model} at $SMA_JUDGE_URL.",
+            "",
+            "6d browsecomp_plus_results: the judge grades each final answer with BrowseComp-Plus's grader prompt "
+            f"({bc.judge_model} at $SMA_JUDGE_URL); accuracy over every picked question, evidence recall, and search calls.",
         ]
+    if cfg.kernelbench.enabled:
+        lines += ["", "6e kernelbench_results: wait for the service's job, then score it with KernelBench's fast_p."]
     lines.extend(
         [
             "",
@@ -269,20 +287,6 @@ def render_plan(
                 else "  quant/engine pair is checked before the snapshot download."
             ),
             "",
-            *(
-                ["8a kernelbench_results: wait for the service's job, then score it with KernelBench's fast_p.", ""]
-                if cfg.kernelbench.enabled
-                else []
-            ),
-            *(
-                [
-                    "8b browsecomp_plus_results: the judge grades each final answer with BrowseComp-Plus's grader prompt; "
-                    "accuracy over every picked question, evidence recall, and search calls.",
-                    "",
-                ]
-                if cfg.browsecomp.enabled
-                else []
-            ),
             "9 telemetry",
             "  " + shlex.join(nvidia_smi_query(cfg.doctor.gpu_index)),
             f"  Sampled every {cfg.telemetry.interval_s}s for the whole run (SM clock, temperature, power, throttle reasons).",

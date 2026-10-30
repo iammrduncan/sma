@@ -26,13 +26,17 @@ from sma.machines import Machine
 from sma.queue import JobQueue
 from sma.records import STEP_NAMES
 from sma.scrub import scrub_text
-from sma.serving import WINDOWS, Series, recent_series, window
+from sma.serving import WINDOWS, Series, combined_peaks, combined_rates, recent_series, window
 from sma.telemetry import ENGINE_METRICS_FILE, engine_values
 
 # Steps that send work elsewhere and report their own progress in the run folder.
 _AGENT_SUITES = {"kernelbench": "kernelbench_l1", "swebench": "swebench_verified_mini", "browsecomp_plus": "browsecomp_plus"}
 _MARK = {"done": "✓", "running": "▶", "failed": "✗", "pending": "·", "queued": "·", "stopped": "◼"}
-_COLOR = {"done": "32", "running": "33", "failed": "31", "pending": "2", "queued": "2", "stopped": "33", "head": "1;36"}
+_COLOR = {
+    "done": "32", "running": "33", "failed": "31", "pending": "2", "queued": "2", "stopped": "33", "head": "1;36",
+    # SERVING cells: the window's average in blue, its peak in purple (owner, 2026-10-30).
+    "avg": "38;5;39", "max": "38;5;135",
+}  # fmt: skip
 _FINISHED_SHOWN = 3
 # The machines are asked again this often: whether each answers can change, what it is does not.
 _MACHINES_EVERY_S = 60.0
@@ -84,7 +88,7 @@ def render(cfg: Config, view: View, *, plan: Path | None = None) -> str:
     totals = {suite.name: suite.questions for suite in cfg.quality.suites if suite.questions}
     swe = view.swe if current and view.swe and view.swe.get("run_id") == current["run_id"] else None
     lines += (_run_lines(current, view.now, paint, totals, swe) if current else [paint("CURRENT RUN", "head") + "  none"]) + [""]
-    lines += _serving_lines(cfg, view, paint) + [""]
+    lines += _serving_lines(cfg, view, paint, current["run_id"] if current else None) + [""]
     lines += _finished_lines(runs, current, paint)
     text = scrub_text("\n".join(lines))
     return "\n".join(_clip(line, view.width) for line in text.splitlines()) if view.width else text
@@ -251,18 +255,29 @@ def _queue_lines(cfg, runs, current, plan: Path | None, paint) -> list[str]:
     jobs = [job for job in JobQueue(cfg.queue_path()).list_jobs() if job.get("state") in ("pending", "claimed")]
     lines = [paint("QUEUE", "head") + f"  {len(jobs)} job{'' if len(jobs) == 1 else 's'} in sma queue"]
     for job in jobs:
-        legs = ", ".join(f"{leg['repo']} {leg.get('gguf') or leg['quant']}" for leg in job["legs"])
         state = "running" if job["state"] == "claimed" else "queued"
-        lines.append(f"  {paint(_MARK[state], state)} {legs:44} {paint(job['state'], state)}  {job['job_id']}")
+        # One line per job: each leg with its mark (a pair: the reference, then the 4-bit quant with thinking
+        # off and on). A leg whose run had failed steps shows as failed; its record says which.
+        legs = []
+        for leg in job["legs"]:
+            status = {"done": "done", "running": "running", "failed": "failed", "incomplete": "failed"}.get(leg.get("status"), "queued")
+            name = f"{leg.get('gguf') or leg['quant']}" + (" thinking" if leg.get("thinking") == "on" else "")
+            legs.append(f"{paint(_MARK[status], status)} {name}")
+        lines.append(f"  {engine_tag(job.get('engine')):4} {paint(_MARK[state], state)} {job['legs'][0]['repo']}  {'  '.join(legs)}  {paint(job['state'], state)}")
     if plan is not None:
         lines += _plan_lines(plan, runs, current, paint)
     return lines
 
 
+def engine_tag(engine: str | None) -> str:
+    """The short engine name a queue line starts with."""
+    return {"sglang": "SGL", "llamacpp": "CPP", "vllm": "VLLM"}.get(engine or "", "?")
+
+
 def _plan_lines(plan: Path, runs, current, paint) -> list[str]:
-    """A plan file lists the runs a script will start, one "REPO QUANT" per line, in order. A line
-    "since TIME" (ISO time, or a run id) ignores runs created before it. Each line shows the newest run
-    of that repo and quant since then, or queued."""
+    """A plan file lists the runs a script will start, one "REPO QUANT" per line, in order; "REPO QUANT
+    thinking" is the thinking-on run. A line "since TIME" (ISO time, or a run id) ignores runs created
+    before it. Each line shows the newest run of that repo, quant, and thinking mode since then, or queued."""
     try:
         text = plan.read_text(encoding="utf-8")
     except OSError as exc:
@@ -272,19 +287,21 @@ def _plan_lines(plan: Path, runs, current, paint) -> list[str]:
         words = raw.split("#", 1)[0].split()
         if len(words) == 2 and words[0] == "since":
             since = _run_id_time(words[1])
-        elif len(words) == 2:
-            items.append((words[0], words[1]))
+        elif len(words) == 2 or (len(words) == 3 and words[2] == "thinking"):
+            items.append((words[0], words[1], len(words) == 3))
         elif words:
-            raise SmaError(f"Plan file {plan}: '{raw.strip()}' is not 'REPO QUANT' or 'since TIME'.")
+            raise SmaError(f"Plan file {plan}: '{raw.strip()}' is not 'REPO QUANT', 'REPO QUANT thinking', or 'since TIME'.")
     lines = [paint("PLAN", "head") + f"  {plan}" + (f"  (runs since {since})" if since else "")]
-    for repo, quant in items:
+    for repo, quant, thinking in items:
         matches = [
             row for row in runs
             if row["model_repo"] == repo and str(row["quant"]).lower() == quant.lower() and row["run_id"] >= since
+            and bool(_thinking(row)) == thinking
         ]
         row = max(matches, key=lambda r: r["run_id"]) if matches else None
         state = "queued" if row is None else _label(row, current)
-        lines.append(f"  {paint(_MARK.get(state, '?'), state)} {repo + ' ' + quant:44} {paint(state, state):8}  {row['run_id'] if row else ''}")
+        name = f"{repo} {quant}" + (" thinking" if thinking else "")
+        lines.append(f"  {paint(_MARK.get(state, '?'), state)} {name:44} {paint(state, state):8}  {row['run_id'] if row else ''}")
     return lines
 
 
@@ -310,7 +327,8 @@ def _run_lines(
     started = _time((manifest.get("timestamps") or {}).get("started"))
     lines = [
         paint(f"CURRENT RUN  {row['run_id']}", "head")
-        + f"  {row['model_repo']} {row['quant']} on {row['engine']}  {_elapsed(started, None, now)}"
+        + f"  {row['model_repo']} {row['quant']} on {row['engine']}, thinking {manifest.get('thinking') or 'off'}  "
+        + _elapsed(started, None, now)
     ]
     steps = {name: step for name, step in (manifest.get("steps") or {}).items() if isinstance(step, dict)}
     for name in sorted(steps, key=lambda n: STEP_NAMES.index(n) if n in STEP_NAMES else len(STEP_NAMES)):
@@ -405,8 +423,14 @@ def _suite_row(run_dir: Path, suite: dict[str, Any], now: datetime, paint=_ident
             )
             if isinstance(measures.get(key), (int, float))
         ]
-        return name, "done", detail + (f"  ({' · '.join(shown)})" if shown else "")
+        detail += f"  ({' · '.join(shown)})" if shown else ""
+        # Answers that ran out of room: the output limit, or the end of the stream's context.
+        cut = scores.get("answers_cut_off")
+        return name, "done", detail + (f"  {paint(f'{cut} cut off', 'failed')}" if isinstance(cut, int) and cut else "")
     attempts = sorted(folder.glob("attempt-*"), key=lambda p: int(p.name.split("-")[1]) if p.name.split("-")[1].isdigit() else 0)
+    # A suite that failed writes scores.json with its error and no .done marker; a retry starts a new attempt.
+    if scores and scores.get("error") and (not attempts or (folder / "scores.json").stat().st_mtime >= attempts[-1].stat().st_mtime):
+        return name, "failed", str(scores["error"])[:90]
     if not attempts:
         return name, "queued", ""
     total = suite.get("limit") or suite.get("questions")
@@ -415,8 +439,12 @@ def _suite_row(run_dir: Path, suite: dict[str, Any], now: datetime, paint=_ident
     # A suite in NVIDIA's eval-factory container (BFCL) writes one JSON line per answered question into
     # a file per category. Its total lives in the container's dataset: the suite's `questions` says it.
     results = sorted(attempts[-1].glob("result/*/*_result.json")) if suite.get("image") else []
+    # LiveCodeBench's runner keeps its answers in cache/<file>.json, one key per problem, saved every 10.
+    cache = sorted(attempts[-1].glob("cache/*.json")) if suite.get("image") else []
     if logs:
         answered = f"{sum(_count_lines(log) for log in logs):,}{limit or '/all'} answered"
+    elif cache and isinstance(_read_json(cache[-1]), dict):
+        answered = f"{len(_read_json(cache[-1])):,}{limit} answered"
     elif results:
         answered = f"{sum(_count_lines(path) for path in results):,}{limit} answered · {len(results)} categor{'y' if len(results) == 1 else 'ies'}"
     else:
@@ -430,9 +458,18 @@ def _suite_row(run_dir: Path, suite: dict[str, Any], now: datetime, paint=_ident
 def _agent_rows(
     manifest, run_dir: Path, state, took, paint=_identity, now: datetime | None = None, swe: dict[str, Any] | None = None
 ) -> list[tuple[str, str, str]]:
-    """KernelBench, SWE-bench, and BrowseComp-Plus. KernelBench and BrowseComp-Plus are scored after speed."""
+    """KernelBench, SWE-bench, and BrowseComp-Plus. KernelBench and BrowseComp-Plus are scored by their own
+    steps after BrowseComp-Plus, before speed."""
     rows = []
-    for step, label in (("kernelbench", "kernelbench"), ("swebench", "swebench"), ("browsecomp_plus", "browsecomp")):
+    # A suite the run's own config turned off gets no line (SWE-bench, off since 2026-10-29).
+    snapshot = manifest.get("config_snapshot") or {}
+    for step, label, section in (
+        ("kernelbench", "kernelbench", "kernelbench"),
+        ("swebench", "swebench", "swebench"),
+        ("browsecomp_plus", "browsecomp", "browsecomp"),
+    ):
+        if (snapshot.get(section) or {}).get("enabled", True) is False:
+            continue
         folder = run_dir / "quality" / _AGENT_SUITES[step]
         status = state(step)
         # A step being redone keeps its last attempt's scores.json until it writes a new one.
@@ -456,11 +493,11 @@ def _agent_rows(
             detail = " · ".join(part for part in (since, detail if detail.startswith("attempt") else "") if part)
         if step == "kernelbench":
             written = sum(1 for _ in (folder / "generations").glob("*")) if (folder / "generations").is_dir() else 0
-            detail = "kernels sent; scored after speed" if (folder / "job.json").is_file() else f"{written}/100 kernels written  {detail}"
+            detail = "kernels sent; scored after BrowseComp-Plus" if (folder / "job.json").is_file() else f"{written}/100 kernels written  {detail}"
         elif step == "browsecomp_plus":
             limit = ((manifest.get("config_snapshot") or {}).get("browsecomp") or {}).get("limit")
             answered = sum(1 for _ in (folder / "queries").glob("*.json")) if (folder / "queries").is_dir() else 0
-            detail = f"{answered}/{limit} answered" + ("; judged after speed" if status == "done" else f"  {detail}")
+            detail = f"{answered}/{limit} answered" + ("; judging next" if status == "done" else f"  {detail}")
         elif status == "running":
             detail = f"{_swe_progress(swe)}  {detail}"
         if status == "failed":
@@ -501,47 +538,67 @@ _SERVING_ROWS = (
 )
 
 
-def _serving_lines(cfg: Config, view: View, paint) -> list[str]:
-    """The current server's averages since it started, then each window's averages from the engines'
-    own counters (engine_metrics.jsonl in each run, or sma watch's own reads for a run without one).
-    One table per engine: metrics down the side, windows across."""
+def _serving_lines(cfg: Config, view: View, paint, run_id: str | None = None) -> list[str]:
+    """The current run's serving rates: since its server started, and over the last 5 minutes, hour, and
+    24 hours, from its own counters (engine_metrics.jsonl, or sma watch's own reads for a run without one).
+    Then one more column for every run of the last 24 hours together, whatever engine served: each rate is
+    tokens over seconds summed across them (owner, 2026-10-29)."""
     now, live = view.now, view.live
     stamp = now.timestamp()
     series = recent_series(cfg.runs_path(), now=stamp, span_s=WINDOWS[-1][1])
-    if live is not None and live.engine and len(live.samples) > 1:
-        series.append(Series(live.engine, live.samples))
-    # engine -> column label -> (rates, covered)
-    tables: dict[str, dict[str, tuple[dict[str, float | None], str]]] = {}
-    if live is not None and live.latest and live.engine:
+    own_reads = live is not None and bool(live.engine) and len(live.samples) > 1
+    if own_reads:
+        series.append(Series(live.engine, live.samples, live.run_id))
+    mine = [one for one in series if run_id is not None and one.run_id == run_id]
+    # label -> (averages, peaks). A peak is the highest rate over one pair of samples in the window.
+    columns: dict[str, tuple[dict[str, float | None], dict[str, float]]] = {}
+    max_gap_s = 3 * max(cfg.telemetry.engine_metrics_interval_s, live.interval_s if live else 0.0)
+    if live is not None and live.latest and live.engine and live.run_id == run_id:
         # Counters run from the server's start, so the latest read is its average since then. All-stream
         # rates divide by the container's uptime; without it they are not shown.
         uptime = (now - live.started).total_seconds() if live.started else 0.0
-        since = get_backend(live.engine).serving_rates(live.latest, live.latest, uptime)
-        tables.setdefault(live.engine, {})["since start"] = (since, "")
-    max_gap_s = 3 * max(cfg.telemetry.engine_metrics_interval_s, live.interval_s if live else 0.0)
+        since = window(mine, start=live.started.timestamp(), max_gap_s=max_gap_s) if live.started else []
+        columns["since start"] = (get_backend(live.engine).serving_rates(live.latest, live.latest, uptime), combined_peaks(since))
     for label, span in WINDOWS:
-        for one in window(series, start=stamp - span, max_gap_s=max_gap_s):
-            tables.setdefault(one.engine, {})[label] = (one.rates(), _elapsed(now - timedelta(seconds=one.seconds), None, now))
-    if not tables:
+        windows = window(mine, start=stamp - span, max_gap_s=max_gap_s)
+        if windows:
+            columns[label] = (combined_rates(windows), combined_peaks(windows))
+    everything = window(series, start=stamp - WINDOWS[-1][1], max_gap_s=max_gap_s)
+    if everything:
+        columns[_ALL_RUNS] = (combined_rates(everything), combined_peaks(everything))
+    if not columns:
         return [
             paint("SERVING", "head") + "  no engine counters in the last 24 hours, and no server up.",
             f"  A run records them every {cfg.telemetry.engine_metrics_interval_s:g} s while its server is up.",
         ]
-    labels = ["since start"] + [label for label, _span in WINDOWS]
-    lines: list[str] = []
-    for engine, columns in tables.items():
+    labels = ["since start"] + [label for label, _span in WINDOWS] + [_ALL_RUNS]
 
-        def cells(key: str) -> str:
-            return "".join(f"{_number(columns[label][0].get(key)) if label in columns else '—':>12}" for label in labels)
+    def cell(label: str, key: str) -> str:
+        """average/peak, right-aligned in _CELL characters: the average blue, the peak purple."""
+        averages, peaks = columns.get(label, ({}, {}))
+        mean, peak = averages.get(key), peaks.get(key)
+        if mean is None and peak is None:
+            return f"{'—':>{_CELL}}"
+        text = f"{_number(mean)}/{_number(peak)}"
+        return " " * max(0, _CELL - len(text)) + paint(_number(mean), "avg") + "/" + paint(_number(peak), "max")
 
-        lines += [
-            paint("SERVING", "head") + f"  {engine} · tok/s, ITL in ms",
-            f"  {'':20}" + "".join(f"{label:>12}" for label in labels),
-            *(f"  {name:20}{cells(key)}" for name, key in _SERVING_ROWS),
-        ]
-        if live is not None and live.engine == engine and len(live.samples) > 1:
-            lines.append(paint("  windows: sma watch's own reads (this run records no counters)", "pending"))
+    def cells(key: str) -> str:
+        return "".join(cell(label, key) for label in labels)
+
+    lines = [
+        paint("SERVING", "head") + "  tok/s, ITL in ms, average/peak: this run, then every run of the last 24 hours",
+        f"  {'':20}" + "".join(f"{label:>{_CELL}}" for label in labels),
+        *(f"  {name:20}{cells(key)}" for name, key in _SERVING_ROWS),
+    ]
+    if own_reads:
+        lines.append(paint("  this run's windows are sma watch's own reads (the run records no counters)", "pending"))
     return lines
+
+
+# The last column: every run of the last 24 hours, whatever engine served.
+_ALL_RUNS = "24 h, all"
+# A SERVING cell's width: "average/peak".
+_CELL = 14
 
 
 def _number(value: float | None) -> str:
@@ -581,8 +638,13 @@ def _finished_lines(runs, current, paint) -> list[str]:
         state = _label(row, current)
         scores = "  " + " · ".join(parts) if parts else ""
         note = paint(" (stopped, resumable)", "stopped") if state == "stopped" else ""
-        lines.append(f"  {paint(_MARK[state], state)} {row['model_repo']} {row['quant']}{note}{scores}")
+        lines.append(f"  {paint(_MARK[state], state)} {row['model_repo']} {row['quant']}{_thinking(row)}{note}{scores}")
     return lines
+
+
+def _thinking(row: dict[str, Any]) -> str:
+    """" thinking on" for a thinking-on run; nothing for the default (off, or a run from before the setting)."""
+    return " thinking on" if (row.get("manifest") or {}).get("thinking") == "on" else ""
 
 
 def _clip(line: str, width: int) -> str:

@@ -123,3 +123,18 @@ def test_a_gguf_the_bench_reads_keeps_its_own_tokenizer(tmp_path: Path) -> None:
     assert engine["bench_tokenizer"] == {"source": "gguf", "file": "Tiny-BF16.gguf"}
     assert all("--tokenizer /model/Tiny-BF16.gguf" in call for call in services.bencher.calls if "bench serve" in call)
     assert fetcher.tokenizer_requests == []
+
+
+def test_a_ggufs_own_sampling_metadata_is_what_its_agent_suites_record(tmp_path: Path) -> None:
+    # llama-server b11960 applied LFM3's general.sampling keys (temp 0.1, top_k 50, repeat penalty 1.1) to
+    # requests that set no sampling; SMA recorded "llama-server's own defaults" instead.
+    from sma.agentic import gguf_sampling
+
+    path = tmp_path / "Tiny.gguf"
+    write_gguf(path, _meta(**{"general.sampling.temp": 0.1, "general.sampling.top_k": 50, "general.sampling.penalty_repeat": 1.1}),
+               [("token_embd.weight", (256, 4), 30)])  # fmt: skip
+    sampling = gguf_sampling(path)
+    assert (sampling["temperature"], sampling["top_k"], sampling["repetition_penalty"]) == (0.1, 50, 1.1)
+    assert sampling["source"].startswith("the GGUF's general.sampling metadata")
+    write_gguf(path, _meta(), [("token_embd.weight", (256, 4), 30)])
+    assert gguf_sampling(path) == {"source": "llama-server's own defaults; the GGUF has no general.sampling metadata"}

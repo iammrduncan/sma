@@ -7,6 +7,7 @@ import json
 import sys
 import uuid
 from pathlib import Path
+from typing import Any
 
 from sma import __version__
 from sma.config import Config, load_config, load_env_file
@@ -15,6 +16,7 @@ from sma.errors import SmaError
 from sma.identity import assert_alias_safe
 from sma.plan import render_plan
 from sma.queue import JobQueue, run_worker
+from sma.watch import engine_tag
 from sma.runtime import DockerRuntime
 
 
@@ -49,22 +51,24 @@ def _parser() -> argparse.ArgumentParser:
     _add_engine(run)
     run.add_argument("--dry-run", action="store_true", help="Print the plan and commands, then exit")
     run.add_argument(
+        "--thinking",
+        choices=["off", "on"],
+        default="off",
+        help="The model's thinking mode for every benchmark. off (default): thinking off, greedy quality. "
+        "on: thinking on, the model's own sampling. Each mode is its own run, in <quant>-thinking for on.",
+    )
+    run.add_argument(
         "--assume-moe",
         action="store_true",
         help="Dry-run only: print the MoE server command",
     )
     run.set_defaults(func=_cmd_run)
 
-    pair = sub.add_parser("run-pair", help="Run a reference quant, then NVFP4, on this Spark")
-    pair.add_argument("--bf16", default=None, metavar="REPO")
-    pair.add_argument("--mxfp4", default=None, metavar="REPO")
-    pair.add_argument("--nvfp4", default=None, metavar="REPO")
-    pair.add_argument("--mixed", default=None, metavar="REPO")
-    _add_engine(pair)
-    pair.add_argument("--bf16-revision", default=None)
-    pair.add_argument("--mxfp4-revision", default=None)
-    pair.add_argument("--nvfp4-revision", default=None)
-    pair.add_argument("--mixed-revision", default=None)
+    pair = sub.add_parser(
+        "run-pair",
+        help="Run a reference, then a 4-bit quant with thinking off and with thinking on, on this Spark",
+    )
+    _add_pair_args(pair)
     _add_common(pair)
     pair.add_argument("--dry-run", action="store_true")
     pair.set_defaults(func=_cmd_run_pair)
@@ -73,6 +77,14 @@ def _parser() -> argparse.ArgumentParser:
     resume.add_argument("run_id")
     _add_common(resume)
     resume.set_defaults(func=_cmd_resume)
+
+    rescore = sub.add_parser(
+        "rescore",
+        help="Score a finished run's quality suites again from their saved output, with this SMA. No model runs.",
+    )
+    rescore.add_argument("run_id")
+    _add_common(rescore)
+    rescore.set_defaults(func=_cmd_rescore)
 
     status = sub.add_parser("status", help="Show a run, or the latest activity")
     status.add_argument("run_id", nargs="?")
@@ -125,20 +137,16 @@ def _parser() -> argparse.ArgumentParser:
     _add_repo(qadd)
     _add_quant_flags(qadd, required=True)
     qadd.add_argument("--revision", default=None)
+    qadd.add_argument("--thinking", choices=["off", "on"], default="off", help="The run's thinking mode (see sma run)")
     _add_engine(qadd)
     _add_common(qadd)
     qadd.set_defaults(func=_cmd_queue_add)
 
-    qpair = qsub.add_parser("add-pair", help="Queue both quants as one job so they stay on one Spark")
-    qpair.add_argument("--bf16", default=None, metavar="REPO")
-    qpair.add_argument("--mxfp4", default=None, metavar="REPO")
-    qpair.add_argument("--nvfp4", default=None, metavar="REPO")
-    qpair.add_argument("--mixed", default=None, metavar="REPO")
-    _add_engine(qpair)
-    qpair.add_argument("--bf16-revision", default=None)
-    qpair.add_argument("--mxfp4-revision", default=None)
-    qpair.add_argument("--nvfp4-revision", default=None)
-    qpair.add_argument("--mixed-revision", default=None)
+    qpair = qsub.add_parser(
+        "add-pair",
+        help="Queue a reference and a 4-bit quant (thinking off, then on) as one job on one Spark",
+    )
+    _add_pair_args(qpair)
     _add_common(qpair)
     qpair.set_defaults(func=_cmd_queue_add_pair)
 
@@ -147,8 +155,21 @@ def _parser() -> argparse.ArgumentParser:
     qlist.set_defaults(func=_cmd_queue_list)
 
     qreclaim = qsub.add_parser("reclaim", help="Return stale claims to pending")
+    qreclaim.add_argument(
+        "--older-than",
+        type=float,
+        default=None,
+        metavar="SECONDS",
+        help="Reclaim claims whose heartbeat is older than this (default queue.stale_claim_s). Use it when "
+        "you know the worker is gone, for example after stopping it.",
+    )
     _add_common(qreclaim)
     qreclaim.set_defaults(func=_cmd_queue_reclaim)
+
+    qremove = qsub.add_parser("remove", help="Take a pending job that has not started off the queue")
+    qremove.add_argument("job_id")
+    _add_common(qremove)
+    qremove.set_defaults(func=_cmd_queue_remove)
 
     qunpin = qsub.add_parser(
         "unpin",
@@ -196,6 +217,53 @@ def _add_engine(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_pair_args(parser: argparse.ArgumentParser) -> None:
+    """A pair: a reference checkpoint and a 4-bit one. The 4-bit one runs twice, thinking off and on."""
+    parser.add_argument("--bf16", default=None, metavar="REPO")
+    parser.add_argument("--mxfp4", default=None, metavar="REPO")
+    parser.add_argument("--nvfp4", default=None, metavar="REPO")
+    parser.add_argument("--mixed", default=None, metavar="REPO")
+    parser.add_argument(
+        "--gguf",
+        nargs=3,
+        default=None,
+        metavar=("REPO", "REFERENCE", "QUANT"),
+        help="A GGUF repo's full-precision file and a quant file, for example "
+        "LiquidAI/LFM3-1.7B-GGUF BF16 QAD-Q4_0. Runs on llama.cpp.",
+    )
+    _add_engine(parser)
+    parser.add_argument("--bf16-revision", default=None)
+    parser.add_argument("--mxfp4-revision", default=None)
+    parser.add_argument("--nvfp4-revision", default=None)
+    parser.add_argument("--mixed-revision", default=None)
+
+
+def _pair(args: argparse.Namespace, cfg: Config) -> tuple[list[dict[str, Any]], str]:
+    """The pair's legs (queue.pair_legs) and its engine. GGUF pairs come from one repo."""
+    from sma.queue import pair_legs
+
+    if args.gguf:
+        if any((args.bf16, args.mxfp4, args.nvfp4, args.mixed)):
+            raise SmaError("A GGUF pair takes --gguf REPO REFERENCE QUANT alone, not --bf16, --mxfp4, --nvfp4, or --mixed.")
+        repo, reference_file, quant_file = args.gguf
+        engine = _chosen_engine(args, cfg, "gguf")
+        reference = {"repo": repo, "quant": "gguf", "gguf": reference_file}
+        quant = {"repo": repo, "quant": "gguf", "gguf": quant_file}
+    else:
+        repo, ref_quant, revision = _reference_leg(args)
+        other_repo, other_quant, other_revision = _second_leg(args)
+        engine = _chosen_engine(args, cfg, ref_quant)
+        reference = {"repo": repo, "quant": ref_quant, "revision": revision}
+        quant = {"repo": other_repo, "quant": other_quant, "revision": other_revision}
+    _guard_sglang_prompts(cfg, engine)
+    shared = {"engine": engine, "engine_requested": args.engine}
+    return pair_legs({**reference, **shared}, {**quant, **shared}), engine
+
+
+def _leg_name(leg: dict[str, Any]) -> str:
+    return f"{leg['repo']} {leg.get('gguf') or leg['quant']}" + (" thinking on" if leg.get("thinking") == "on" else "")
+
+
 def _add_repo(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("repo", help="Hugging Face repo, for example org/model")
 
@@ -240,10 +308,11 @@ def _cfg(args: argparse.Namespace) -> Config:
     return cfg
 
 
-def _chosen_engine(args: argparse.Namespace, cfg: Config) -> str:
+def _chosen_engine(args: argparse.Namespace, cfg: Config, quant: str | None) -> str:
+    # The caller names the quant. In run-pair and queue add-pair, --bf16 and the others hold repo names,
+    # so reading them as true-or-false flags failed every pair command (F1 in model-list.txt).
     from sma.engines import engine_name
 
-    quant = _flag(args) if any(getattr(args, name, None) for name in ("bf16", "nvfp4", "mxfp4", "mixed", "gguf")) else None
     return engine_name(getattr(args, "engine", None), cfg, quant)
 
 
@@ -292,7 +361,7 @@ def _reference_leg(args: argparse.Namespace) -> tuple[str, str, str | None]:
 def _cmd_run(args: argparse.Namespace) -> int:
     cfg = _cfg(args)
     quant = _flag(args)
-    engine = _chosen_engine(args, cfg)
+    engine = _chosen_engine(args, cfg, quant)
     _guard_sglang_prompts(cfg, engine)
     if args.dry_run:
         if args.assume_moe and quant == "bf16":
@@ -300,8 +369,10 @@ def _cmd_run(args: argparse.Namespace) -> int:
                 "note: --assume-moe does not add an FP4 MoE backend to a BF16 command.",
                 file=sys.stderr,
             )
+        from sma.config import for_thinking
         from sma.engines import selected_by
 
+        cfg = for_thinking(cfg, args.thinking)
         memory_plan, memory_note, model_file = _dry_run_plan(cfg, args.repo, args.revision, quant, engine, args.gguf)
         print(
             render_plan(
@@ -334,81 +405,67 @@ def _cmd_run(args: argparse.Namespace) -> int:
         engine=args.engine,
         tool_parser=args.tool_parser,
         gguf=args.gguf,
+        thinking=args.thinking,
     )
     return 0
 
 
 def _cmd_run_pair(args: argparse.Namespace) -> int:
     cfg = _cfg(args)
-    repo, quant, revision = _reference_leg(args)
-    other_repo, other_quant, other_revision = _second_leg(args)
-    engine = _chosen_engine(args, cfg)
-    _guard_sglang_prompts(cfg, engine)
+    legs, engine = _pair(args, cfg)
     if args.dry_run:
-        print(
-            render_plan(
-                cfg,
-                repo=repo,
-                quant_flag=quant,
-                revision=revision,
-                assume_moe=False,
-                engine=engine,
-                tool_parser=args.tool_parser,
-            ),
-            end="",
-        )
-        print(
-            render_plan(
-                cfg,
-                repo=other_repo,
-                quant_flag=other_quant,
-                revision=other_revision,
-                assume_moe=False,
-                engine=engine,
-                tool_parser=args.tool_parser,
-            ),
-            end="",
-        )
-        print(
-            f"pair: both commands run on this Spark under one GPU lock, {quant} first, then {other_quant}, engine {engine}.",
-            end="\n",
-        )
+        from sma.config import for_thinking
+
+        for leg in legs:
+            print(
+                render_plan(
+                    for_thinking(cfg, leg["thinking"]),
+                    repo=leg["repo"],
+                    quant_flag=leg["quant"],
+                    revision=leg.get("revision"),
+                    assume_moe=False,
+                    engine=engine,
+                    tool_parser=args.tool_parser,
+                    gguf=leg.get("gguf"),
+                ),
+                end="",
+            )
+        order = ", then ".join(_leg_name(leg) for leg in legs)
+        print(f"pair: on this Spark under one GPU lock, engine {engine}: {order}. Each quant leg compares with the first.")
         return 0
+    from sma.errors import RunIncomplete
     from sma.locks import GpuLock
     from sma.pipeline import RunSpec, execute, production_services
 
     services = production_services(cfg)
+    reference_id: str | None = None
+    incomplete: list[str] = []
     with GpuLock(cfg.lock_file()):
-        ref_id = execute(
-            RunSpec(
-                repo=repo,
-                quant_flag=quant,
-                revision=revision,
+        for index, leg in enumerate(legs):
+            spec = RunSpec(
+                repo=leg["repo"],
+                quant_flag=leg["quant"],
+                revision=leg.get("revision"),
+                reference_run_id=reference_id,
                 lock_held=True,
                 engine=engine,
                 tool_parser=args.tool_parser,
-                # Both legs share one engine, so a pair skips the per-leg preflight choice.
+                # Every leg shares one engine, so a pair skips the per-leg preflight choice.
                 selected_by="flag" if args.engine else "default",
-            ),
-            cfg,
-            services,
-        )
-        print(f"run_id={ref_id} quant={quant} engine={engine}")
-        other_id = execute(
-            RunSpec(
-                repo=other_repo,
-                quant_flag=other_quant,
-                revision=other_revision,
-                reference_run_id=ref_id,
-                lock_held=True,
-                engine=engine,
-                tool_parser=args.tool_parser,
-                selected_by="flag" if args.engine else "default",
-            ),
-            cfg,
-            services,
-        )
-    print(f"run_id={other_id} quant={other_quant} engine={engine} reference={ref_id}")
+                gguf=leg.get("gguf"),
+                thinking=leg["thinking"],
+            )
+            try:
+                run_id = execute(spec, cfg, services)
+            except RunIncomplete as exc:
+                # The record has the failed steps; the next legs still run.
+                run_id = exc.run_id
+                incomplete.append(str(exc))
+            if index == 0:
+                reference_id = run_id
+            print(f"run_id={run_id} {_leg_name(leg)} engine={engine}" + (f" reference={reference_id}" if index else ""))
+    if incomplete:
+        raise SmaError(" ".join(incomplete))
     return 0
 
 
@@ -432,11 +489,20 @@ def _cmd_resume(args: argparse.Namespace) -> int:
             resume_run_id=args.run_id,
             engine=(manifest.get("engine") or {}).get("name") or "vllm",
             gguf=(manifest.get("gguf") or {}).get("selector"),
+            thinking=manifest.get("thinking") or "off",
         ),
         cfg,
         production_services(cfg),
     )
     print(f"run_id={args.run_id} status=resumed")
+    return 0
+
+
+def _cmd_rescore(args: argparse.Namespace) -> int:
+    from sma.pipeline import rescore
+
+    suites = rescore(_cfg(args), args.run_id)
+    print(f"run_id={args.run_id} rescored={','.join(suites) or 'none'}")
     return 0
 
 
@@ -609,7 +675,7 @@ def _cmd_cleanup(args: argparse.Namespace) -> int:
 
 def _cmd_queue_add(args: argparse.Namespace) -> int:
     cfg = _cfg(args)
-    engine = _chosen_engine(args, cfg)
+    engine = _chosen_engine(args, cfg, _flag(args))
     _guard_sglang_prompts(cfg, engine)
     job = JobQueue(cfg.queue_path()).add(
         [
@@ -620,6 +686,7 @@ def _cmd_queue_add(args: argparse.Namespace) -> int:
                 "engine": engine,
                 "engine_requested": args.engine,
                 "gguf": args.gguf,
+                "thinking": args.thinking,
             }
         ],
         kind="single",
@@ -631,18 +698,8 @@ def _cmd_queue_add(args: argparse.Namespace) -> int:
 
 def _cmd_queue_add_pair(args: argparse.Namespace) -> int:
     cfg = _cfg(args)
-    repo, quant, revision = _reference_leg(args)
-    other_repo, other_quant, other_revision = _second_leg(args)
-    engine = _chosen_engine(args, cfg)
-    _guard_sglang_prompts(cfg, engine)
-    job = JobQueue(cfg.queue_path()).add(
-        [
-            {"repo": repo, "quant": quant, "revision": revision, "engine": engine, "engine_requested": args.engine},
-            {"repo": other_repo, "quant": other_quant, "revision": other_revision, "engine": engine, "engine_requested": args.engine},
-        ],
-        kind="pair",
-        tool_parser=args.tool_parser,
-    )
+    legs, _engine = _pair(args, cfg)
+    job = JobQueue(cfg.queue_path()).add(legs, kind="pair", tool_parser=args.tool_parser)
     print(job["job_id"])
     return 0
 
@@ -654,21 +711,27 @@ def _cmd_queue_list(args: argparse.Namespace) -> int:
         print("queue empty")
         return 0
     for job in jobs:
-        legs = ", ".join(f"{leg['quant']}:{leg['repo']}" for leg in job["legs"])
-        print(f"{job['state']:8}  {job['job_id']}  {job['kind']:6}  {legs}")
+        legs = ", ".join(_leg_name(leg) for leg in job["legs"])
+        print(f"{engine_tag(job.get('engine')):4}  {job['state']:8}  {job['job_id']}  {job['kind']:6}  {legs}")
     return 0
 
 
 def _cmd_queue_reclaim(args: argparse.Namespace) -> int:
     cfg = _cfg(args)
-    moved = JobQueue(cfg.queue_path()).reclaim_stale(
-        cfg.queue.stale_claim_s, grace_s=cfg.queue.claim_grace_s
-    )
+    stale_s = cfg.queue.stale_claim_s if args.older_than is None else args.older_than
+    moved = JobQueue(cfg.queue_path()).reclaim_stale(stale_s, grace_s=min(cfg.queue.claim_grace_s, stale_s))
     if not moved:
         print("nothing to reclaim")
         return 0
     for job_id in moved:
         print(job_id)
+    return 0
+
+
+def _cmd_queue_remove(args: argparse.Namespace) -> int:
+    cfg = _cfg(args)
+    job = JobQueue(cfg.queue_path()).remove(args.job_id)
+    print(f"{job['job_id']} removed: {', '.join(_leg_name(leg) for leg in job['legs'])}")
     return 0
 
 
@@ -707,6 +770,7 @@ def _execute_one(
     engine: str | None = None,
     tool_parser: str | None = None,
     gguf: str | None = None,
+    thinking: str = "off",
 ) -> str:
     from sma.pipeline import RunSpec, execute, production_services
 
@@ -721,6 +785,7 @@ def _execute_one(
             engine=engine,
             tool_parser=tool_parser,
             gguf=gguf,
+            thinking=thinking,
         ),
         cfg,
         production_services(cfg),

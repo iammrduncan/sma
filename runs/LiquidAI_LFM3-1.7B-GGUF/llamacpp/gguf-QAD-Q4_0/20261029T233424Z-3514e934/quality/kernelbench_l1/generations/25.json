@@ -1,0 +1,16 @@
+{
+  "content": "<tool_call>\n<function=write>\n<parameter=path>\nModelNew.py\n</parameter>\n<parameter=content>\nimport torch\nimport torch.nn as nn\nfrom torch.utils.cpp_extension import load_inline\n\n\n# Define the custom CUDA kernel for element-wise multiplication with sigmoid (Swish = x * sigmoid(x))\n# Swish: x * \u03c3(x) where \u03c3 is sigmoid.\n# We'll implement a fused kernel that computes sigmoid and multiplies in one pass.\n\nswish_cuda_source = \"\"\"\n#include <torch/extension.h>\n#include <cuda_runtime.h>\n\n__global__ void swish_kernel(const float* x, float* out, int size) {\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    if (idx < size) {\n        float xi = x[idx];\n        // sigmoid: 1 / (1 + exp(-xi))\n        float sigmoid_xi = 1.0f / (1.0f + expf(-xi));\n        out[idx] = xi * sigmoid_xi;\n    }\n}\n\ntorch::Tensor swish_cuda(torch::Tensor x) {\n    auto size = x.numel();\n    auto out = torch::zeros_like(x);\n\n    const int block_size = 256;\n    const int num_blocks = (size + block_size - 1) / block_size;\n\n    swish_kernel<<<num_blocks, block_size>>>(x.data_ptr<float>(), out.data_ptr<float>(), size);\n\n    return out;\n}\n\"\"\"\n\nswish_cpp_source = (\n    \"torch::Tensor swish_cuda(torch::Tensor x);\"\n)\n\n# Compile the inline CUDA code for Swish activation\nswish = load_inline(\n    name=\"swish\",\n    cpp_sources=swish_cpp_source,\n    cuda_sources=swish_cuda_source,\n    functions=[\"swish_cuda\"],\n    verbose=True,\n    extra_cflags=[],\n    extra_ldflags=[],\n)\n\n\nclass ModelNew(nn.Module):\n    def __init__(self) -> None:\n        super().__init__()\n        self.swish = swish\n\n    def forward(self, x: torch.Tensor) -> torch.Tensor:\n        return self.swish(x)\n\n</parameter>\n</function>\n</tool_call>",
+  "finish_reason": "stop",
+  "kernel": null,
+  "name": "25_Swish",
+  "problem_id": 25,
+  "reasoning": null,
+  "usage": {
+    "completion_tokens": 494,
+    "prompt_tokens": 978,
+    "prompt_tokens_details": {
+      "cached_tokens": 459
+    },
+    "total_tokens": 1472
+  }
+}

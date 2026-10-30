@@ -1,0 +1,87 @@
+{
+  "run_id": "eval-20261029T233649Z-lm-eval___ifeval",
+  "config_hash": "sha256:1e744d99ccc312fde440d9105bbc6cbce7183ba3ecde0bbfa7247337a1fb9f44",
+  "sdk_version": "0.3.0",
+  "timestamp": "2026-10-29T23:36:49.962636+00:00",
+  "config": {
+    "benchmark": "lm-eval://ifeval",
+    "model": "LiquidAI/LFM3-1.7B-GGUF",
+    "base_url": "http://127.0.0.1:4000",
+    "repeats": 1,
+    "max_problems": 50,
+    "scorers": null,
+    "_sandbox_config": "capture_cmd=None verify_timeout=600.0 stateful=False type='none'",
+    "shuffle_seed": 0,
+    "shuffle": {
+      "seed": 0,
+      "applied": true,
+      "ds_full_size": 541,
+      "ds_effective_size": 50
+    }
+  },
+  "benchmark": {
+    "name": "lm-eval://ifeval",
+    "samples": 50,
+    "repeats": 1,
+    "scores": {
+      "pass@1": {
+        "value": 0.74,
+        "bootstrap_ci_lower": 0.62,
+        "bootstrap_ci_upper": 0.86
+      },
+      "summary": {
+        "mean": 0.74,
+        "std": 0.44308749769345207,
+        "min": 0.0,
+        "max": 1.0,
+        "median": 1.0,
+        "n": 50
+      },
+      "runtime": {
+        "total_steps": 50,
+        "total_tokens": 41993,
+        "total_prompt_tokens": 2849,
+        "total_completion_tokens": 39144,
+        "total_reasoning_tokens": 0,
+        "elapsed_seconds": 78.87,
+        "latency_percentiles_ms": {
+          "p50": 4992.68,
+          "p90": 32153.34,
+          "p99": 51743.72
+        },
+        "tokens_per_second": 532.44,
+        "steps_per_second": 0.63,
+        "model_errors": 0,
+        "total_retries": 0,
+        "finish_reason_counts": {
+          "stop": 48,
+          "length": 2
+        }
+      },
+      "failures": {
+        "total_steps": 50,
+        "total_failures": 2,
+        "failure_rate": 0.04,
+        "categories": {
+          "refusal": {
+            "count": 2,
+            "percentage": 0.04,
+            "exemplars": [
+              {
+                "problem_idx": 119,
+                "repeat": 0,
+                "error": "refusal"
+              },
+              {
+                "problem_idx": 329,
+                "repeat": 0,
+                "error": "refusal"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "n_results": 50
+}

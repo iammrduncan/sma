@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import asdict, dataclass, field, fields, replace
 from pathlib import Path
 from typing import Any
 
@@ -91,8 +91,13 @@ class MemoryConfig:
     # processes, plus SMA's tools beside it (nel, the bench client). Measured per engine on the Spark
     # (docs/first-spark-run.md).
     overhead_gb: dict[str, float] = field(default_factory=lambda: {"vllm": 13.0, "sglang": 13.0, "llamacpp": 3.0})
-    # The least context per stream a quality request needs: prompt plus quality.max_tokens.
+    # The least context per stream quality may get: the ladder's floor for its streams. An answer may use
+    # all the context its stream has left (quality.max_tokens null), so quality gets the largest step that fits.
     quality_min_context: int = 8192
+    # If the Spark's available memory (MemAvailable) falls under this many GB, SMA kills this run's containers
+    # at once, and the running step fails and says why. On a GB10 the GPU's memory is not charged to any
+    # process, and earlyoom only sends SIGTERM, so neither stopped the 2026-10-28 crash. 0 turns it off.
+    guard_free_gb: float = 12.0
 
 
 @dataclass
@@ -102,7 +107,9 @@ class TimeoutConfig:
     health_poll_s: float = 2
     command_s: int = 120
     bench_s: int = 7200
-    eval_s: int = 14400
+    # One quality suite in all. Answers have no length limit, and a thinking model on BFCL's 4,441 questions
+    # can take many hours; this only stops a suite that hangs.
+    eval_s: int = 86400
     docker_s: int = 300
     # Image pulls are separate from short docker inspect calls. A cold
     # arm64 CUDA image is large, so this timeout is intentionally long.
@@ -158,6 +165,13 @@ class QualitySuite:
     # How many questions the dataset has, when the harness does not say before it ends (BFCL's is in its
     # container). Only `sma watch` reads it, to show progress as answered/total. It changes nothing that runs.
     questions: int | None = None
+    # An eval-factory suite's own container settings, merged into its run config's params (LiveCodeBench:
+    # the problem window and one sample per problem).
+    params: dict[str, Any] | None = None
+    # The container sends temperature, top_p, and an answer limit from its config, so SMA sets them for the
+    # run (pipeline._container_sampling): the thinking mode's sampling, and the context per stream minus
+    # 4,096 for the prompt. BFCL's container sends its own and leaves this off.
+    sampling: bool = False
 
 
 @dataclass
@@ -166,24 +180,39 @@ class QualityConfig:
     # Requests in flight per suite (nel max_concurrent).
     concurrency: int = 8
     executable: str = "nel"
-    max_tokens: int = 4096
-    # One request to the model server. A retry follows retries.attempts.
-    request_timeout_s: float = 900.0
-    # Sent with every chat request. enable_thinking=False turns off the reasoning block in chat
-    # templates that read it (Qwen3 and others). SMA scores greedily with an 8192-token context;
-    # Qwen says not to decode thinking mode greedily and to allow 32,768 output tokens.
-    chat_template_kwargs: dict[str, Any] = field(default_factory=lambda: {"enable_thinking": False})
+    # Output tokens per answer. None sends no limit: an answer may use all the context its stream has left,
+    # which the memory plan sets (owner decision 2026-10-29). A 4,096 limit cut off 30% of LFM3-1.7B's
+    # MMLU-Pro answers and 60% of its GPQA answers with thinking off.
+    max_tokens: int | None = None
+    # One request to the model server. A retry follows retries.attempts. Long enough for an answer that
+    # fills a 256K context at 20 tok/s per stream.
+    request_timeout_s: float = 14400.0
+    # Thinking-off runs decode greedily at this temperature. Thinking-on runs send none, so the engine
+    # applies the model's own sampling (for_thinking).
+    temperature: float | None = 0.0
+    # Sent with every chat request and set as the quality server's default. The run's thinking mode
+    # (--thinking off|on) sets enable_thinking; it cannot be set here.
+    chat_template_kwargs: dict[str, Any] = field(default_factory=dict)
     suites: list[QualitySuite] = field(
         default_factory=lambda: [
-            QualitySuite("ifeval", 50, bench="lm-eval://ifeval"),
+            QualitySuite("ifeval", None, bench="lm-eval://ifeval", questions=541),
             # Both of nel 0.3.0's GSM8K graders mark answers wrongly. See nel_benchmarks/gsm8k.py.
-            QualitySuite("gsm8k", 50, bench="sma:gsm8k"),
+            QualitySuite("gsm8k", 150, bench="sma:gsm8k"),
             QualitySuite("mmlu_pro", 700),
-            QualitySuite("gpqa_diamond", 20, bench="gpqa"),
+            QualitySuite("gpqa_diamond", None, bench="gpqa", questions=198),
             # MuSiQue-Ans: multi-hop questions over their own paragraphs, scored by answer F1. See nel_benchmarks/musique.py.
             QualitySuite("musique", 100, bench="sma:musique", metric="answer_f1"),
             # Native tool calls through the chat API: needs --tool-parser.
             QualitySuite("bfcl_v3", image="nvcr.io/nvidia/eval-factory/bfcl:26.03", task="bfclv3_ast", tools=True, questions=4441),
+            # In place of SWE-bench (owner decision 2026-10-29): LiveCodeBench's leaderboard window for release v6.
+            QualitySuite(
+                "livecodebench",
+                image="nvcr.io/nvidia/eval-factory/livecodebench:26.03",
+                task="codegeneration_release_v6",
+                questions=454,
+                params={"extra": {"n_samples": 1, "start_date": "2024-08-01", "end_date": "2025-05-01"}},
+                sampling=True,
+            ),
         ]
     )
 
@@ -200,9 +229,10 @@ class KernelBenchConfig:
     level: int = 1
     # Requests in flight while the model writes kernels.
     concurrency: int = 8
-    # Output budget per answer, reasoning included. Qwen asks for 32,768 in thinking mode.
-    max_tokens: int = 32768
-    request_timeout_s: float = 3600.0
+    # Output tokens per answer, reasoning included. None: the server's context per stream minus 4,096 for
+    # the prompt, as for quality (owner decision 2026-10-29).
+    max_tokens: int | None = None
+    request_timeout_s: float = 14400.0
     # Evaluation options for the service; empty uses its defaults (KernelBench's own).
     options: dict[str, Any] = field(default_factory=dict)
     poll_s: float = 60.0
@@ -216,9 +246,10 @@ class SweBenchConfig:
 
     SMA reaches the runner over SSH (SWE_RUNNER_HOST, SWE_RUNNER_USER, SWE_RUNNER_SSH_KEY in the root
     .env) and forwards the model server's port to the runner's loopback while the agents run.
+    Off by default since 2026-10-29 (owner decision: too slow); LiveCodeBench, a quality suite, replaces it.
     """
 
-    enabled: bool = True
+    enabled: bool = False
     # Agents at once (owner decision 2026-10-27). The memory plan gives each one a stream.
     workers: int = 8
     step_limit: int = 250
@@ -476,12 +507,17 @@ def _suites(value: Any, path: str) -> list[QualitySuite]:
     for index, item in enumerate(value):
         if not isinstance(item, dict) or "name" not in item:
             raise SmaError(f"{path}[{index}] needs a name")
-        unknown = set(item) - {"name", "limit", "bench", "image", "task", "tools", "metric", "questions"}
+        unknown = set(item) - {"name", "limit", "bench", "image", "task", "tools", "metric", "questions", "params", "sampling"}
         if unknown:
             raise SmaError(f"{path}[{index}] has unknown keys: {sorted(unknown)}")
         limit, questions = item.get("limit"), item.get("questions")
         if questions is not None and (not isinstance(questions, int) or isinstance(questions, bool) or questions < 1):
             raise SmaError(f"{path}[{index}].questions must be a whole number of questions, 1 or more")
+        params = item.get("params")
+        if params is not None and not isinstance(params, dict):
+            raise SmaError(f"{path}[{index}].params must be a mapping of the container's settings")
+        if (params is not None or item.get("sampling")) and not item.get("image"):
+            raise SmaError(f"{path}[{index}]: params and sampling are for an eval-factory container (image and task)")
         suites.append(
             QualitySuite(
                 name=str(item["name"]),
@@ -492,6 +528,8 @@ def _suites(value: Any, path: str) -> list[QualitySuite]:
                 tools=bool(item.get("tools", False)),
                 metric=_optional_str(item.get("metric")),
                 questions=questions,
+                params=params,
+                sampling=bool(item.get("sampling", False)),
             )
         )
     return suites
@@ -553,6 +591,28 @@ def load_env_file(path: str | Path | None = None) -> list[str]:
     return loaded
 
 
+THINKING_MODES = ("off", "on")
+
+
+def for_thinking(cfg: Config, mode: str) -> Config:
+    """The config a run uses in its thinking mode (owner decision 2026-10-29).
+
+    off: the chat template's thinking off, greedy decoding (quality.temperature). on: thinking on, and no
+    temperature sent, so the engine applies the model's own sampling (generation_config.json, or a GGUF's
+    general.sampling metadata in llama-server). Quality requests send enable_thinking, and the quality server
+    takes it as its default for suites that cannot send it (BFCL). KernelBench, SWE-bench, and BrowseComp-Plus
+    send it too (agentic.model_defaults). A template that does not read enable_thinking ignores it.
+    """
+    if mode not in THINKING_MODES:
+        raise SmaError(f"Thinking mode must be one of {', '.join(THINKING_MODES)}, not {mode!r}.")
+    quality = replace(
+        cfg.quality,
+        chat_template_kwargs={**cfg.quality.chat_template_kwargs, "enable_thinking": mode == "on"},
+        temperature=cfg.quality.temperature if mode == "off" else None,
+    )
+    return replace(cfg, quality=quality)
+
+
 def load_config(path: Path | None = None) -> Config:
     chosen = path
     if chosen is None:
@@ -593,7 +653,6 @@ def validate_config(cfg: Config) -> None:
         raise SmaError("kernelbench.level must be 1. SMA ships KernelBench's Level 1 problems only.")
     for name, value in (
         ("kernelbench.concurrency", cfg.kernelbench.concurrency),
-        ("kernelbench.max_tokens", cfg.kernelbench.max_tokens),
         ("swebench.workers", cfg.swebench.workers),
         ("swebench.step_limit", cfg.swebench.step_limit),
         ("swebench.min_context", cfg.swebench.min_context),
@@ -647,8 +706,19 @@ def validate_config(cfg: Config) -> None:
         isinstance(key, str) for key in cfg.quality.chat_template_kwargs
     ):
         raise SmaError("quality.chat_template_kwargs must be a mapping with string keys")
-    if not 0 < cfg.quality.max_tokens < cfg.memory.quality_min_context:
-        raise SmaError("quality.max_tokens must be positive and below memory.quality_min_context, so the prompt fits")
+    if cfg.quality.max_tokens is not None and not 0 < cfg.quality.max_tokens < cfg.memory.quality_min_context:
+        raise SmaError(
+            "quality.max_tokens must be null (no limit) or positive and below memory.quality_min_context, so the prompt fits"
+        )
+    if cfg.kernelbench.max_tokens is not None and (not isinstance(cfg.kernelbench.max_tokens, int) or cfg.kernelbench.max_tokens < 1):
+        raise SmaError("kernelbench.max_tokens must be null (the context minus the prompt) or a positive integer")
+    if cfg.quality.temperature is not None and cfg.quality.temperature < 0:
+        raise SmaError("quality.temperature must be null or 0 and up")
+    if "enable_thinking" in cfg.quality.chat_template_kwargs:
+        raise SmaError(
+            "quality.chat_template_kwargs cannot set enable_thinking. The run's thinking mode sets it: "
+            "sma run ... --thinking off (the default) or --thinking on."
+        )
     if cfg.quality.request_timeout_s <= 0:
         raise SmaError("quality.request_timeout_s must be positive")
     names = [suite.name for suite in cfg.quality.suites]

@@ -1,0 +1,2 @@
+Rank,Model,Live Overall Acc,AST Summary,Python Simple AST,Python Multiple AST,Python Parallel AST,Python Parallel Multiple AST,Irrelevance Detection,Relevance Detection
+1,LiquidAI_LFM3-1.7B-GGUF,69.61%,74.69%,73.26%,75.12%,87.50%,62.50%,61.79%,72.22%

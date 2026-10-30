@@ -1,0 +1,12 @@
+{
+  "idle_until_cool": {
+    "note": "no telemetry recorder",
+    "reached": null
+  },
+  "page_cache": {
+    "attempted": true,
+    "error": "[Errno 13] Permission denied: '/proc/sys/vm/drop_caches'",
+    "ok": false,
+    "permitted": false
+  }
+}

@@ -12,7 +12,7 @@ from typing import Any
 
 from sma.atomic import atomic_write_json
 from sma.config import Config
-from sma.errors import SmaError
+from sma.errors import RunIncomplete, SmaError
 from sma.identity import assert_alias_safe
 from sma.records import utc_now
 
@@ -29,7 +29,7 @@ def _parse_time(value: str | None) -> datetime | None:
 class JobQueue:
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
-        for name in ("pending", "claimed", "done", "failed"):
+        for name in ("pending", "claimed", "done", "failed", "removed"):
             (self.path / name).mkdir(parents=True, exist_ok=True)
 
     def add(self, legs: list[dict[str, Any]], *, kind: str, tool_parser: str | None = None) -> dict[str, Any]:
@@ -161,6 +161,23 @@ class JobQueue:
             moved.append(job["job_id"])
         return moved
 
+    def remove(self, job_id: str) -> dict[str, Any]:
+        """Take a pending job off the queue. It moves to removed/, so the record of it stays. A claimed job
+        is refused (a worker is running it), and so is a job with a run: `sma resume` or unpin handles those."""
+        found = self._find(job_id)
+        if found is None:
+            raise SmaError(f"No queue job {job_id}")
+        path, job, state = found
+        if state != "pending":
+            raise SmaError(f"{job_id} is {state}. Only a pending job can be removed.")
+        started = [leg.get("run_id") for leg in job.get("legs") or [] if leg.get("run_id")]
+        if started:
+            raise SmaError(f"{job_id} already has run {started[0]}. Remove only a job that has not started.")
+        job["removed"] = utc_now()
+        atomic_write_json(self.path / "removed" / path.name, job)
+        path.unlink(missing_ok=True)
+        return job
+
     def unpin(self, job_id: str) -> dict[str, Any]:
         """Drop the host pin and run ids. The next claim starts a fresh run."""
         return self._reassign(job_id, host_alias=None)
@@ -258,16 +275,26 @@ class JobQueue:
             log_event("queue_corrupt_move_failed", file=path.name, error=str(move_exc))
 
 
+def pair_legs(reference: dict[str, Any], quant: dict[str, Any]) -> list[dict[str, Any]]:
+    """A pair's legs (owner decision 2026-10-29): the reference with thinking off, then the 4-bit quant with
+    thinking off, then with thinking on. Both quant legs compare their logprobs (KL) with the reference leg."""
+    return [{**reference, "thinking": "off"}, {**quant, "thinking": "off"}, {**quant, "thinking": "on"}]
+
+
 def _leg(item: dict[str, Any]) -> dict[str, Any]:
     quant = item["quant"]
     if quant not in {"bf16", "nvfp4", "mxfp4", "mixed", "gguf"}:
         raise SmaError(f"Unsupported quant {quant}")
     if (quant == "gguf") != bool(item.get("gguf")):
         raise SmaError("A GGUF job needs its quant file (--gguf QUANT), and --gguf goes with a GGUF repo only.")
+    thinking = item.get("thinking") or "off"
+    if thinking not in {"off", "on"}:
+        raise SmaError(f"Thinking mode must be off or on, not {thinking!r}")
     return {
         "repo": item["repo"],
         "quant": quant,
         "gguf": item.get("gguf"),
+        "thinking": thinking,
         # The --engine the job was queued with. None lets the format and preflight choose.
         "engine_requested": item.get("engine_requested"),
         "revision": item.get("revision"),
@@ -369,17 +396,20 @@ def _run_job(cfg: Config, services_factory: Any, queue: JobQueue, path: Path, jo
 
     beater = threading.Thread(target=_pulse, name="sma-queue-heartbeat", daemon=True)
     beater.start()
+    incomplete: list[str] = []
     try:
         for index in incomplete_legs(job):
             leg = job["legs"][index]
-            if index > 0 and job["legs"][index - 1]["status"] != "done":
+            # Every later leg compares with the first. A first leg that ran with some steps failed
+            # (incomplete) still has its record; its KL inputs may be missing, and KL says so.
+            if index > 0 and job["legs"][0]["status"] not in {"done", "incomplete"}:
                 raise SmaError(
-                    f"Leg {index - 1} of {job['job_id']} is not done, so the next quant was not started. "
-                    "Both quants of a pair stay on this Spark."
+                    f"Leg 0 of {job['job_id']} did not run, so the next quant was not started. "
+                    "Every quant of a pair stays on this Spark."
                 )
             if index > 0:
                 reference_id = job["legs"][0].get("run_id")
-            resume = leg.get("run_id") if leg.get("status") in {"running", "failed"} else None
+            resume = leg.get("run_id") if leg.get("status") in {"running", "failed", "incomplete"} else None
 
             def _created(run_id: str, leg_index: int = index) -> None:
                 with job_lock:
@@ -389,34 +419,47 @@ def _run_job(cfg: Config, services_factory: Any, queue: JobQueue, path: Path, jo
                     queue.heartbeat(path, job)
 
             services = services_factory(cfg)
-            run_id = execute(
-                run_spec(
-                    repo=leg["repo"],
-                    quant_flag=leg["quant"],
-                    revision=leg.get("revision"),
-                    reference_run_id=reference_id or leg.get("reference_run_id"),
-                    pair_job_id=job["job_id"] if len(job["legs"]) > 1 else None,
-                    resume_run_id=resume,
-                    lock_held=True,
-                    # A single job lets the format and preflight choose unless --engine was given. A pair's
-                    # legs share the job's engine. Jobs queued before engine_requested keep their engine.
-                    engine=(
-                        leg["engine_requested"]
-                        if "engine_requested" in leg and len(job["legs"]) == 1
-                        else (job.get("engine") or cfg.engine.name)
+            try:
+                run_id = execute(
+                    run_spec(
+                        repo=leg["repo"],
+                        quant_flag=leg["quant"],
+                        revision=leg.get("revision"),
+                        reference_run_id=reference_id or leg.get("reference_run_id"),
+                        pair_job_id=job["job_id"] if len(job["legs"]) > 1 else None,
+                        resume_run_id=resume,
+                        lock_held=True,
+                        # A single job lets the format and preflight choose unless --engine was given. A pair's
+                        # legs share the job's engine. Jobs queued before engine_requested keep their engine.
+                        engine=(
+                            leg["engine_requested"]
+                            if "engine_requested" in leg and len(job["legs"]) == 1
+                            else (job.get("engine") or cfg.engine.name)
+                        ),
+                        selected_by=None if len(job["legs"]) == 1 or "engine_requested" not in leg else ("flag" if leg["engine_requested"] else "default"),
+                        tool_parser=job.get("tool_parser"),
+                        gguf=leg.get("gguf"),
+                        thinking=leg.get("thinking") or "off",
                     ),
-                    selected_by=None if len(job["legs"]) == 1 or "engine_requested" not in leg else ("flag" if leg["engine_requested"] else "default"),
-                    tool_parser=job.get("tool_parser"),
-                    gguf=leg.get("gguf"),
-                ),
-                cfg,
-                services,
-                on_created=_created,
-            )
+                    cfg,
+                    services,
+                    on_created=_created,
+                )
+            except RunIncomplete as exc:
+                # Some steps failed and are in the record; the next legs still run (owner decision 2026-10-29).
+                with job_lock:
+                    job["legs"][index]["run_id"] = exc.run_id
+                    job["legs"][index]["status"] = "incomplete"
+                    queue.heartbeat(path, job)
+                incomplete.append(str(exc))
+                continue
             with job_lock:
                 job["legs"][index]["run_id"] = run_id
                 job["legs"][index]["status"] = "done"
                 queue.heartbeat(path, job)
+        if incomplete:
+            # A retry (queue.max_attempts) resumes each incomplete leg's failed steps.
+            raise SmaError(" ".join(incomplete))
         with job_lock:
             job["error"] = None
             queue.finish(path, job, ok=True)

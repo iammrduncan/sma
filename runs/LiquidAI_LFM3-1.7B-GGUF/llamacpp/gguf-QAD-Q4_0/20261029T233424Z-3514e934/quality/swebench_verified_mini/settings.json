@@ -1,0 +1,25 @@
+{
+  "agent_command": ".venv/bin/mini-extra swebench --subset data/verified-mini --split test --output runs/20261029T233424Z-3514e934 --workers 8 -c swebench.yaml -c runs/20261029T233424Z-3514e934/sma-agent.yaml",
+  "agent_overlay": {
+    "agent": {
+      "step_limit": 250
+    },
+    "model": {
+      "cost_tracking": "ignore_errors",
+      "model_kwargs": {
+        "api_base": "http://127.0.0.1:8000/v1"
+      },
+      "model_name": "hosted_vllm/LiquidAI/LFM3-1.7B-GGUF"
+    }
+  },
+  "grade_command": "cd eval && ../.venv/bin/python -m swebench.harness.run_evaluation --dataset_name ../data/verified-mini.jsonl --split test --predictions_path ../runs/20261029T233424Z-3514e934/preds.json --run_id 20261029T233424Z-3514e934 --max_workers 4 --timeout 1800 && cp -- *.20261029T233424Z-3514e934.json ../runs/20261029T233424Z-3514e934/report.json",
+  "sampling": {
+    "source": "llama-server's own defaults; a GGUF has no generation_config.json"
+  },
+  "step_limit": 250,
+  "thinking": {
+    "enable_thinking": null,
+    "how": "the chat template did not render here (TemplateSyntaxError)"
+  },
+  "workers": 8
+}

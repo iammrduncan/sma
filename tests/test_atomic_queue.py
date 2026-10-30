@@ -118,3 +118,86 @@ def test_failed_leg_does_not_start_the_next_quant(tmp_path: Path) -> None:
     failed = json.loads(next((tmp_path / "q" / "failed").glob("*.json")).read_text())
     assert failed["legs"][0]["status"] == "failed"
     assert failed["legs"][1]["status"] == "pending"
+
+
+def test_a_leg_with_failed_steps_still_hands_its_run_to_the_next_legs(tmp_path: Path) -> None:
+    # Owner decision 2026-10-29: a failed score or test never stops the batch. A run that went through every
+    # step with some failed (RunIncomplete) is a reference the 4-bit legs can still use.
+    from sma.config import default_config
+    from sma.errors import RunIncomplete
+    from sma.queue import pair_legs
+
+    queue = JobQueue(tmp_path / "q")
+    repo = "org/tiny-GGUF"
+    queue.add(pair_legs({"repo": repo, "quant": "gguf", "gguf": "BF16"}, {"repo": repo, "quant": "gguf", "gguf": "Q4_0"}), kind="pair")
+    path, claimed = queue.claim("w", "gpu-host-1")
+    calls: list[RunSpec] = []
+
+    def fake_execute(spec: RunSpec, _cfg, _services, on_created=None) -> str:
+        run_id = f"run-{spec.gguf}-{spec.thinking}"
+        if on_created:
+            on_created(run_id)
+        calls.append(spec)
+        if spec.gguf == "BF16":
+            raise RunIncomplete(run_id, ["swebench"])
+        return run_id
+
+    with pytest.raises(SmaError, match="these failed: swebench"):
+        _run_job(default_config(), lambda _cfg: None, queue, path, claimed, fake_execute, RunSpec)
+    # The reference with thinking off, then the quant with thinking off and on, each against the reference.
+    assert [(spec.gguf, spec.thinking, spec.reference_run_id) for spec in calls] == [
+        ("BF16", "off", None),
+        ("Q4_0", "off", "run-BF16-off"),
+        ("Q4_0", "on", "run-BF16-off"),
+    ]
+    failed = json.loads(next((tmp_path / "q" / "failed").glob("*.json")).read_text())
+    assert [leg["status"] for leg in failed["legs"]] == ["incomplete", "done", "done"]
+
+
+def test_pair_commands_parse_their_repo_flags(tmp_path: Path, capsys) -> None:
+    # F1 (model-list.txt): every run-pair and queue add-pair failed with "Pass one of --bf16 ..." because
+    # the repo names in --bf16 and --nvfp4 were read as true-or-false flags.
+    from sma.cli import main
+
+    config = tmp_path / "sma.yaml"
+    config.write_text(f"runs_dir: {tmp_path / 'runs'}\nqueue:\n  dir: {tmp_path / 'q'}\n")
+    assert main(["queue", "add-pair", "--bf16", "org/ref", "--nvfp4", "org/fp4", "--config", str(config)]) == 0
+    assert main(["queue", "add-pair", "--gguf", "org/tiny-GGUF", "BF16", "Q4_0", "--config", str(config)]) == 0
+    jobs = JobQueue(tmp_path / "q").list_jobs()
+    legs = [[(leg["repo"], leg["gguf"] or leg["quant"], leg["thinking"]) for leg in job["legs"]] for job in jobs]
+    assert [("org/ref", "bf16", "off"), ("org/fp4", "nvfp4", "off"), ("org/fp4", "nvfp4", "on")] in legs
+    assert [("org/tiny-GGUF", "BF16", "off"), ("org/tiny-GGUF", "Q4_0", "off"), ("org/tiny-GGUF", "Q4_0", "on")] in legs
+    assert next(job for job in jobs if job["legs"][0]["quant"] == "gguf")["engine"] == "llamacpp"
+
+
+def test_a_pending_job_can_be_removed_and_a_started_one_cannot(tmp_path: Path) -> None:
+    # Owner, 2026-10-29: two queued LFM3 GGUF pairs were dropped from the plan; the queue had no way to do it.
+    queue = JobQueue(tmp_path / "q")
+    job = queue.add([{"repo": "org/ref", "quant": "bf16"}], kind="single")
+    started = queue.add([{"repo": "org/other", "quant": "bf16"}], kind="single")
+    path, claimed = queue.claim("w", "gpu-host-1")
+    with pytest.raises(SmaError, match="is claimed. Only a pending job can be removed"):
+        queue.remove(claimed["job_id"])
+    queue.release_to_pending(path, {**claimed, "legs": [{**claimed["legs"][0], "run_id": "run-1", "status": "failed"}]})
+    with pytest.raises(SmaError, match="already has run run-1"):
+        queue.remove(job["job_id"] if claimed["job_id"] == job["job_id"] else started["job_id"])
+    other = started["job_id"] if claimed["job_id"] == job["job_id"] else job["job_id"]
+    queue.remove(other)
+    assert [j["job_id"] for j in queue.list_jobs()] == [claimed["job_id"]]
+    assert (tmp_path / "q" / "removed" / f"{other}.json").is_file()
+    with pytest.raises(SmaError, match="No queue job"):
+        queue.remove("job-missing")
+
+
+def test_reclaim_can_take_a_shorter_age_when_the_worker_is_known_gone(tmp_path: Path) -> None:
+    from sma.cli import main
+
+    config = tmp_path / "sma.yaml"
+    config.write_text(f"runs_dir: {tmp_path / 'runs'}\nqueue:\n  dir: {tmp_path / 'q'}\n")
+    queue = JobQueue(tmp_path / "q")
+    queue.add([{"repo": "org/ref", "quant": "bf16"}], kind="single")
+    queue.claim("w", "gpu-host-1")
+    assert main(["queue", "reclaim", "--config", str(config)]) == 0  # an hour by default: nothing moves
+    assert [job["state"] for job in queue.list_jobs()] == ["claimed"]
+    assert main(["queue", "reclaim", "--older-than", "0", "--config", str(config)]) == 0
+    assert [job["state"] for job in queue.list_jobs()] == ["pending"]

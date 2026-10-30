@@ -1,0 +1,25 @@
+services:
+  sma:
+    type: api
+    url: http://127.0.0.1:8000/v1/chat/completions
+    protocol: chat_completions
+    model: LiquidAI/LFM3-1.7B
+    generation:
+      seed: 0
+      temperature: 0.0
+    proxy:
+      interceptors:
+      - name: reasoning
+      request_timeout: 14400
+      max_retries: 2
+      extra_body:
+        chat_template_kwargs:
+          enable_thinking: false
+benchmarks:
+- name: musique.py
+  max_problems: 100
+  max_concurrent: 8
+  shuffle_seed: 0
+  solver:
+    type: simple
+    service: sma

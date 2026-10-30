@@ -1,0 +1,16 @@
+{
+  "content": "<tool_call>\n<function=write>\n<parameter=path>\nModelNew.py\n</parameter>\n<parameter=content>\nimport torch\nimport torch.nn as nn\nfrom torch.utils.cpp_extension import load_inline\n\n\n# Define the custom CUDA kernel for element-wise sigmoid activation.\n# We implement a simple vectorized sigmoid using a tiled approach or use cuSigmoid if available,\n# but here we write an inline C++ source that launches a kernel performing element-wise sigmoid.\n\nsigmoid_cpp_source = (\n    \"torch::Tensor sigmoid_cuda(torch::Tensor x);\"\n)\n\n\ndef get_sigmoid_kernel_source():\n    \"\"\"\n    CUDA kernel for applying sigmoid to each element of the input tensor.\n    This is a simple per-element kernel. For performance, we can use shared memory and tiling,\n    but here we provide a straightforward implementation that compiles with load_inline.\n    \"\"\"\n    kernel_src = \"\"\"\n__global__ void sigmoid_kernel(const float* input, float* output, int size) {\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    if (idx < size) {\n        float val = input[idx];\n        // Use exp(-x^2/2) / (1 + exp(-x)) formula for numerical stability\n        output[idx] = 1.0f / (1.0f + exp(-val * val));\n    }\n}\n\ntorch::Tensor sigmoid_cuda(torch::Tensor x) {\n    auto size = x.numel();\n    auto out = torch::zeros_like(x);\n\n    const int block_size = 256;\n    const int num_blocks = (size + block_size - 1) / block_size;\n\n    sigmoid_kernel<<<num_blocks, block_size>>>(x.data_ptr<float>(), out.data_ptr<float>(), size);\n    return out;\n}\n\"\"\"\n\nelement_sigmoid_cpp_source = \"torch::Tensor sigmoid_cuda(torch::Tensor x);\"\n\n# Compile the inline CUDA code for sigmoid\nsigmoid_elementwise_add = load_inline(\n    name=\"sigmoid\",\n    cpp_sources=element_sigmoid_cpp_source,\n    cuda_sources=kernel_src,\n    functions=[\"sigmoid_cuda\"],\n    verbose=True,\n    extra_cflags=[],\n    extra_ldflags=[],\n)\n\n\nclass ModelNew(nn.Module):\n    def __init__(self) -> None:\n        super().__init__()\n        self.sigmoid = sigmoid_elementwise_add\n\n    def forward(self, x: torch.Tensor) -> torch.Tensor:\n        return self.sigmoid.sigmoid_cuda(x)\n\n</parameter>\n</function>\n</tool_call>",
+  "finish_reason": "stop",
+  "kernel": null,
+  "name": "21_Sigmoid",
+  "problem_id": 21,
+  "reasoning": null,
+  "usage": {
+    "completion_tokens": 578,
+    "prompt_tokens": 979,
+    "prompt_tokens_details": {
+      "cached_tokens": 11
+    },
+    "total_tokens": 1557
+  }
+}

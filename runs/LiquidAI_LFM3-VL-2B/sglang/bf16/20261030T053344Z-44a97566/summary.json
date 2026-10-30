@@ -1,0 +1,91 @@
+{
+  "batch_invariant": true,
+  "delta_ppl": null,
+  "deployment": {
+    "computed": {
+      "kv_bytes_per_token": 11264,
+      "kv_pool_gb": 83.16,
+      "kv_pool_tokens": 7383130,
+      "memory_budget_gb": 100.0,
+      "planned_footprint_gb": 100.0,
+      "streams_32k": 225,
+      "streams_full_context": 57,
+      "weights_gb": 3.84
+    },
+    "context_per_stream": 128000,
+    "context_reason": "native maximum 128,000 tokens fits",
+    "engine": "sglang",
+    "kv_cache_type": "fp8",
+    "measured": {
+      "kv_pool_tokens": null,
+      "output_tok_s_c1": null,
+      "output_tok_s_c4": null,
+      "output_tok_s_c8": null,
+      "peak_memory_gb": 0.0,
+      "streams_32k": null,
+      "streams_full_context": null
+    },
+    "sentence": "bf16 weights with an FP8 KV cache on sglang: 3.84 GB of weights, 128,000 tokens per stream, 57 full-length streams (computed) within 100.0 GB. Peak memory 0.0 GB.",
+    "weight_format": "bf16"
+  },
+  "determinism_passed": null,
+  "energy": {
+    "joules": null,
+    "joules_per_bench_request": null,
+    "method": "nvml-energy-counter-per-window",
+    "note": "Each valid speed-cell window is measured on its own and the joules are summed. nvml-energy-counter is the GPU's cumulative energy counter read before and after the bench command. nvidia-smi-1hz-trapezoid integrates sampled power and is used only when the counter was not read; gaps longer than telemetry.max_sample_gap_s are not bridged. Invalid or unverified windows are excluded. GPU only: on a DGX Spark the CPU shares the 140 W SoC budget and is not counted. Not joules per correct answer, and not a wall meter. Null means it was not measured.",
+    "sample_hz": 1.0,
+    "scope": "gpu"
+  },
+  "engine": "sglang",
+  "engine_image": "lmsysorg/sglang:dev-lfm3",
+  "engine_image_digest": null,
+  "host_alias": "gpu-host-1",
+  "kl_k": null,
+  "kl_mean": null,
+  "kl_method": null,
+  "model_repo": "LiquidAI/LFM3-VL-2B",
+  "model_slug": "LiquidAI_LFM3-VL-2B",
+  "params_active": 1918181888,
+  "params_active_b": 1.9,
+  "params_total": 1918181888,
+  "params_total_b": 1.9,
+  "perplexity": null,
+  "perplexity_tokens": null,
+  "quality": {},
+  "quant_detected": "bf16",
+  "quant_flag": "bf16",
+  "quant_label": "bf16",
+  "reference_run_id": null,
+  "revision_sha": "ba44bd51db20a2753f28c273a1571ccaa210d954",
+  "run_id": "20261030T053344Z-44a97566",
+  "schema_version": 2,
+  "size_class": "1-3B",
+  "speed": {
+    "bandwidth_ceiling_note": "Derived from the configured spec bandwidth (273 GB/s) divided by approximate active weight bytes. Not a measurement. NVFP4/MXFP4 use 0.5 bytes per parameter and ignore scale overhead.",
+    "bandwidth_ceiling_tok_s": 71.16113485062789,
+    "cells": [],
+    "decode_tok_s": null,
+    "decode_tok_s_stat": "p50",
+    "invalid_cells": 0,
+    "output_tok_s_c4": null,
+    "output_tok_s_c8": null,
+    "prefill_tok_s": null,
+    "prefill_tok_s_stat": "p50",
+    "unverified_cells": 0
+  },
+  "status": "running",
+  "thermal": {
+    "clock_cap_mhz": null,
+    "log": "telemetry.csv",
+    "sw_power_cap_invalidates": false,
+    "temp_end_c": 41.0,
+    "temp_start_c": 41.0,
+    "throttle_samples": 0
+  },
+  "thinking": "off",
+  "top1_agreement": null,
+  "warnings": [
+    "Page cache was not dropped. The next model may see leftover file cache."
+  ]
+}

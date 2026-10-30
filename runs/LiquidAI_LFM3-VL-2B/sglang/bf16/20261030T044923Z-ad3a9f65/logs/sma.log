@@ -1,0 +1,17 @@
+{"event": "run_created", "level": "INFO", "logger": "sma", "message": "run_created run_id=20261030T044923Z-ad3a9f65 repo=LiquidAI/LFM3-VL-2B quant=bf16", "ts": "2026-10-30T04:49:23Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=fetch run_id=20261030T044923Z-ad3a9f65 attempt=1", "ts": "2026-10-30T04:49:23Z"}
+{"event": "fetched", "level": "INFO", "logger": "sma", "message": "fetched repo=LiquidAI/LFM3-VL-2B revision_sha=ba44bd51db20a2753f28c273a1571ccaa210d954", "ts": "2026-10-30T04:50:23Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=KV cache: fp8, 6,144 bytes per token in the full-attention layers", "ts": "2026-10-30T04:50:56Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=context per stream: 128,000 tokens (native maximum 128,000 tokens fits)", "ts": "2026-10-30T04:50:56Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=memory: 3.84 GB weights + 13.0 GB engine overhead + 83.16 GB KV pool = 100.0 GB of the 100.0 GB budget", "ts": "2026-10-30T04:50:56Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=streams that fit: 105 at 128,000 tokens, 409 at 32,768", "ts": "2026-10-30T04:50:56Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=per benchmark: browsecomp 128,000, determinism 128,000, kernelbench 128,000, logprobs 128,000, quality 128,000, speed 128,000", "ts": "2026-10-30T04:50:56Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=fetch run_id=20261030T044923Z-ad3a9f65", "ts": "2026-10-30T04:50:56Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=serve_quality run_id=20261030T044923Z-ad3a9f65 attempt=1", "ts": "2026-10-30T04:50:56Z"}
+{"event": "docker_run", "level": "INFO", "logger": "sma", "message": "docker_run name=sma-20261030T044923Z-ad3a9f65-quality mode=quality", "ts": "2026-10-30T04:50:56Z"}
+{"event": "server_log", "level": "INFO", "logger": "sma", "message": "server_log mode=quality path=/home/<host>/github/sma/runs/LiquidAI_LFM3-VL-2B/sglang/bf16/20261030T044923Z-ad3a9f65/logs/server-quality.log", "ts": "2026-10-30T04:50:57Z"}
+{"event": "server_wait", "level": "INFO", "logger": "sma", "message": "server_wait mode=quality elapsed_s=16 line=[2026-10-30 04:51:10] Currently radix cache is not compatible with flashinfer attention backend for deterministic inference. It will be supported in the future.", "ts": "2026-10-30T04:51:13Z"}
+{"event": "server_wait", "level": "INFO", "logger": "sma", "message": "server_wait mode=quality elapsed_s=32 line=Multi-thread loading shards: 100% Completed | 1/1 [00:00<00:00, 341.06it/s]", "ts": "2026-10-30T04:51:29Z"}
+{"event": "memory_guard", "level": "INFO", "logger": "sma", "message": "memory_guard run_id=20261030T044923Z-ad3a9f65 available=11181821952 killed=['sma-20261030T044923Z-ad3a9f65-quality']", "ts": "2026-10-30T04:51:58Z"}
+{"event": "warning", "level": "INFO", "logger": "sma", "message": "warning message=Peak memory was 115.7 GB, over the 100 GB budget. The plan's engine overhead was too small for this run: raise memory.overhead_gb.sglang by the difference.", "ts": "2026-10-30T04:51:59Z"}
+{"event": "warning", "level": "INFO", "logger": "sma", "message": "warning message=Page cache was not dropped. The next model may see leftover file cache.", "ts": "2026-10-30T04:51:59Z"}

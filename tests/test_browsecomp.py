@@ -278,13 +278,15 @@ def test_a_run_answers_with_search_on_the_runner_grades_with_the_judge_and_keeps
     settings = _json(suite / "settings.json")
     picked = settings["query_ids"]
     assert len(picked) == 2 and picked == bcp.pick_queries(list(QUESTIONS), 2, cfg.seed)
-    assert settings["thinking"]["enable_thinking"] is True
+    # A thinking-off run (the default) sends thinking off, whatever the template's own default (on here).
+    assert settings["thinking"]["enable_thinking"] is False
+    assert settings["thinking"]["template_default"]["enable_thinking"] is True
     assert runner.started == [f".venv/bin/python search_server.py --index indexes/bm25 --tokenizer data/tokenizer --port {cfg.browsecomp.search_port} --snippet-max-tokens 512 --tag runs/{run_id}"]
     assert runner.stopped and [r["k"] for r in search.requests] == [5, 5]
 
     requests = [request for batch in seen for request in batch]
     assert len(requests) == 4  # a search, then an answer, for each question
-    assert all(r["tools"][0]["function"]["name"] == "search" and r["chat_template_kwargs"] == {"enable_thinking": True} for r in requests)
+    assert all(r["tools"][0]["function"]["name"] == "search" and r["chat_template_kwargs"] == {"enable_thinking": False} for r in requests)
     assert not any(key in requests[0] for key in ("temperature", "top_p", "top_k"))
 
     # The judge saw each question and its answer, with thinking off, no prompt cache, at temperature 0.

@@ -31,10 +31,12 @@ STEP_NAMES = [
     "kernelbench",
     "swebench",
     "browsecomp_plus",
+    # Scored before speed, so a run has its scores as early as possible (owner, 2026-10-29). A failed
+    # judge or service fails its own step, and the run goes on.
+    "browsecomp_plus_results",
+    "kernelbench_results",
     "serve_speed",
     "speed",
-    "kernelbench_results",
-    "browsecomp_plus_results",
     "telemetry",
     "teardown",
     "cleanup",
@@ -117,6 +119,7 @@ def new_manifest(
     gguf: str | None = None,
     selected_by: str | None = None,
     selection_reason: str | None = None,
+    thinking: str = "off",
 ) -> dict[str, Any]:
     from sma.backends import get_backend
     from sma.engines import configured_digest, image_for
@@ -135,6 +138,8 @@ def new_manifest(
         "revision_sha": None,
         "quant_flag": quant_flag,
         "quant_label": gguf,
+        # The run's thinking mode (--thinking): off, greedy; on, the model's own sampling (config.for_thinking).
+        "thinking": thinking,
         "quant_detected": None,
         "quant_detail": None,
         "quant_producer": None,
@@ -159,6 +164,7 @@ def new_manifest(
             "revision_sha": None,
             "quant": quant_flag,
             "engine": engine,
+            "thinking": thinking,
             "hardware_alias": cfg.host_alias,
         },
         "engine": {
@@ -234,11 +240,21 @@ def _deterministic_quality(cfg: Config, engine: str) -> dict[str, Any]:
 
 
 def run_dir_for(
-    cfg: Config, repo: str, quant_flag: str, run_id: str, engine: str = "vllm", *, gguf: str | None = None
+    cfg: Config,
+    repo: str,
+    quant_flag: str,
+    run_id: str,
+    engine: str = "vllm",
+    *,
+    gguf: str | None = None,
+    thinking: str = "off",
 ) -> Path:
     # Engine is part of the subject. Old runs live at runs/<slug>/<quant>/<id>.
     # Each GGUF file of a repo is its own quant: runs/<slug>/llamacpp/gguf-<selector>/<id>.
+    # A thinking-on run is its own subject beside the quant's thinking-off runs: <quant>-thinking.
     quant_dir = f"gguf-{model_slug(gguf)}" if gguf else quant_flag
+    if thinking == "on":
+        quant_dir += "-thinking"
     return cfg.runs_path() / model_slug(repo) / engine / quant_dir / run_id
 
 
@@ -360,6 +376,9 @@ def build_summary(run_dir: Path, manifest: dict[str, Any], cfg: Config) -> dict[
                 # Each measure the harness reported besides the headline (IFEval: strict and loose, by
                 # prompt and by instruction).
                 "measures": scores.get("measures"),
+                # Answers that stopped at the output limit, which is the end of the stream's context when
+                # quality.max_tokens is null. Null when not counted.
+                "answers_cut_off": scores.get("answers_cut_off"),
             }
     speed_block = {
         "prefill_tok_s": _dig(speed, "prefill_tok_s"),
@@ -391,6 +410,8 @@ def build_summary(run_dir: Path, manifest: dict[str, Any], cfg: Config) -> dict[
         "model_slug": manifest["model_slug"],
         "quant_flag": manifest["quant_flag"],
         "quant_label": manifest.get("quant_label"),
+        # Null: a run from before the setting, which scored quality with thinking off.
+        "thinking": manifest.get("thinking"),
         "quant_detected": manifest.get("quant_detected"),
         "revision_sha": manifest.get("revision_sha"),
         "host_alias": manifest["host_alias"],

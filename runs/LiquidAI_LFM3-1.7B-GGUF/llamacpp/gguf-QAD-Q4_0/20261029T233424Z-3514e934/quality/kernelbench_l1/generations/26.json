@@ -1,0 +1,16 @@
+{
+  "content": "<tool_call>\n<function=write>\n<parameter=path>\nModelNew.py\n</parameter>\n<parameter=content>\nimport torch\nimport torch.nn as nn\nfrom torch.utils.cpp_extension import load_inline\n\n\n# Define the custom CUDA kernel for element-wise GELU approximation using tanh and polynomial.\n# For FP32, we implement a fast GELU using the approximation: F_GELU(x) = x * Phi(x), where Phi is the CDF of standard normal.\n# A common efficient implementation uses:\n#   phi(x) \u2248 0.5 * (1 + tanh(sqrt(2/\u03c0) * (x + 0.044715 * x^3)))\n# Then GELU(x) = x * phi(x).\n#\n# We implement a kernel that computes elementwise GELU for float32 tensors.\n\nelementwise_gelu_source = \"\"\"\n#include <torch/extension.h>\n#include <cuda_runtime.h>\n\n__global__ void gelu_kernel(const float* x, float* out, int size) {\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    if (idx < size) {\n        // Compute phi(x) using the approximation\n        float x_val = x[idx];\n        float sqrt_2_over_pi = std::sqrt(2.0 / M_PI);\n        float coeff = 0.044715f * x_val * x_val * x_val;\n        float arg = sqrt_2_over_pi * (x_val + coeff);\n        float phi = 0.5f * (1.0f + tanhf(arg));\n        out[idx] = x_val * phi;\n    }\n}\n\ntorch::Tensor gelu_cuda(torch::Tensor x) {\n    auto size = x.numel();\n    auto out = torch::zeros_like(x);\n\n    const int block_size = 256;\n    const int num_blocks = (size + block_size - 1) / block_size;\n\n    gelu_kernel<<<num_blocks, block_size>>>(x.data_ptr<float>(), out.data_ptr<float>(), size);\n    return out;\n}\n\"\"\"\n\nelementwise_gelu_cpp_source = (\n    \"torch::Tensor gelu_cuda(torch::Tensor x);\"\n)\n\n\n# Compile the inline CUDA code for GELU\ngelu_cpp_source = elementwise_gelu_cpp_source\ngelu_cuda_source = elementwise_gelu_source\n\nelementwise_gelu = load_inline(\n    name=\"gelu\",\n    cpp_sources=gelu_cpp_source,\n    cuda_sources=gelu_cuda_source,\n    functions=[\"gelu_cuda\"],\n    verbose=True,\n    extra_cflags=[],\n    extra_ldflags=[],\n)\n\n\nclass ModelNew(nn.Module):\n    def __init__(self) -> None:\n        super().__init__()\n        self.gelu = elementwise_gelu\n\n    def forward(self, x: torch.Tensor) -> torch.Tensor:\n        return self.gelu.gelu_cuda(x)\n\n</parameter>\n</function>\n</tool_call>",
+  "finish_reason": "stop",
+  "kernel": null,
+  "name": "26_GELU_",
+  "problem_id": 26,
+  "reasoning": null,
+  "usage": {
+    "completion_tokens": 653,
+    "prompt_tokens": 982,
+    "prompt_tokens_details": {
+      "cached_tokens": 462
+    },
+    "total_tokens": 1635
+  }
+}

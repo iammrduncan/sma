@@ -51,6 +51,10 @@
     "revision_sha": { "type": ["string", "null"] },
     "quant_flag": { "enum": ["bf16", "nvfp4", "mxfp4", "mixed", "gguf"] },
     "quant_label": { "type": ["string", "null"] },
+    "thinking": {
+      "description": "The run's thinking mode (--thinking). off: thinking off, greedy. on: thinking on, the model's own sampling. Older records lack it; they scored quality with thinking off.",
+      "enum": ["off", "on"]
+    },
     "quant_detected": { "type": ["string", "null"] },
     "quant_detail": { "type": ["string", "null"] },
     "quant_producer": { "type": ["string", "null"] },
@@ -71,6 +75,21 @@
     "timestamps": { "$ref": "#/$defs/timestamps" },
     "steps": { "$ref": "#/$defs/steps" },
     "warnings": { "type": "array", "items": { "type": "string" } },
+    "rescored": {
+      "description": "Each `sma rescore`: when, by which SMA commit, and which quality suites it scored again from their saved output.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["at", "sma_commit", "sma_dirty", "suites"],
+        "properties": {
+          "at": { "type": "string" },
+          "sma_commit": { "type": ["string", "null"] },
+          "sma_dirty": { "type": "boolean" },
+          "suites": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
     "reference_run_id": { "type": ["string", "null"] },
     "pair_job_id": { "type": ["string", "null"] },
     "dispatch_concurrency": { "type": "integer", "minimum": 1 },
@@ -115,6 +134,7 @@
         "revision_sha": { "type": ["string", "null"] },
         "quant": { "type": "string" },
         "engine": { "enum": ["vllm", "sglang", "llamacpp"] },
+        "thinking": { "enum": ["off", "on"] },
         "hardware_alias": { "type": "string" }
       }
     },

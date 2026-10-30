@@ -1,0 +1,16 @@
+{
+  "content": "<tool_call>\n<function=write>\n<parameter=path>\nModelNew.py\n</parameter>\n<parameter=content>\nimport torch\nimport torch.nn as nn\nfrom torch.utils.cpp_extension import load_inline\n\n\n# Define custom CUDA kernel for element-wise division (x / rms)\ndef _elementwise_div_kernel(const float* a, const float* b, float* out, int size):\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    if (idx < size) {\n        out[idx] = a[idx] / b[idx];\n    }\n\n\ntorch::Tensor elementwise_div_cuda(torch::Tensor a, torch::Tensor b) {\n    auto size = a.numel();\n    auto out = torch::zeros_like(a);\n\n    const int block_size = 256;\n    const int num_blocks = (size + block_size - 1) / block_size;\n\n    elementwise_div_kernel<<<num_blocks, block_size>>>(a.data_ptr<float>(), b.data_ptr<float>(), out.data_ptr<float>(), size);\n\n    return out;\n}\n\n\nelementwise_div_cpp_source = (\n    \"torch::Tensor elementwise_div_cuda(torch::Tensor a, torch::Tensor b);\"\n)\n\nelementwise_div = load_inline(\n    name=\"elementwise_div\",\n    cpp_sources=elementwise_div_cpp_source,\n    cuda_sources=_elementwise_div_kernel + '''',\n    functions=[\"elementwise_div_cuda\"],\n    verbose=True,\n    extra_cflags=[],\n    extra_ldflags=[],\n)\n\n\n# RMSNorm layer\nclass RMSNorm(nn.Module):\n    def __init__(self, num_features: int, eps: float = 1e-5):\n        super().__init__()\n        self.num_features = num_features\n        self.eps = eps\n\n    def forward(self, x: torch.Tensor) -> torch.Tensor:\n        # Calculate the RMS along the feature dimension (dim=1)\n        rms = torch.sqrt(torch.mean(x ** 2, dim=1, keepdim=True) + self.eps)\n\n        return x / rms\n\n\nclass ModelNew(nn.Module):\n    def __init__(self, num_features: int, eps: float = 1e-5):\n        super().__init__()\n        self.rmsnorm = RMSNorm(num_features, eps)\n\n    def forward(self, x: torch.Tensor) -> torch.Tensor:\n        return self.rmsnorm(x)\n\n\n# Compile the inline CUDA code for element-wise division\nelementwise_div_cpp_source = (\n    \"torch::Tensor elementwise_div_cuda(torch::Tensor a, torch::Tensor b);\"\n)\nelementwise_div = load_inline(\n    name=\"elementwise_div\",\n    cpp_sources=elementwise_div_cpp_source,\n    cuda_sources=_elementwise_div_kernel + '''',\n    functions=[\"elementwise_div_cuda\"],\n    verbose=True,\n    extra_cflags=[],\n    extra_ldflags=[],\n)\n\n</parameter>\n</function>\n</tool_call>",
+  "finish_reason": "stop",
+  "kernel": null,
+  "name": "36_RMSNorm_",
+  "problem_id": 36,
+  "reasoning": null,
+  "usage": {
+    "completion_tokens": 656,
+    "prompt_tokens": 1135,
+    "prompt_tokens_details": {
+      "cached_tokens": 11
+    },
+    "total_tokens": 1791
+  }
+}

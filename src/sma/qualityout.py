@@ -126,9 +126,29 @@ def normalize_suite(
             rows.append(json.dumps(row, sort_keys=True))
     payload["scorer_shares"] = None if incomplete else boolean_shares(details)
     payload["measures"] = None if incomplete else lm_eval_measures(details)
+    payload["answers_cut_off"] = answers_cut_off(bundle_path.parent / "model_traffic.jsonl")
     atomic_write_json(suite_dir / "scores.json", payload)
     atomic_write_text(suite_dir / "samples.jsonl", "".join(row + "\n" for row in rows))
     return payload
+
+
+def answers_cut_off(traffic: Path) -> int | None:
+    """How many questions' answers stopped at the output limit (finish_reason "length"), from nel's
+    model_traffic.jsonl. The last answered request per question counts, so a retry replaces its attempt.
+    None when nel wrote no traffic log. With no quality.max_tokens the limit is the end of the stream's
+    context; with 4,096, LFM3-1.7B ran out on 213 of 700 MMLU-Pro questions with thinking off.
+    """
+    if not traffic.is_file():
+        return None
+    last: dict[tuple[Any, Any], Any] = {}
+    for line in traffic.read_text(encoding="utf-8").splitlines():
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(row, dict) and row.get("status_code") == 200 and "finish_reason" in row:
+            last[(row.get("problem_idx"), row.get("repeat"))] = row["finish_reason"]
+    return sum(1 for reason in last.values() if reason == "length")
 
 
 def boolean_shares(details: list[dict[str, Any]]) -> dict[str, float]:
@@ -212,16 +232,48 @@ def _bfcl_items(attempt_dir: Path) -> list[dict[str, Any]]:
     return rows
 
 
+def _livecodebench_items(attempt_dir: Path) -> list[dict[str, Any]]:
+    """One row per LiveCodeBench problem from its *_eval_all.json: the answer, the code taken from it, and
+    whether that code passed every hidden test. SMA asks for one answer per problem, so correct is that one."""
+    found = sorted(attempt_dir.rglob("*_eval_all.json"))
+    if not found:
+        return []
+    rows: list[dict[str, Any]] = []
+    for item in json.loads(found[-1].read_text(encoding="utf-8")):
+        graded = [bool(value) for value in item.get("graded_list") or []]
+        rows.append(
+            {
+                "id": str(item.get("question_id")),
+                "category": str(item.get("difficulty")),
+                "platform": item.get("platform"),
+                "contest_date": item.get("contest_date"),
+                "correct": len(graded) == 1 and graded[0],
+                "graded_list": graded,
+                "answer": (item.get("output_list") or [None])[0],
+                "code": (item.get("code_list") or [None])[0],
+            }
+        )
+    if any(len(row["graded_list"]) != 1 for row in rows):
+        raise SmaError("LiveCodeBench graded more or fewer than one answer per problem; SMA asks for one (n_samples 1)")
+    return rows
+
+
 def normalize_eval_factory(suite_dir: Path, attempt_dir: Path, suite_name: str, *, image: str, task: str) -> dict[str, Any]:
     """Read an eval-factory container's output into scores.json and samples.jsonl.
 
-    The score is accuracy over every question SMA can pair across runs, with a Wilson interval.
-    The harness's own scores (BFCL's category groups, in percent) are kept as harness_metrics.
+    The score is accuracy over every question SMA can pair across runs, with a Wilson interval: BFCL's
+    questions, or LiveCodeBench's problems (pass@1 with one answer each). The harness's own scores (BFCL's
+    category groups in percent, LiveCodeBench's pass@1) are kept as harness_metrics.
     """
     results_yml = attempt_dir / "results.yml"
     if not results_yml.is_file():
         raise SmaError(f"The {task} container did not write results.yml for {suite_name} under {attempt_dir}")
-    rows = _bfcl_items(attempt_dir) if task.startswith("bfcl") else []
+    if task.startswith("bfcl"):
+        rows = _bfcl_items(attempt_dir)
+    elif task.startswith(("codegeneration", "livecodebench")):
+        rows = _livecodebench_items(attempt_dir)
+    else:
+        rows = []
     correct = sum(1 for row in rows if row["correct"])
     lower, upper = wilson_interval(correct, len(rows))
     categories: dict[str, dict[str, int]] = {}
@@ -234,7 +286,7 @@ def normalize_eval_factory(suite_dir: Path, attempt_dir: Path, suite_name: str, 
         "suite": suite_name,
         "image": image,
         "task": task,
-        "primary_metric": "accuracy" if rows else None,
+        "primary_metric": ("pass@1" if task.startswith(("codegeneration", "livecodebench")) else "accuracy") if rows else None,
         "primary_score": correct / len(rows) if rows else None,
         "ci_lower": lower,
         "ci_upper": upper,

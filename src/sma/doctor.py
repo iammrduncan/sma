@@ -132,7 +132,9 @@ def default_checks(cfg: Config) -> list[Check]:
             f"{cfg.hf.token_env} is set" if hf_token(cfg) else f"{cfg.hf.token_env} is not set",
         )
     )
-    if shutil.which(cfg.quality.executable):
+    from sma.commands import find_executable
+
+    if find_executable(cfg.quality.executable):
         checks.append(Check("quality_evaluator", "ok", cfg.quality.executable))
     else:
         checks.append(

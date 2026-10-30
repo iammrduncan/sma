@@ -102,3 +102,20 @@ def test_every_nel_suite_gets_the_configured_request_timeout(tmp_path: Path) -> 
     assert nel_calls and set(nel_calls) == {777.0}
     command = next(Path(cfg.runs_dir).glob(f"*/*/*/{run_id}/quality/ifeval/command.json"))
     assert json.loads(command.read_text())["client_timeout_s"] == 777
+
+
+def test_nel_is_found_beside_smas_python_when_it_is_not_on_path(tmp_path, monkeypatch) -> None:
+    # 2026-10-30: `.venv/bin/sma worker` started without .venv/bin on PATH, and every nel suite failed.
+    import sys
+
+    from sma.commands import find_executable
+
+    venv_bin = tmp_path / "venv" / "bin"
+    venv_bin.mkdir(parents=True)
+    nel = venv_bin / "nel"
+    nel.write_text("#!/bin/sh\n")
+    nel.chmod(0o755)
+    monkeypatch.setattr(sys, "executable", str(venv_bin / "python"))
+    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    assert find_executable("nel") == str(nel)
+    assert find_executable("not-installed") is None

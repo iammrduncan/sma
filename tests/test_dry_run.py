@@ -37,7 +37,7 @@ def test_dry_run_prints_the_plan_without_a_gpu() -> None:
     assert "nel eval run nel.yaml -o attempt-1" in stdout
     assert "musique: sma:musique, 100 questions (seeded shuffle)" in stdout
     assert "6c browsecomp_plus: BrowseComp-Plus 04694903, 100 of 830 questions" in stdout
-    assert "search_server.py --index indexes/bm25" in stdout and "8b browsecomp_plus_results" in stdout
+    assert "search_server.py --index indexes/bm25" in stdout and "6d browsecomp_plus_results" in stdout
     assert "host_alias: gpu-host-1" in stdout
     assert "quantize: no" in stdout
     assert "kv cache: fp8 (always 8-bit)" in stdout

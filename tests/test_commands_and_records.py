@@ -217,7 +217,12 @@ def test_repo_config_loads() -> None:
     assert (cfg.browsecomp.limit, cfg.browsecomp.judge_model, cfg.browsecomp.judge_concurrency) == (100, "ornith-1.5-122b", 1)
     assert cfg.browsecomp.judge_extra_body == {"chat_template_kwargs": {"enable_thinking": False}, "cache_prompt": False}
     assert cfg.browsecomp == default_config().browsecomp
-    assert [suite.name for suite in cfg.quality.suites] == ["ifeval", "gsm8k", "mmlu_pro", "gpqa_diamond", "musique", "bfcl_v3"]
+    assert [suite.name for suite in cfg.quality.suites] == ["ifeval", "gsm8k", "mmlu_pro", "gpqa_diamond", "musique", "bfcl_v3", "livecodebench"]
+    # Owner decision 2026-10-29: LiveCodeBench in place of SWE-bench, in LiveCodeBench's leaderboard window.
+    livecodebench = cfg.quality.suites[-1]
+    assert (livecodebench.task, livecodebench.sampling, livecodebench.questions) == ("codegeneration_release_v6", True, 454)
+    assert livecodebench.params == {"extra": {"n_samples": 1, "start_date": "2024-08-01", "end_date": "2025-05-01"}}
+    assert cfg.swebench.enabled is False
     assert next(suite for suite in cfg.quality.suites if suite.name == "musique").metric == "answer_f1"
     assert [suite.name for suite in cfg.quality.suites] == [suite.name for suite in default_config().quality.suites]
 
@@ -244,11 +249,11 @@ def test_every_default_quality_suite_names_a_benchmark_the_installed_nel_has() -
     assert missing == []
 
 
-def test_the_nel_config_targets_the_chat_endpoint_with_thinking_off_and_fixed_questions() -> None:
+def test_the_nel_config_targets_the_chat_endpoint_in_the_runs_thinking_mode_with_no_answer_limit() -> None:
     from sma.commands import nel_argv, nel_config
-    from sma.config import QualitySuite
+    from sma.config import QualitySuite, for_thinking
 
-    cfg = default_config()
+    cfg = for_thinking(default_config(), "off")
     config = nel_config(
         cfg, served_name="org/model", base_url="http://127.0.0.1:8000/", suite=QualitySuite("gsm8k", 50, bench="sma:gsm8k")
     )
@@ -256,17 +261,27 @@ def test_the_nel_config_targets_the_chat_endpoint_with_thinking_off_and_fixed_qu
     service = config["services"]["sma"]
     assert service["url"] == "http://127.0.0.1:8000/v1/chat/completions"
     assert (service["model"], service["protocol"]) == ("org/model", "chat_completions")
-    assert service["generation"] == {"temperature": 0.0, "seed": 0, "max_tokens": 4096}
+    # Thinking off: greedy. No max_tokens: an answer may use the rest of its stream's context (owner decision
+    # 2026-10-29; 4,096 cut off 30% of LFM3-1.7B's MMLU-Pro answers).
+    assert service["generation"] == {"temperature": 0.0, "seed": 0}
     assert service["proxy"]["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
     assert service["proxy"]["interceptors"] == [{"name": "reasoning"}]
-    assert (service["proxy"]["max_retries"], service["proxy"]["request_timeout"]) == (2, 900.0)
+    assert (service["proxy"]["max_retries"], service["proxy"]["request_timeout"]) == (2, 14400.0)
     [bench] = config["benchmarks"]
     # The packaged grader is copied next to nel.yaml, so the config holds no absolute path.
     assert bench["name"] == "gsm8k.py"
     assert (bench["max_problems"], bench["max_concurrent"], bench["shuffle_seed"]) == (50, 8, 0)
     assert nel_argv(cfg, output_name="attempt-2") == ["nel", "eval", "run", "nel.yaml", "-o", "attempt-2"]
 
-    cfg.quality.chat_template_kwargs = {}
+    # Thinking on: no temperature, so the engine applies the model's own sampling.
+    on = nel_config(for_thinking(default_config(), "on"), served_name="m", base_url="http://x", suite=QualitySuite("gsm8k", 50))
+    assert on["services"]["sma"]["generation"] == {"seed": 0}
+    assert on["services"]["sma"]["proxy"]["extra_body"] == {"chat_template_kwargs": {"enable_thinking": True}}
+    capped = default_config()
+    capped.quality.max_tokens = 4096
+    assert nel_config(capped, served_name="m", base_url="http://x", suite=QualitySuite("gsm8k", 50))["services"]["sma"]["generation"]["max_tokens"] == 4096
+
+    cfg = default_config()
     plain = nel_config(cfg, served_name="m", base_url="http://127.0.0.1:8000", suite=QualitySuite("mmlu_pro", None))
     assert "extra_body" not in plain["services"]["sma"]["proxy"]
     assert (plain["benchmarks"][0]["name"], plain["benchmarks"][0]["max_problems"]) == ("mmlu_pro", None)
@@ -303,3 +318,12 @@ def test_scrub_keeps_a_per_token_count_and_still_redacts_token_fields() -> None:
 
     cleaned = scrub_obj({"kv_bytes_per_token": 57344, "auth_token": "x", "token": "y", "hf_token": "z"})
     assert cleaned == {"kv_bytes_per_token": 57344, "auth_token": "<redacted>", "token": "<redacted>", "hf_token": "<redacted>"}
+
+
+def test_the_thinking_mode_is_set_by_the_run_not_the_config() -> None:
+    from sma.config import config_from_mapping, for_thinking, validate_config
+
+    with pytest.raises(SmaError, match="--thinking on"):
+        validate_config(config_from_mapping({"quality": {"chat_template_kwargs": {"enable_thinking": False}}}))
+    with pytest.raises(SmaError, match="Thinking mode must be one of off, on"):
+        for_thinking(default_config(), "maybe")

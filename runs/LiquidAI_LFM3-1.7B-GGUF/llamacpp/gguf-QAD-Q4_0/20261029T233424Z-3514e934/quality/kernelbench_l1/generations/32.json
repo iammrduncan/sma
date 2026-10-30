@@ -1,0 +1,16 @@
+{
+  "content": "<tool_call>\n<function=write>\n<parameter=path>\nModelNew.py\n</parameter>\n<parameter=content>\nimport torch\nimport torch.nn as nn\nimport torch.nn.functional as F\nfrom torch.utils.cpp_extension import load_inline\n\n# Define the custom CUDA kernel for element-wise HardTanh (or we can implement directly)\n# For simplicity, we will create a custom inline function that uses a simple loop or a kernel.\n# However, implementing HardTanh in a custom CUDA operator is more complex. We'll do an online softmax-like approach?\n# But the requirement: \"You may make the decision to replace some operators with custom CUDA operators and leave others unchanged.\"\n# The Model's forward uses F.hardtanh(x, min_val=-1., max_val=1.). So we need a custom operator for element-wise HardTanh.\n\n# Let's define the custom CUDA kernel for HardTanh (sigmoid-like but with clipping to [-1, 1]).\n# HardTanh: tanh(x) clipped to [-1, 1]? Actually hardtanh is defined as:\n#   if x >= 0: return 1 - exp(-2*x)\n#   else: return -1 + exp(2*x)\n# But PyTorch's F.hardtanh implements that. We'll implement a custom kernel.\n\nhardtanh_kernel_source = \"\"\"\n#include <torch/extension.h>\n#include <cuda_runtime.h>\n\n__global__ void hardtanh_kernel(const float* x, float* out, int size) {\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    if (idx < size) {\n        float val = x[idx];\n        if (val >= 0.0f) {\n            out[idx] = 1.0f - exp(-2.0f * val);\n        } else {\n            out[idx] = -1.0f + exp(2.0f * val);\n        }\n    }\n}\n\ntorch::Tensor hardtanh_cuda(torch::Tensor x) {\n    auto size = x.numel();\n    auto out = torch::zeros_like(x);\n\n    const int block_size = 256;\n    const int num_blocks = (size + block_size - 1) / block_size;\n\n    hardtanh_kernel<<<num_blocks, block_size>>>(x.data_ptr<float>(), out.data_ptr<float>(), size);\n\n    return out;\n}\n\"\"\"\n\nhardtanh_cpp_source = \"torch::Tensor hardtanh_cuda(torch::Tensor x);\"\n\n# Compile the inline CUDA code for HardTanh\nhardtanh = load_inline(\n    name=\"hardtanh\",\n    cpp_sources=hardtanh_cpp_source,\n    cuda_sources=hardtanh_kernel_source,\n    functions=[\"hardtanh_cuda\"],\n    verbose=True,\n    extra_cflags=[],\n    extra_ldflags=[]\n)\n\nclass ModelNew(nn.Module):\n    def __init__(self) -> None:\n        super().__init__()\n        self.hardtanh = hardtanh\n\n    def forward(self, x: torch.Tensor) -> torch.Tensor:\n        return self.hardtanh.hardtanh_cuda(x)\n\n</parameter>\n</function>\n</tool_call>",
+  "finish_reason": "stop",
+  "kernel": null,
+  "name": "32_HardTanh",
+  "problem_id": 32,
+  "reasoning": null,
+  "usage": {
+    "completion_tokens": 695,
+    "prompt_tokens": 998,
+    "prompt_tokens_details": {
+      "cached_tokens": 463
+    },
+    "total_tokens": 1693
+  }
+}

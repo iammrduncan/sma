@@ -1,0 +1,61 @@
+{
+  "architecture": "lfm3_vl",
+  "architectures": [
+    "Lfm3VlForConditionalGeneration"
+  ],
+  "batch_invariant_reason": null,
+  "batch_invariant_supported": true,
+  "dtype": "bfloat16",
+  "experts_per_tok": null,
+  "file_hashes": {
+    "config.json": "sha256:18a02e8b5963e38c98683e2c948705ea45220d75f017e9b4bdd9cf54692e6dc3",
+    "model.safetensors": "sha256:a9bb8b1c159c9d6c3007bc1c7ad8018b599f759d97da2701714e37426283e131"
+  },
+  "file_sizes": {
+    ".gitattributes": 1570,
+    "LICENSE": 10574,
+    "README.md": 143054,
+    "chat_template.jinja": 12129,
+    "config.json": 2905,
+    "configuration_lfm3.py": 6105,
+    "configuration_lfm3_vl.py": 9138,
+    "generation_config.json": 355,
+    "image_processing_lfm3_vl.py": 12036,
+    "lfm3_conv.py": 8532,
+    "model.safetensors": 3836417920,
+    "modeling_lfm3.py": 42343,
+    "modeling_lfm3_vl.py": 44999,
+    "processing_lfm3_vl.py": 12152,
+    "processor_config.json": 1535,
+    "tokenizer.json": 17908258,
+    "tokenizer_config.json": 1759,
+    "video_processing_lfm3_vl.py": 17161
+  },
+  "gguf": null,
+  "is_moe": false,
+  "num_experts": null,
+  "params_active": 1918181888,
+  "params_active_b": 1.9,
+  "params_method": "dense: active = total, embeddings included, from safetensors shapes",
+  "params_total": 1918181888,
+  "params_total_b": 1.9,
+  "quant_detail": "no quantization_config; dtype bfloat16",
+  "quant_detected": "bf16",
+  "quant_flag": "bf16",
+  "quant_label": "bf16",
+  "quant_producer": null,
+  "repo": "LiquidAI/LFM3-VL-2B",
+  "revision_requested": null,
+  "revision_sha": "ba44bd51db20a2753f28c273a1571ccaa210d954",
+  "size_class": "1-3B",
+  "snapshot_path": "/data/models/sma/hf/LiquidAI_LFM3-VL-2B/ba44bd51db20a2753f28c273a1571ccaa210d954",
+  "sources": {
+    "dtype": "bfloat16",
+    "hf_quant_config": null,
+    "quant_method": null,
+    "quantization_config": null
+  },
+  "tokenizer_fingerprint": "sha256:a39eed58008cbcbc09e5b629b81338a654269c64cd13348aaa6090f4db75c7e7",
+  "warnings": [],
+  "weights_bytes": 3836417920
+}

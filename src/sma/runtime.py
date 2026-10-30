@@ -100,6 +100,12 @@ class DockerRuntime:
         run_command(stop, timeout_s=self.cfg.engine.server_stop_timeout_s + 15, what="docker stop")
         run_command(remove, timeout_s=self.cfg.timeouts.command_s, what="docker rm")
 
+    def kill(self, name: str) -> None:
+        """SIGKILL the container now (docker kill). It stays, so its exit code and logs can still be read."""
+        argv = ["docker", "kill", name]
+        self.commands.append(argv)
+        run_command(argv, timeout_s=self.cfg.timeouts.command_s, what="docker kill")
+
     def logs(self, name: str) -> str:
         argv = docker_logs_argv(name)
         self.commands.append(argv)
