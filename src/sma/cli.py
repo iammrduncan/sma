@@ -75,6 +75,10 @@ def _parser() -> argparse.ArgumentParser:
 
     resume = sub.add_parser("resume", help="Continue a run that stopped")
     resume.add_argument("run_id")
+    resume.add_argument(
+        "--redo", action="append", default=[], metavar="SUITE",
+        help="Run this finished quality suite again (repeatable). Its earlier attempts stay in its folder.",
+    )  # fmt: skip
     _add_common(resume)
     resume.set_defaults(func=_cmd_resume)
 
@@ -490,6 +494,7 @@ def _cmd_resume(args: argparse.Namespace) -> int:
             engine=(manifest.get("engine") or {}).get("name") or "vllm",
             gguf=(manifest.get("gguf") or {}).get("selector"),
             thinking=manifest.get("thinking") or "off",
+            redo=tuple(args.redo),
         ),
         cfg,
         production_services(cfg),

@@ -40,6 +40,9 @@ class Window:
     seconds: float = 0.0
     # The highest rate over any one pair of samples in the window (telemetry.engine_metrics_interval_s).
     peaks: dict[str, float] = field(default_factory=dict)
+    # Each rate's numerator and denominator (backend serving_parts), summed over the pairs that have both,
+    # so a pair without a counter (a server that did not report it yet) does not dilute the average.
+    parts: dict[str, tuple[float, float]] = field(default_factory=dict)
 
     def rates(self) -> dict[str, float | None]:
         mean = {name: self.totals[name] / self.counts[name] for name in self.totals if self.counts.get(name)}
@@ -50,7 +53,7 @@ def combined_rates(windows: list[Window]) -> dict[str, float | None]:
     """One set of rates over every engine's window: tokens and seconds summed across engines first."""
     from sma.backends import rates_from_parts
 
-    return rates_from_parts([get_backend(one.engine).serving_parts(one.change, one.seconds) for one in windows])
+    return rates_from_parts([one.parts for one in windows])
 
 
 def recent_series(runs_dir: Path, *, now: float, span_s: float) -> list[Series]:
@@ -87,6 +90,11 @@ def window(series: list[Series], *, start: float, max_gap_s: float) -> list[Wind
                     totals.change[name] = totals.change.get(name, 0.0) + step[name]
                 totals.totals[name] = totals.totals.get(name, 0.0) + value
                 totals.counts[name] = totals.counts.get(name, 0) + 1
+            for key, (top, bottom) in get_backend(one.engine).serving_parts(step, after_t - before_t).items():
+                summed = totals.parts.get(key, (0.0, 0.0))  # Nothing summed reads as not measured.
+                if top is not None and bottom is not None:
+                    summed = (summed[0] + top, summed[1] + bottom)
+                totals.parts[key] = summed
             for key, rate in _rates(one.engine, step, after_t - before_t).items():
                 if rate is not None:
                     totals.peaks[key] = max(rate, totals.peaks.get(key, rate))

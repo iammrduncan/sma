@@ -90,6 +90,69 @@ def test_watch_shows_the_current_runs_steps_scores_and_answered_counts(tmp_path:
     assert "memory 90.0 of 121.0 GiB free" in screen
 
 
+def test_watch_counts_answers_not_nels_config_line_and_shows_a_cut_short_attempt_as_stopped(tmp_path: Path) -> None:
+    # A resumed LFM3-1.7B run (2026-10-30): IFEval read 541/541 with 540 answered, because NeMo Evaluator's
+    # inference log starts with a config line. BFCL's attempt from before the resume read "running" for hours.
+    cfg = make_config(tmp_path)
+    run_dir = _run(cfg, "20261029T020534Z-aaaa", "LiquidAI/LFM3-1.7B-GGUF", "BF16", steps={"quality": "running"})
+    log = '{"config_hash": "sha256:00", "_type": "meta"}\n{"problem_idx": 1}\n{"problem_idx": 2}\n'
+    for name, age_s in (("mmlu_pro", 7200), ("ifeval", 600)):
+        answers = run_dir / "quality" / name / "attempt-1" / name
+        answers.mkdir(parents=True)
+        (answers / "inference_log.jsonl").write_text(log)
+        (run_dir / "quality" / name / "command.json").write_text("{}")
+        os.utime(run_dir / "quality" / name / "command.json", (NOW.timestamp() - age_s,) * 2)
+
+    run = _screen(cfg, ["sma-20261029T020534Z-aaaa-quality"]).split("CURRENT RUN")[1].split("SERVING")[0]
+
+    assert "▶ ifeval           2/50 answered  10m00s" in run
+    assert "◼ mmlu_pro         stopped  2/700 answered\n" in run
+
+    # Once quality is not running, no suite is.
+    steps = json.loads((run_dir / "manifest.json").read_text())
+    steps["steps"]["quality"]["status"] = "failed"
+    (run_dir / "manifest.json").write_text(json.dumps(steps))
+    run = _screen(cfg, ["sma-20261029T020534Z-aaaa-quality"]).split("CURRENT RUN")[1].split("SERVING")[0]
+    assert "◼ ifeval           stopped  2/50 answered\n" in run
+
+
+def test_watch_counts_livecodebench_answers_from_its_proxys_running_totals(tmp_path: Path) -> None:
+    # LFM3-1.7B on SGLang (2026-10-30): LiveCodeBench saves its answers only when a batch of 10 is done,
+    # so watch said "running" for the first batch. Its eval-factory proxy counts each response as it comes.
+    import sqlite3
+
+    cfg = make_config(tmp_path)
+    run_dir = _run(cfg, "20261029T020534Z-aaaa", "LiquidAI/LFM3-1.7B-GGUF", "BF16", steps={"quality": "running"})
+    manifest = json.loads((run_dir / "manifest.json").read_text())
+    manifest["config_snapshot"]["quality"]["suites"] = [{
+        "name": "livecodebench", "image": "nvcr.io/nvidia/eval-factory/livecodebench:26.03", "questions": 454,
+        "task": "codegeneration_release_v6", "params": {"extra": {"n_samples": 1}},
+    }]  # fmt: skip
+    (run_dir / "manifest.json").write_text(json.dumps(manifest))
+    stats_dir = run_dir / "quality" / "livecodebench" / "attempt-1" / "response_stats_cache"
+    stats_dir.mkdir(parents=True)
+    state = {"aggregated_stats": {"count": 13, "successful_count": 12, "finish_reason": {"stop": 11, "length": 1}}}
+    writer = sqlite3.connect(stats_dir / "cache.db")  # The container's open connection.
+    writer.execute("PRAGMA journal_mode=wal")
+    writer.execute("CREATE TABLE Cache (rowid INTEGER PRIMARY KEY, key BLOB, value BLOB)")
+    writer.execute("INSERT INTO Cache (key, value) VALUES ('interceptor_state', ?)", (json.dumps(state),))
+    writer.commit()
+
+    run = _screen(cfg, ["sma-20261029T020534Z-aaaa-quality"]).split("CURRENT RUN")[1].split("SERVING")[0]
+    assert "▶ livecodebench    12/454 answered · 1 cut off  " in run
+    # Every problem answered: the runner writes its answers, then runs them against the hidden tests.
+    (stats_dir.parent / "LiquidAI_LFM3-1.7B_Scenario.codegeneration_release_v6_1_.json").write_text("[]")
+    run = _screen(cfg, ["sma-20261029T020534Z-aaaa-quality"]).split("CURRENT RUN")[1].split("SERVING")[0]
+    assert "▶ livecodebench    12/454 answered · 1 cut off · running the tests" in run
+
+    # Once the container closes it, the database is left alone: a reader would make its -wal and -shm again.
+    writer.close()
+    assert not (stats_dir / "cache.db-wal").exists()
+    run = _screen(cfg, ["sma-20261029T020534Z-aaaa-quality"]).split("CURRENT RUN")[1].split("SERVING")[0]
+    assert "▶ livecodebench    running" in run
+    assert sorted(path.name for path in stats_dir.iterdir()) == ["cache.db"]
+
+
 def test_watch_prefers_the_run_with_a_container_over_a_record_left_running_by_a_crash(tmp_path: Path) -> None:
     # A Spark that went down mid-step leaves its run "running" in the record with no container.
     cfg = make_config(tmp_path)

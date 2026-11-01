@@ -47,14 +47,23 @@ def request_json(
         except ValueError as exc:
             raise SmaError(f"{url} did not return JSON") from exc
 
-    return call_with_retry(
-        _once,
-        attempts=attempts,
-        backoff_s=backoff_s,
-        factor=2.0,
-        what=f"{method} {url}",
-        retry_on=(ApiError,),
-    )
+    try:
+        return call_with_retry(
+            _once,
+            attempts=attempts,
+            backoff_s=backoff_s,
+            factor=2.0,
+            what=f"{method} {url}",
+            retry_on=(ApiError,),
+        )
+    except SmaError as exc:
+        # Every attempt met a server that was down, timed out, or failed (5xx, 429): still an ApiError, so a
+        # caller can tell it from a request the server refused (4xx). BrowseComp-Plus and KernelBench fail
+        # their step on one and resume; before, the retries' plain SmaError made LFM3-1.7B's 100 BrowseComp-Plus
+        # questions, asked of a crashed server, count as wrong answers (2026-10-31).
+        if isinstance(exc.__cause__, ApiError):
+            raise ApiError(str(exc)) from exc.__cause__
+        raise
 
 
 def wait_until_healthy(

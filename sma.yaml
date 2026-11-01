@@ -77,10 +77,12 @@ memory:
   # A run's planned footprint (weights + KV pool + engine overhead) stays under this many GB.
   # The Spark has 130.7 GB; earlyoom stops vllm and python processes under 8% free.
   budget_gb: 100
-  # Context per stream starts here (256K), or at the model's native maximum if smaller, never
-  # RoPE-stretched, and halves until one stream fits. Each benchmark then gets the largest step
-  # that fits the streams it runs at once. The KV cache is always 8-bit: FP8, or Q8_0 on llama.cpp.
-  start_context: 262144
+  # Context per stream starts here (64K, owner decision 2026-10-31; 256K before), or at the model's native
+  # maximum if smaller, never RoPE-stretched, and halves until one stream fits. Each benchmark then gets the
+  # largest step that fits the streams it runs at once. The KV cache is always 8-bit: FP8, or Q8_0 on
+  # llama.cpp. Of LFM3-1.7B's correct answers at 256K, 2 of 5,798 went past 64K: a BFCL conversation at
+  # 68.6K and an MMLU-Pro loop that filled the context.
+  start_context: 65536
   # Run memory beyond weights and KV pool, in GB: the engine's activations, CUDA graphs, and server
   # processes, plus SMA's tools beside it (nel, the bench client). Measured on a Spark: vLLM peaked
   # 8.9 GB above weights + pool with Qwen3-0.6B and 11.4 GB with Qwen3-8B NVFP4 (docs/first-spark-run.md).
@@ -91,8 +93,8 @@ memory:
   # llama.cpp sizes its compute buffers by its whole KV cache, so its pool holds its slots at the context
   # per stream and no more, and the plan counts those buffers per token (src/sma/runplan.py). Its prompt
   # cache (engine.llamacpp_cache_ram_mib) is counted on top.
-  # The least context per stream quality may get, the ladder's floor for its streams. Answers have no
-  # length limit (quality.max_tokens null), so quality gets the largest step that fits.
+  # The least context per stream quality may get, the ladder's floor for its streams. Answers may use the
+  # rest of the context up to quality.max_tokens, so quality gets the largest step that fits.
   quality_min_context: 8192
   # If the Spark's available memory falls under this many GB, SMA kills this run's containers at once; the
   # running step fails and says why. GPU memory on a GB10 is charged to no process and earlyoom only sends
@@ -145,11 +147,11 @@ quality:
   # chat API. Requests in flight per suite. Recorded.
   concurrency: 8
   executable: nel
-  # Output tokens per answer. null sends no limit: an answer may use all the context its stream has left,
-  # which the memory plan sets (owner decision 2026-10-29). With 4,096, LFM3-1.7B ran out on 30% of its
-  # MMLU-Pro answers and 60% of its GPQA answers with thinking off. scores.json counts the answers that
-  # stop at the limit (answers_cut_off).
-  max_tokens: null
+  # Output tokens per answer, at most: 128K (owner decision 2026-10-31), or the rest of the stream's context
+  # if that is less. Normal answers stayed under 33K in the suites and 49K in LiveCodeBench (LFM3-1.7B,
+  # thinking off); answers that loop ran to the end of a 262K context, 2 hours or more each. null: the rest
+  # of the context. scores.json counts the answers that stop at the limit (answers_cut_off).
+  max_tokens: 131072
   # One request to the model server, for nel's proxy and its model client alike (nemo-evaluator 0.3.0 fixes the
   # client at 120 s; SMA raises it). Long enough for an answer that fills a 256K context at 20 tok/s per
   # stream. Failed requests are retried retries.attempts times in all.
@@ -194,17 +196,22 @@ quality:
       metric: answer_f1
     # BFCL v3 (Berkeley Function Calling Leaderboard): single-turn, live, and multi-turn tool calls
     # through the chat API with native tool calling. NVIDIA's container runs it directly, not through
-    # nel, so SMA keeps one row per question. All 4,441 questions run; the container cannot sample.
-    # Needs the server's tool-call parser: pass --tool-parser (hermes for Qwen3 on vLLM).
+    # nel, so SMA keeps one row per question. Needs the server's tool-call parser: pass --tool-parser
+    # (hermes for Qwen3 on vLLM).
     - name: bfcl_v3
       image: nvcr.io/nvidia/eval-factory/bfcl:26.03
       task: bfclv3_ast
       tools: true
-      # The dataset's size inside the container, for `sma watch`'s answered/total only.
+      # 2,000 of the 4,441 questions: an even share of every category, about 45% of each, multi-turn
+      # included (owner decision 2026-10-31; all 4,441 took about 6 hours a run, most of it multi-turn).
+      # SMA's patch picks them in the container (src/sma/patches/bfcl); the container's own limit would keep
+      # the first questions by category name and drop whole categories. null runs all of them.
+      limit: 2000
+      # The dataset's size inside the container.
       questions: 4441
     # LiveCodeBench (owner decision 2026-10-29: it replaces SWE-bench, which was too slow). One answer per
     # contest problem, scored by running the problem's hidden tests in NVIDIA's container; the headline is
-    # pass@1. The window is LiveCodeBench's leaderboard default for release v6, August 2024 to May 2025.
+    # pass@1. The window is release v6's newest problems, mid-February to May 2025 (below).
     # LiveCodeBench has no problems after April 2025, so models trained since may have seen these. The
     # container sends temperature, top_p, and an answer limit itself, so SMA sets them for the run's thinking
     # mode (sampling: true). It downloads the dataset (4.5 GB) into hf.cache_dir/eval-factory once.
@@ -215,10 +222,16 @@ quality:
       params:
         extra:
           n_samples: 1
-          start_date: "2024-08-01"
+          start_date: "2025-02-15"
           end_date: "2025-05-01"
-      # 454 problems in the window (110 easy, 141 medium, 203 hard), counted with the container's own loader.
-      questions: 454
+          # One batch. The runner waits for a batch's slowest answer before it starts the next, and its
+          # default of 10 left one stream busy for much of LFM3-1.7B's run (2026-10-30). The batch is also
+          # how often it saves answers, which a retry does not reuse: it starts in a new attempt folder.
+          cache_batch_size: 105
+      # 105 problems in the window (25 easy, 31 medium, 49 hard), counted from the container's dataset: LiveCodeBench's
+      # newest, to its last in April 2025 (owner decision 2026-10-30; the leaderboard window from August 2024 held
+      # 454 and took about 10 hours a run). LiveCodeBench has published no problems since.
+      questions: 105
 
 # KernelBench Level 1 (owner decision 2026-10-27). The model writes a kernel for each of the 100
 # problems with KernelBench's own one-shot CUDA prompt. A separate GB10 compiles, checks, and times them
@@ -229,9 +242,9 @@ kernelbench:
   enabled: true
   level: 1
   concurrency: 8
-  # Output tokens per answer, reasoning included. null: the server's context per stream minus 4,096 for
-  # the prompt, as for quality (owner decision 2026-10-29).
-  max_tokens: null
+  # Output tokens per answer, reasoning included, at most; never more than the server's context per stream
+  # minus 4,096 for the prompt. 128K, as for quality (owner decision 2026-10-31). null: that context.
+  max_tokens: 131072
   request_timeout_s: 14400
   # The service's evaluation options; empty uses its defaults, which match its stored baselines.
   options: {}
@@ -286,10 +299,11 @@ browsecomp:
   search_port: 8790
   local_port: 8790
   search_start_s: 600
-  # Ornith 1.5 122B on separate hardware (judge-info.md), with thinking off at temperature 0, as
-  # BrowseComp-Plus runs its own judge. Scores are compared only within one judge. llama.cpp is not
-  # batch-invariant, so the judge gets one request at a time and no prompt cache (judge-info.md section 6).
-  judge_model: ornith-1.5-122b
+  # Qwen 3.8 Flash (FP4) behind an OpenAI-compatible endpoint (owner decision 2026-11-01; Ornith 1.5 122B
+  # before, judge-info.md), with thinking off at temperature 0, as BrowseComp-Plus runs its own judge. Scores
+  # are compared only within one judge: runs judged by Ornith are not compared with runs judged by this one.
+  # One request at a time and no prompt cache, as for Ornith (judge-info.md section 6).
+  judge_model: qwen3.8-flash-fp4
   judge_max_tokens: 4096
   judge_temperature: 0.0
   judge_extra_body:

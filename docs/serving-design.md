@@ -45,10 +45,13 @@ The checkpoint format picks the engine before launch.
 
 ## Context per stream
 
-- Start at 256K, or at the model's native maximum if that is smaller. Native means without RoPE
+- Start at 64K (`memory.start_context`; owner decision 2026-10-31, 256K before), or at the model's
+  native maximum if that is smaller. Native means without RoPE
   stretching such as YaRN. SMA never turns stretching on. If a config ships with stretching on, the
   native maximum is its original length.
-- If that does not fit the memory budget, step down by halves: 256K, 128K, 64K, 32K, and so on.
+- If that does not fit the memory budget, step down by halves: 64K, 32K, 16K, and so on. Of
+  LFM3-1.7B's correct answers at 256K, 2 of 5,798 went past 64K: a BFCL conversation at 68.6K and an
+  MMLU-Pro answer that looped until the context filled.
 - Stop at the largest step that fits. If the smallest context a benchmark needs does not fit, refuse
   the run before launch and say why.
 - This is computed before launch and recorded as the model's context.
@@ -181,8 +184,8 @@ These were build details, not owner decisions.
 ## KernelBench and SWE-bench (decided 2026-10-27)
 
 SWE-bench is off since 2026-10-29 (owner decision: too slow; small models mostly hit its step limit).
-LiveCodeBench replaces it as a quality suite: one answer per contest problem from LiveCodeBench's
-leaderboard window (August 2024 to May 2025), scored by hidden tests in NVIDIA's eval-factory container.
+LiveCodeBench replaces it as a quality suite: one answer per contest problem among LiveCodeBench's
+newest 105 (15 February to 1 May 2025), scored by hidden tests in NVIDIA's eval-factory container.
 The SWE-bench notes below describe it when `swebench.enabled` is turned back on.
 
 - Both run in every `sma run`, after the quality suites, on the quality server. `kernelbench.enabled`
@@ -204,7 +207,8 @@ The SWE-bench notes below describe it when `swebench.enabled` is turned back on.
 - It uses the model's own sampling and the run's thinking mode, as KernelBench and SWE-bench do. Each question
   gets a stream with at least 32,768 tokens of context (`browsecomp.min_context`), the largest ladder
   step that fits 4 of them.
-- The judge is Ornith 1.5 122B, with thinking off at temperature 0, one request at a time
+- The judge is Qwen 3.8 Flash (FP4) behind an OpenAI-compatible endpoint since 2026-11-01 (Ornith 1.5 122B
+  before), with thinking off at temperature 0, one request at a time
   ([judge-info.md](../judge-info.md)).
 - MuSiQue-Ans is a quality suite (100 seeded questions, graded by rule), in the run's thinking mode.
 

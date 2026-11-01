@@ -75,6 +75,47 @@
     "timestamps": { "$ref": "#/$defs/timestamps" },
     "steps": { "$ref": "#/$defs/steps" },
     "warnings": { "type": "array", "items": { "type": "string" } },
+    "serving": {
+      "description": "Remote serving only (remote.enabled): where the server ran, by kind and chip, never by name. The GPUs it used, their model and memory, the driver, and the llama.cpp build's record.",
+      "type": "object",
+      "properties": {
+        "hardware": { "type": "string" },
+        "gpus": { "type": "string" },
+        "gpu_names": { "type": "array", "items": { "type": "string" } },
+        "gpu_memory": { "type": "array", "items": { "type": "string" } },
+        "driver": { "type": ["string", "null"] },
+        "build": { "type": "object" }
+      }
+    },
+    "config_history": {
+      "description": "Configs a resumed run stopped using: each one replaced by the config_snapshot of the process that resumed it, with the time it stopped applying.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["until", "config_snapshot"],
+        "properties": {
+          "until": { "type": "string" },
+          "config_snapshot": { "type": ["object", "null"] }
+        }
+      }
+    },
+    "redone": {
+      "description": "Each `sma resume --redo`: when, by which SMA commit, which finished quality suites ran again, and each one's score before.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["at", "sma_commit", "sma_dirty", "suites", "previous"],
+        "properties": {
+          "at": { "type": "string" },
+          "sma_commit": { "type": ["string", "null"] },
+          "sma_dirty": { "type": "boolean" },
+          "suites": { "type": "array", "items": { "type": "string" } },
+          "previous": { "type": "object" }
+        }
+      }
+    },
     "rescored": {
       "description": "Each `sma rescore`: when, by which SMA commit, and which quality suites it scored again from their saved output.",
       "type": "array",

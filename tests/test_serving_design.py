@@ -258,6 +258,7 @@ def test_the_dry_run_prints_the_engine_kv_type_context_and_memory_plan(monkeypat
 
     config = _json(Path(__file__).resolve().parent / "data" / "configs" / "qwen3-30b-a3b-instruct-2507.json")
     cfg = default_config()
+    cfg.memory.start_context = 262_144  # The 256K start of the time (64K since 2026-10-31).
 
     def plan_only(self, repo, revision, quant, gguf):
         if quant == "gguf":
@@ -485,6 +486,7 @@ def test_llama_cpp_pool_holds_its_slots_not_the_rest_of_the_budget() -> None:
     from sma.runplan import llamacpp_buffer_bytes_per_token, plan_run, slots
 
     cfg = default_config()
+    cfg.memory.start_context = 262_144  # The 256K start of the time (64K since 2026-10-31).
     assert llamacpp_buffer_bytes_per_token(_LFM3_1_7B) == 4096
     plan = plan_run(cfg, engine="llamacpp", layout=_LFM3_1_7B, weights_bytes=3_470_000_000)
     assert (plan.kv_bytes_per_token, plan.context) == (6528, 262_144)
@@ -507,7 +509,9 @@ def test_llama_cpp_pool_is_the_budget_when_its_slots_need_more() -> None:
     from sma.runplan import plan_run
 
     layout = kv_layout_from_hf_config(_json(Path(__file__).resolve().parent / "data" / "configs" / "qwen3-30b-a3b-instruct-2507.json"))
-    plan = plan_run(default_config(), engine="llamacpp", layout=layout, weights_bytes=17_000_000_000)
+    cfg = default_config()
+    cfg.memory.start_context = 262_144  # The 256K start of the time (64K since 2026-10-31).
+    plan = plan_run(cfg, engine="llamacpp", layout=layout, weights_bytes=17_000_000_000)
     assert plan.pool_streams is None
     assert plan.pool_bytes < 8 * plan.stream_bytes
     assert plan.buffer_bytes == plan.pool_tokens * plan.buffer_bytes_per_token > 0

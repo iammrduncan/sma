@@ -40,6 +40,7 @@ def test_bfcl_runs_its_container_on_the_host_network_and_keeps_one_row_per_quest
     assert argv[argv.index("--network") + 1] == "host"
     assert "NEMO_EVALUATOR_TELEMETRY_LEVEL=0" in argv
     assert f"nvcr.io/nvidia/eval-factory/bfcl:26.03@{runtime.digest}" in argv
+    assert json.loads((suite_dir / "command.json").read_text())["patch"] is None and "PYTHONPATH=/sma-patch" not in argv
     scores = json.loads((suite_dir / "scores.json").read_text())
     assert (scores["primary_metric"], scores["primary_score"], scores["n"]) == ("accuracy", 0.8, 5)
     assert scores["categories"] == {"multi_turn_base": {"correct": 2, "total": 2}, "simple": {"correct": 2, "total": 3}}
@@ -133,7 +134,7 @@ def test_the_command_record_has_no_hostname_from_the_mount_paths(tmp_path: Path,
     ("suite", "message"),
     [
         ({"name": "x", "image": "img"}, "image and task go together"),
-        ({"name": "x", "image": "img", "task": "bfclv3_ast", "limit": 5}, "takes no bench or limit"),
+        ({"name": "x", "image": "img", "task": "bfclv3_ast", "limit": 5}, "cannot run a share"),
     ],
 )
 def test_an_eval_factory_suite_is_checked_before_any_download(suite: dict, message: str) -> None:
@@ -200,8 +201,10 @@ def test_livecodebench_runs_one_answer_per_problem_in_the_runs_thinking_mode(tmp
     params = run_config["config"]["params"]
     run_dir = _run_dir(tmp_path)
     context = json.loads((run_dir / "manifest.json").read_text())["memory_plan"]["benchmarks"]["quality"]
-    # The answer may use the stream's context, less room for the prompt; one answer per problem, in the window.
-    assert params["max_new_tokens"] == context - 4096 and params["request_timeout"] == int(cfg.quality.request_timeout_s)
+    # The answer limit is quality.max_tokens (the harness's 16), and never more than the stream's context less
+    # 4,096 for the prompt; one answer per problem, in the window.
+    assert params["max_new_tokens"] == min(cfg.quality.max_tokens, context - 4096) == 16
+    assert params["request_timeout"] == int(cfg.quality.request_timeout_s)
     assert params["extra"] == {"n_samples": 1, "start_date": "2024-08-01", "end_date": "2025-05-01"}
     assert params["parallelism"] == cfg.quality.concurrency
     sampling = json.loads((run_dir / "quality" / "livecodebench" / "command.json").read_text())["sampling"]
@@ -218,6 +221,11 @@ def test_livecodebench_runs_one_answer_per_problem_in_the_runs_thinking_mode(tmp
     rows = [json.loads(line) for line in (run_dir / "quality" / "livecodebench" / "samples.jsonl").read_text().splitlines()]
     assert {row["id"]: row["correct"] for row in rows} == {"abc390_a": True, "abc390_f": False, "3781": True}
     assert rows[0]["code"] and rows[0]["answer"]
+    # Grading gets LiveCodeBench's own per-test limit, not the request timeout (src/sma/patches/livecodebench).
+    command = json.loads((run_dir / "quality" / "livecodebench" / "command.json").read_text())
+    assert command["patch"]["name"] == "livecodebench" and len(command["patch"]["files"]["sitecustomize.py"]) == 64
+    argv = command["argv"]
+    assert "PYTHONPATH=/sma-patch" in argv and any(arg.endswith("patches/livecodebench:/sma-patch:ro") for arg in argv)
 
 
 def test_container_settings_belong_to_eval_factory_suites() -> None:
@@ -243,3 +251,121 @@ def test_teardown_stops_a_suite_container_left_running(tmp_path: Path) -> None:
     ctx = _load(RunSpec(repo="example/tiny", quant_flag="bf16", resume_run_id=run_id), cfg, services)
     _teardown_containers(ctx)
     assert leftover not in runtime.list_sma()
+
+
+def test_the_livecodebench_patch_grades_with_the_evaluation_timeout_and_keeps_the_request_timeout(tmp_path: Path) -> None:
+    # livecodebench:26.03 grades each test with --timeout, the request timeout SMA sets to hours, and never
+    # reads --evaluation_timeout (6 s). LFM3-1.7B's grading waited 4 hours on answers that never stop (2026-10-31).
+    import subprocess
+    import sys
+
+    from sma.commands import eval_factory_patch
+
+    runner = tmp_path / "livecodebench" / "runner"
+    runner.mkdir(parents=True)
+    (tmp_path / "livecodebench" / "__init__.py").write_text("")
+    (runner / "__init__.py").write_text("")
+    (runner / "scenario_router.py").write_text("def get_metrics(scenario, args, benchmark, results):\n    return args.timeout\n")
+    (runner / "main.py").write_text("from livecodebench.runner.scenario_router import get_metrics\n")
+    script = (
+        "import argparse; from livecodebench.runner.main import get_metrics\n"
+        "args = argparse.Namespace(timeout=14400, evaluation_timeout=6)\n"
+        "print(get_metrics('codegeneration', args, [], []), args.timeout)\n"
+    )
+    patch = eval_factory_patch("nvcr.io/nvidia/eval-factory/livecodebench:26.03@sha256:00")
+    assert patch is not None and eval_factory_patch("nvcr.io/nvidia/eval-factory/simple-evals:26.03") is None
+    done = subprocess.run(
+        [sys.executable, "-c", script], cwd=tmp_path, capture_output=True, text=True, timeout=60,
+        env={"PYTHONPATH": f"{patch}:{tmp_path}", "PATH": "/usr/bin:/bin"},
+    )  # fmt: skip
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.split() == ["6", "14400"]
+    assert "SMA patch: grading with --evaluation_timeout 6 s per test" in done.stderr
+
+
+def test_bfcl_with_a_limit_answers_an_even_share_of_every_category(tmp_path: Path) -> None:
+    # Owner decision 2026-10-31: 2,000 of BFCL's 4,441. The container's own --limit keeps the first questions
+    # by category name, so SMA's patch picks an even share of every category and the scorer keeps the same ones.
+    cfg = make_config(tmp_path)
+    cfg.quality.suites = [QualitySuite("bfcl_v3", 3, image="nvcr.io/nvidia/eval-factory/bfcl:26.03", task="bfclv3_ast", tools=True)]
+    services, _fetcher, _runtime = make_services(tmp_path, cfg)
+
+    execute(RunSpec(repo="example/tiny", quant_flag="bf16", tool_parser="hermes"), cfg, services)
+
+    suite_dir = _run_dir(tmp_path) / "quality" / "bfcl_v3"
+    command = json.loads((suite_dir / "command.json").read_text())
+    assert command["limit"] == 3 and command["patch"]["name"] == "bfcl"
+    assert set(command["patch"]["files"]) == {"sitecustomize.py", "sma_subset.py"}
+    assert "SMA_QUESTION_LIMIT=3" in command["argv"] and "PYTHONPATH=/sma-patch" in command["argv"]
+    # The fake container answered all 5; the scorer keeps the share: 2 of simple's 3, 1 of the other's 2.
+    scores = json.loads((suite_dir / "scores.json").read_text())
+    assert (scores["n"], scores["limit"]) == (3, 3)
+    rows = [json.loads(line) for line in (suite_dir / "samples.jsonl").read_text().splitlines()]
+    assert sorted(row["id"] for row in rows) == ["base_1", "simple_0", "simple_2"]
+
+
+def test_the_even_share_takes_every_category_s_share_spread_through_it() -> None:
+    from collections import Counter
+
+    from sma.patches.bfcl.sma_subset import category_and_index, even_share
+
+    sizes = {"simple": 400, "multiple": 200, "live_multiple": 1053, "live_parallel": 16, "multi_turn_base": 200, "javascript": 50}
+    ids = [f"{name}_{index}" for name, size in sizes.items() for index in range(size)]
+    ids[ids.index("live_multiple_5")] = "live_multiple_5-2-0"  # Live ids carry sub-indexes.
+    keep = even_share(ids, 860)
+    kept = Counter(category_and_index(item)[0] for item in keep)
+    assert len(keep) == 860 and kept == {"simple": 179, "multiple": 90, "live_multiple": 472, "live_parallel": 7, "multi_turn_base": 90, "javascript": 22}
+    assert keep == even_share(list(reversed(ids)), 860)  # The order SMA reads them in does not matter.
+    simple = sorted(category_and_index(item)[1] for item in keep if item.startswith("simple_"))
+    assert simple[0] < 5 and simple[-1] > 395  # Spread through the category, not its first questions.
+    assert even_share(ids, 10_000) == set(ids)
+
+
+def test_the_bfcl_patch_answers_the_share_and_scores_each_answer_against_its_own_question(tmp_path: Path) -> None:
+    # The evaluator pairs answers with questions and ground truths by position, which only holds for a whole category.
+    import subprocess
+    import sys
+
+    from sma.commands import eval_factory_patch, eval_factory_takes_limit
+
+    for folder in ("bfcl", "bfcl/eval_checker"):
+        (tmp_path / folder).mkdir(parents=True, exist_ok=True)
+        (tmp_path / folder / "__init__.py").write_text("")
+    (tmp_path / "bfcl" / "_llm_response_generation.py").write_text(
+        "def collect_test_cases(args, model_name, categories, paths, entries):\n    return list(entries)\n"
+    )
+    runner = "    return [e['id'] for e in prompt], [e['id'] for e in answers]\n"
+    (tmp_path / "bfcl" / "eval_checker" / "eval_runner.py").write_text(
+        "def ast_file_runner(handler, model_result, prompt, answers, language, category, name, score_dir):\n" + runner
+        + "def multi_turn_runner(handler, model_result, prompt, answers, name, category, score_dir):\n" + runner
+        + "def relevance_file_runner(handler, model_result, prompt, name, category, score_dir):\n    return [e['id'] for e in prompt]\n"
+        + "def executable_file_runner(handler, model_result, prompt, name, category, score_dir):\n    return [e['id'] for e in prompt]\n"
+    )  # fmt: skip
+    script = (
+        "from bfcl._llm_response_generation import collect_test_cases\n"
+        "from bfcl.eval_checker import eval_runner\n"
+        "entries = [{'id': f'simple_{i}'} for i in range(10)]\n"
+        "kept = collect_test_cases(None, 'm', [], [], entries)\n"
+        "print(' '.join(e['id'] for e in kept))\n"
+        "print(eval_runner.ast_file_runner(None, kept, entries, entries, 'Python', 'simple', 'm', '.'))\n"
+    )
+    patch = eval_factory_patch("nvcr.io/nvidia/eval-factory/bfcl:26.03")
+    assert patch is not None and eval_factory_takes_limit("nvcr.io/nvidia/eval-factory/bfcl:26.03")
+    assert not eval_factory_takes_limit("nvcr.io/nvidia/eval-factory/livecodebench:26.03")
+    env = {"PYTHONPATH": f"{patch}:{tmp_path}", "PATH": "/usr/bin:/bin"}
+    done = subprocess.run([sys.executable, "-c", script], cwd=tmp_path, capture_output=True, text=True, timeout=60, env={**env, "SMA_QUESTION_LIMIT": "4"})
+    assert done.returncode == 0, done.stderr
+    kept, scored = done.stdout.splitlines()
+    assert kept == "simple_1 simple_3 simple_6 simple_8"
+    assert scored == str((kept.split(), kept.split()))
+    # Without a limit the patch does nothing.
+    plain = subprocess.run([sys.executable, "-c", script], cwd=tmp_path, capture_output=True, text=True, timeout=60, env=env)
+    assert plain.stdout.splitlines()[0] == " ".join(f"simple_{i}" for i in range(10)) and "SMA patch" not in plain.stderr
+
+
+def test_only_a_container_sma_can_share_takes_a_limit() -> None:
+    validate_config(config_from_mapping({"quality": {"suites": [
+        {"name": "bfcl_v3", "image": "nvcr.io/nvidia/eval-factory/bfcl:26.03", "task": "bfclv3_ast", "limit": 2000}]}}))
+    with pytest.raises(SmaError, match="cannot run a share"):
+        validate_config(config_from_mapping({"quality": {"suites": [
+            {"name": "livecodebench", "image": "nvcr.io/nvidia/eval-factory/livecodebench:26.03", "task": "codegeneration_release_v6", "limit": 50}]}}))

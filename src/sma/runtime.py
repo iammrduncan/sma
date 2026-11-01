@@ -37,6 +37,8 @@ class StartSpec:
     serve_argv: list[str]
     port: int
     mode: str
+    # Remote serving only (sma.remote): the folder on the serving machine that holds the model files.
+    remote_model_dir: str | None = None
 
 
 @dataclass

@@ -86,13 +86,13 @@ class MemoryConfig:
     # The Spark has 130.7 GB; the margin keeps earlyoom's 8% floor away.
     budget_gb: float = 100.0
     # Context per stream starts here, or at the model's native maximum if smaller, and halves to fit.
-    start_context: int = 262_144
+    start_context: int = 65_536  # 64K (owner decision 2026-10-31; 256K before)
     # Run memory beyond weights and KV pool, in GB: the engine's activations, CUDA graphs, and server
     # processes, plus SMA's tools beside it (nel, the bench client). Measured per engine on the Spark
     # (docs/first-spark-run.md).
     overhead_gb: dict[str, float] = field(default_factory=lambda: {"vllm": 13.0, "sglang": 13.0, "llamacpp": 3.0})
     # The least context per stream quality may get: the ladder's floor for its streams. An answer may use
-    # all the context its stream has left (quality.max_tokens null), so quality gets the largest step that fits.
+    # all the context its stream has left, up to quality.max_tokens, so quality gets the largest step that fits.
     quality_min_context: int = 8192
     # If the Spark's available memory (MemAvailable) falls under this many GB, SMA kills this run's containers
     # at once, and the running step fails and says why. On a GB10 the GPU's memory is not charged to any
@@ -180,10 +180,12 @@ class QualityConfig:
     # Requests in flight per suite (nel max_concurrent).
     concurrency: int = 8
     executable: str = "nel"
-    # Output tokens per answer. None sends no limit: an answer may use all the context its stream has left,
-    # which the memory plan sets (owner decision 2026-10-29). A 4,096 limit cut off 30% of LFM3-1.7B's
-    # MMLU-Pro answers and 60% of its GPQA answers with thinking off.
-    max_tokens: int | None = None
+    # Output tokens per answer, at most: 128K (owner decision 2026-10-31), or the rest of the stream's context
+    # if that is less (commands.answer_limit). None: the rest of the context. A 4,096 limit cut off 30% of
+    # LFM3-1.7B's MMLU-Pro answers and 60% of its GPQA answers with thinking off (2026-10-29). With no limit,
+    # answers that loop ran to the end of a 262K context, 2 hours or more each, while normal answers stayed
+    # under 33K in the suites and 49K in LiveCodeBench.
+    max_tokens: int | None = 131072
     # One request to the model server. A retry follows retries.attempts. Long enough for an answer that
     # fills a 256K context at 20 tok/s per stream.
     request_timeout_s: float = 14400.0
@@ -203,14 +205,16 @@ class QualityConfig:
             # MuSiQue-Ans: multi-hop questions over their own paragraphs, scored by answer F1. See nel_benchmarks/musique.py.
             QualitySuite("musique", 100, bench="sma:musique", metric="answer_f1"),
             # Native tool calls through the chat API: needs --tool-parser.
-            QualitySuite("bfcl_v3", image="nvcr.io/nvidia/eval-factory/bfcl:26.03", task="bfclv3_ast", tools=True, questions=4441),
-            # In place of SWE-bench (owner decision 2026-10-29): LiveCodeBench's leaderboard window for release v6.
+            # 2,000 of 4,441: an even share of every category (owner decision 2026-10-31; src/sma/patches/bfcl).
+            QualitySuite("bfcl_v3", 2000, image="nvcr.io/nvidia/eval-factory/bfcl:26.03", task="bfclv3_ast", tools=True, questions=4441),
+            # In place of SWE-bench (owner decision 2026-10-29): LiveCodeBench release v6's newest 105 problems
+            # (owner decision 2026-10-30), in one batch: the runner waits for a batch's slowest answer.
             QualitySuite(
                 "livecodebench",
                 image="nvcr.io/nvidia/eval-factory/livecodebench:26.03",
                 task="codegeneration_release_v6",
-                questions=454,
-                params={"extra": {"n_samples": 1, "start_date": "2024-08-01", "end_date": "2025-05-01"}},
+                questions=105,
+                params={"extra": {"n_samples": 1, "start_date": "2025-02-15", "end_date": "2025-05-01", "cache_batch_size": 105}},
                 sampling=True,
             ),
         ]
@@ -229,9 +233,9 @@ class KernelBenchConfig:
     level: int = 1
     # Requests in flight while the model writes kernels.
     concurrency: int = 8
-    # Output tokens per answer, reasoning included. None: the server's context per stream minus 4,096 for
-    # the prompt, as for quality (owner decision 2026-10-29).
-    max_tokens: int | None = None
+    # Output tokens per answer, reasoning included, at most; never more than the server's context per stream
+    # minus 4,096 for the prompt. 128K, as for quality (owner decision 2026-10-31). None: that context.
+    max_tokens: int | None = 131072
     request_timeout_s: float = 14400.0
     # Evaluation options for the service; empty uses its defaults (KernelBench's own).
     options: dict[str, Any] = field(default_factory=dict)
@@ -305,10 +309,11 @@ class BrowseCompConfig:
     # Starting the search server loads its 2.2 GB index.
     search_start_s: float = 600.0
     # The judge model's name on SMA_JUDGE_URL. Scores are compared only within one judge. Owner decision
-    # 2026-10-28, after a test on 99 published BrowseComp-Plus answers: Ornith 1.5 122B with thinking off read
-    # 98 correctly; LFM 2.5 24B left out its verdict on 10 of 32. BrowseComp-Plus's own judge also runs with
-    # thinking off. The grader's token limit is the repo's (4096). judge-info.md describes the deployment.
-    judge_model: str = "ornith-1.5-122b"
+    # 2026-11-01: Qwen 3.8 Flash (FP4) on an OpenAI-compatible endpoint, which takes SMA's thinking-off and
+    # no-prompt-cache settings. Before (2026-10-28): Ornith 1.5 122B, which read 98 of 99 published
+    # BrowseComp-Plus answers correctly with thinking off (judge-info.md). BrowseComp-Plus's own judge also
+    # runs with thinking off. The grader's token limit is the repo's (4096).
+    judge_model: str = "qwen3.8-flash-fp4"
     judge_max_tokens: int = 4096
     judge_temperature: float | None = 0.0
     # Merged into every judge request. llama.cpp is not batch-invariant, so judge-info.md asks for no prompt
@@ -394,6 +399,30 @@ class DoctorConfig:
 
 
 @dataclass
+class RemoteConfig:
+    """Serving on another machine: the V100 pod (services/v100-serving). The harness, every benchmark client,
+    grading, and the records stay here; llama-server and llama-perplexity run there as processes started over
+    SSH, from a pinned source build, and the harness reaches the server through an SSH local forward."""
+
+    enabled: bool = False
+    # Names of the root .env entries for the machine, so no lab name or key path sits in sma.yaml.
+    host_env: str = "V100_HOST"
+    user_env: str = "V100_HOST_USER"
+    port_env: str = "V100_HOST_SSH_PORT"
+    key_env: str = "V100_HOST_SSH_KEY"
+    # The GPUs this worker's runs use (CUDA_VISIBLE_DEVICES), and the model port inside the machine; the
+    # harness forwards engine.port to it.
+    gpus: str = "0"
+    remote_port: int = 8001
+    # Where models, builds, and server logs live on the machine.
+    root: str = "/work/sma"
+    # The llama.cpp source build under root (setup.sh writes its build.json).
+    llamacpp_build: str = "llama.cpp-b11960"
+    # The serving hardware, part of the subject: runs/<slug>/<engine>-<hardware>/... and the manifest.
+    hardware: str = "v100"
+
+
+@dataclass
 class Config:
     schema_version: int = 1
     host_alias: str = "gpu-host-1"
@@ -415,6 +444,7 @@ class Config:
     telemetry: TelemetryConfig = field(default_factory=TelemetryConfig)
     queue: QueueConfig = field(default_factory=QueueConfig)
     doctor: DoctorConfig = field(default_factory=DoctorConfig)
+    remote: RemoteConfig = field(default_factory=RemoteConfig)
 
     def runs_path(self) -> Path:
         return Path(self.runs_dir).expanduser().resolve()
@@ -452,6 +482,7 @@ _NESTED = {
     "telemetry": TelemetryConfig,
     "queue": QueueConfig,
     "doctor": DoctorConfig,
+    "remote": RemoteConfig,
 }
 
 
@@ -706,10 +737,8 @@ def validate_config(cfg: Config) -> None:
         isinstance(key, str) for key in cfg.quality.chat_template_kwargs
     ):
         raise SmaError("quality.chat_template_kwargs must be a mapping with string keys")
-    if cfg.quality.max_tokens is not None and not 0 < cfg.quality.max_tokens < cfg.memory.quality_min_context:
-        raise SmaError(
-            "quality.max_tokens must be null (no limit) or positive and below memory.quality_min_context, so the prompt fits"
-        )
+    if cfg.quality.max_tokens is not None and (not isinstance(cfg.quality.max_tokens, int) or cfg.quality.max_tokens < 1):
+        raise SmaError("quality.max_tokens must be null (the rest of the stream's context) or a positive integer")
     if cfg.kernelbench.max_tokens is not None and (not isinstance(cfg.kernelbench.max_tokens, int) or cfg.kernelbench.max_tokens < 1):
         raise SmaError("kernelbench.max_tokens must be null (the context minus the prompt) or a positive integer")
     if cfg.quality.temperature is not None and cfg.quality.temperature < 0:
@@ -724,17 +753,19 @@ def validate_config(cfg: Config) -> None:
     names = [suite.name for suite in cfg.quality.suites]
     if len(set(names)) != len(names):
         raise SmaError("quality.suites names must be unique; each one is a folder under quality/")
-    from sma.commands import packaged_bench
+    from sma.commands import eval_factory_takes_limit, packaged_bench
 
     for suite in cfg.quality.suites:
         if suite.limit is not None and suite.limit < 1:
             raise SmaError(f"quality suite {suite.name}: limit must be >= 1, or null for the whole dataset")
         if (suite.image is None) != (suite.task is None):
             raise SmaError(f"quality suite {suite.name}: image and task go together")
-        if suite.image is not None and (suite.bench is not None or suite.limit is not None):
+        if suite.image is not None and suite.bench is not None:
+            raise SmaError(f"quality suite {suite.name}: an eval-factory container takes no bench.")
+        if suite.image is not None and suite.limit is not None and not eval_factory_takes_limit(suite.image):
             raise SmaError(
-                f"quality suite {suite.name}: an eval-factory container takes no bench or limit. "
-                "Its limit keeps the first questions in file order, not a seeded sample, so SMA runs them all."
+                f"quality suite {suite.name}: SMA cannot run a share of {suite.image}. "
+                "The container's own limit keeps the first questions in file order, so SMA runs them all."
             )
         packaged_bench(suite.bench)  # an unknown sma:<name> fails here, before any download
     if cfg.engine.name not in {"vllm", "sglang"}:

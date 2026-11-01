@@ -143,6 +143,79 @@ def test_rescore_brings_new_fields_to_an_old_record_from_its_saved_output(tmp_pa
     assert summary["quality"][cfg.quality.suites[0].name]["answers_cut_off"] == 1
 
 
+def test_rescore_grades_livecodebench_again_at_6_s_per_test_when_its_runner_used_the_request_timeout(tmp_path: Path) -> None:
+    # LFM3-1.7B's BF16 run (2026-10-31) was graded before SMA's patch: each test had 4 hours, and 5 answers
+    # passed that time out at LiveCodeBench's 6 s. The owner chose a regrade of the saved code, not a rerun.
+    from sma.pipeline import rescore
+    from sma.records import load_manifest
+    from sma.schemautil import validate_instance
+
+    cfg = make_config(tmp_path)
+    cfg.quality.suites = [QualitySuite(
+        "livecodebench", image="nvcr.io/nvidia/eval-factory/livecodebench:26.03", task="codegeneration_release_v6",
+        params={"extra": {"n_samples": 1, "start_date": "2025-02-15", "end_date": "2025-05-01"}}, sampling=True,
+    )]  # fmt: skip
+    services, _fetcher, _runtime = make_services(tmp_path, cfg)
+    run_id = execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
+    suite_dir = next((tmp_path / "runs").glob(f"*/*/*/{run_id}")) / "quality" / "livecodebench"
+    calls: list[list[str]] = []
+
+    def regrade(argv: list[str]) -> None:
+        calls.append(argv)
+        mounts = dict(reversed(argv[i + 1].rsplit(":", 2)[:2]) for i, arg in enumerate(argv) if arg == "-v" and argv[i + 1].count(":") >= 1)
+        original = next(Path(mounts["/results"]).rglob("*_eval_all.json"))
+        rows = json.loads(original.read_text())
+        for row in rows:
+            if row["question_id"] == "3781":  # Passed with hours per test; times out at 6 s.
+                row["graded_list"], row["pass@1"] = [False], 0.0
+        (Path(mounts["/out"]) / original.name).write_text(json.dumps(rows))
+
+    # A run graded with SMA's patch is not regraded.
+    rescore(cfg, run_id, run_regrade=regrade)
+    assert calls == []
+
+    # One graded before it: its command.json names no patch.
+    command = json.loads((suite_dir / "command.json").read_text())
+    command.pop("patch")
+    (suite_dir / "command.json").write_text(json.dumps(command))
+    before = json.loads((suite_dir / "scores.json").read_text())
+    original = next((suite_dir / "attempt-1").rglob("*_eval_all.json"))
+    original_text = original.read_text()
+
+    assert rescore(cfg, run_id, run_regrade=regrade) == ["livecodebench"]
+
+    (argv,) = calls
+    assert argv[argv.index("--network") + 1] == "none" and argv[argv.index("--timeout") + 1] == "6"
+    assert argv[argv.index("--release") + 1] == "release_v6" and argv[argv.index("--start-date") + 1] == "2025-02-15"
+    assert any(arg.endswith("attempt-1:/results:ro") for arg in argv)
+    scores = json.loads((suite_dir / "scores.json").read_text())
+    assert before["primary_score"] == pytest.approx(2 / 3) and scores["primary_score"] == pytest.approx(1 / 3)
+    assert scores["regrade"]["timeout_s"] == 6 and scores["regrade"]["graders"] == 5
+    assert scores["harness_metrics"] == before["harness_metrics"]  # The container's own grading, as it was.
+    assert original.read_text() == original_text  # The original grading stays.
+    manifest = load_manifest(next((tmp_path / "runs").glob(f"*/*/*/{run_id}")))
+    validate_instance(manifest, "manifest.schema.json")
+
+
+def test_rescore_scores_a_full_bfcl_run_on_the_share_the_config_now_limits_it_to(tmp_path: Path) -> None:
+    # Owner decision 2026-10-31: BFCL runs 2,000 of its 4,441 from now on; runs that answered all of them are
+    # scored on the same questions, so every run compares.
+    from sma.pipeline import rescore
+
+    cfg = make_config(tmp_path)
+    cfg.quality.suites = [QualitySuite("bfcl_v3", image="nvcr.io/nvidia/eval-factory/bfcl:26.03", task="bfclv3_ast", tools=True)]
+    services, _fetcher, _runtime = make_services(tmp_path, cfg)
+    run_id = execute(RunSpec(repo="example/tiny", quant_flag="bf16", tool_parser="hermes"), cfg, services)
+    suite_dir = next((tmp_path / "runs").glob(f"*/*/*/{run_id}")) / "quality" / "bfcl_v3"
+    assert json.loads((suite_dir / "scores.json").read_text())["n"] == 5
+
+    cfg.quality.suites = [QualitySuite("bfcl_v3", 3, image="nvcr.io/nvidia/eval-factory/bfcl:26.03", task="bfclv3_ast", tools=True)]
+    rescore(cfg, run_id)
+
+    scores = json.loads((suite_dir / "scores.json").read_text())
+    assert (scores["n"], scores["limit"], scores["primary_score"]) == (3, 3, 1.0)
+
+
 def test_rescore_refuses_a_run_that_is_still_running(tmp_path: Path) -> None:
     from sma.pipeline import SimulatedKill, rescore
 

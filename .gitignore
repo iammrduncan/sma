@@ -21,6 +21,9 @@ runs/**/quality/swebench_verified_mini/trajectories.jsonl.gz
 # per-question files that become it hold them.
 runs/**/quality/browsecomp_plus/trajectories.jsonl.gz
 runs/**/quality/browsecomp_plus/queries/
+# A benchmark run again (sma resume --redo) keeps its earlier output here; the same text stays out of git.
+runs/**/redone/**/trajectories.jsonl.gz
+runs/**/redone/**/queries/
 # Harness caches inside a suite's attempt: BFCL's request and response stores (SQLite, with their -wal
 # and -shm journals) and LiveCodeBench's answer cache. The answers are in the suite's own result files.
 runs/**/quality/*/attempt-*/cache/
@@ -38,3 +41,5 @@ htmlcov/
 uv.lock
 # Claude Code's per-user settings, which can hold local paths.
 .claude/settings.local.json
+# Internal planning notes: not part of the repo.
+.internal/

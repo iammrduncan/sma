@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import json
+import shlex
 import threading
 import time
 from dataclasses import dataclass
@@ -288,7 +289,7 @@ def invalidating_throttle(sample: Sample, *, sw_power_cap_invalidates: bool) -> 
 class TelemetryRecorder:
     """Writes telemetry.csv. A scripted feeder can append rows in tests."""
 
-    def __init__(self, path: Path, cfg: Config) -> None:
+    def __init__(self, path: Path, cfg: Config, query_prefix: list[str] | None = None) -> None:
         self.path = path
         self.cfg = cfg
         self.phase = "startup"
@@ -297,7 +298,9 @@ class TelemetryRecorder:
         self._handle: IO[str] | None = None
         self.start_temp: float | None = None
         self.end_temp: float | None = None
-        self._query = nvidia_smi_query(cfg.doctor.gpu_index)
+        # A remote GPU is read over SSH: the prefix is ssh and its target (sma.remote).
+        self._prefix = list(query_prefix or [])
+        self._query = self._remote(nvidia_smi_query(self._gpu()))
         self.failures = 0
         self._sampling = False
         # (base URL, metrics path, names) of the engine whose counters are sampled, once known.
@@ -306,6 +309,15 @@ class TelemetryRecorder:
         # The memory guard: (floor in bytes, what to do under it). Fires once per drop under the floor.
         self._guard: tuple[int, Any] | None = None
         self._guard_tripped = False
+
+    def _gpu(self) -> int:
+        """The GPU sampled: the first of the remote worker's GPUs, else doctor.gpu_index."""
+        if self.cfg.remote.enabled:
+            return int(str(self.cfg.remote.gpus).split(",")[0])
+        return self.cfg.doctor.gpu_index
+
+    def _remote(self, argv: list[str]) -> list[str]:
+        return [*self._prefix, shlex.join(argv)] if self._prefix else argv
 
     def start(self, sampler: bool = True) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -441,7 +453,7 @@ class TelemetryRecorder:
                 result = run_command(self._query, timeout_s=10, what="nvidia-smi")
                 if result.returncode != 0:
                     legacy = run_command(
-                        nvidia_smi_query_legacy(self.cfg.doctor.gpu_index),
+                        self._remote(nvidia_smi_query_legacy(self._gpu())),
                         timeout_s=10,
                         what="nvidia-smi legacy",
                     )

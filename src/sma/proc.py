@@ -40,6 +40,10 @@ def run_command(
             argv,
             capture_output=True,
             text=True,
+            # Output is text for records and logs, not data: a byte that is not UTF-8 (a log tail cut inside a
+            # character, a model's stray byte) becomes U+FFFD instead of failing the command. The remote
+            # server's log tail failed this way, and the run lost its KV cache check (V100, 2026-11-01).
+            errors="replace",
             timeout=timeout_s,
             start_new_session=True,
             check=False,

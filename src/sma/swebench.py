@@ -118,17 +118,40 @@ class SshRunner:
     SWE-bench and BrowseComp-Plus share the machine, each in its own folder; label names it in messages.
     """
 
-    def __init__(self, *, host: str, user: str, key: str, remote_dir: str, label: str = "SWE-bench runner") -> None:
+    def __init__(
+        self, *, host: str, user: str, key: str, remote_dir: str, label: str = "SWE-bench runner",
+        port: int | None = None, control_dir: Path | None = None,
+    ) -> None:  # fmt: skip
         self.target = f"{user}@{host}"
         self.key = str(Path(key).expanduser())
         self.remote_dir = remote_dir
         self.label = label
+        self.port = port
+        # One shared connection for the many short commands (telemetry asks every second); forwards keep
+        # their own, so closing one never takes the others down.
+        self.control_dir = control_dir
 
-    def _ssh(self) -> list[str]:
-        return [
+    def _ssh(self, *, shared: bool = True) -> list[str]:
+        argv = [
             "ssh", "-i", self.key, "-o", "BatchMode=yes", "-o", "ConnectTimeout=20",
             "-o", "ServerAliveInterval=30", "-o", "ServerAliveCountMax=4",
         ]  # fmt: skip
+        if self.port is not None:
+            argv += ["-p", str(self.port)]
+        if self.control_dir is not None and shared:
+            self.control_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+            argv += ["-o", "ControlMaster=auto", "-o", f"ControlPath={self.control_dir}/%C", "-o", "ControlPersist=600"]
+        elif self.control_dir is not None:
+            argv += ["-o", "ControlMaster=no", "-o", "ControlPath=none"]
+        return argv
+
+    def prefix(self) -> list[str]:
+        """ssh and its options, up to the target: a command string after it runs on the machine, in the home folder."""
+        return [*self._ssh(), self.target]
+
+    def command(self, script: str) -> list[str]:
+        """The argv that runs a shell script on the machine, in remote_dir, over the shared connection."""
+        return [*self._ssh(), self.target, f"cd {shlex.quote(self.remote_dir)} && {script}"]
 
     def _run(self, script: str, *, what: str, timeout_s: float = 300.0, ok_codes: tuple[int, ...] = (0,)) -> Any:
         argv = [*self._ssh(), self.target, f"cd {shlex.quote(self.remote_dir)} && {script}"]
@@ -195,14 +218,34 @@ class SshRunner:
         result = self._run(f"if [ -f {shlex.quote(rel)} ]; then cat {shlex.quote(rel)}; else exit 3; fi", what=f"read {rel} on the {self.label}", ok_codes=(0, 3))
         return None if result.returncode == 3 else result.stdout
 
+    def put(self, local: Path, rel: str, *, timeout_s: float = 1800.0) -> None:
+        """Copy a local file to rel under remote_dir."""
+        self._run(f"mkdir -p {shlex.quote(str(Path(rel).parent))}", what=f"make a folder on the {self.label}")
+        argv = [*self._scp(), str(local), f"{self.target}:{self.remote_dir}/{rel}"]
+        require_ok(run_command(argv, timeout_s=timeout_s, what=f"copy {local.name} to the {self.label}"), what=f"copy {local.name} to the {self.label}")
+
+    def get(self, rel: str, local: Path, *, timeout_s: float = 1800.0) -> None:
+        """Copy rel under remote_dir to a local file."""
+        local.parent.mkdir(parents=True, exist_ok=True)
+        argv = [*self._scp(), f"{self.target}:{self.remote_dir}/{rel}", str(local)]
+        require_ok(run_command(argv, timeout_s=timeout_s, what=f"copy {Path(rel).name} from the {self.label}"), what=f"copy {Path(rel).name} from the {self.label}")
+
+    def _scp(self) -> list[str]:
+        argv = ["scp", "-q", "-i", self.key, "-o", "BatchMode=yes", "-o", "ConnectTimeout=20"]
+        if self.port is not None:
+            argv += ["-P", str(self.port)]
+        if self.control_dir is not None:
+            argv += ["-o", "ControlMaster=auto", "-o", f"ControlPath={self.control_dir}/%C", "-o", "ControlPersist=600"]
+        return argv
+
     def tunnel(self, port: int, log_path: Path) -> Following:
         """Put the model server's port on the runner's loopback for as long as the agents run."""
-        argv = [*self._ssh(), "-o", "ExitOnForwardFailure=yes", "-N", "-R", f"127.0.0.1:{port}:127.0.0.1:{port}", self.target]
+        argv = [*self._ssh(shared=False), "-o", "ExitOnForwardFailure=yes", "-N", "-R", f"127.0.0.1:{port}:127.0.0.1:{port}", self.target]
         return follow_to_file(argv, log_path, what="SWE-bench tunnel")
 
     def forward(self, local_port: int, remote_port: int, log_path: Path) -> Following:
         """Put a server on the runner's loopback on this machine's loopback, the other way from tunnel()."""
-        argv = [*self._ssh(), "-o", "ExitOnForwardFailure=yes", "-N", "-L", f"127.0.0.1:{local_port}:127.0.0.1:{remote_port}", self.target]
+        argv = [*self._ssh(shared=False), "-o", "ExitOnForwardFailure=yes", "-N", "-L", f"127.0.0.1:{local_port}:127.0.0.1:{remote_port}", self.target]
         return follow_to_file(argv, log_path, what=f"forward to the {self.label}")
 
 

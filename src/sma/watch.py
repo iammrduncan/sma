@@ -374,8 +374,19 @@ def _benchmarks(
         f"KL {kl:.4f}" if isinstance(kl, (int, float)) else "",
     ) if part)
     rows.append(("perplexity", state("logprobs"), detail or took("logprobs")))
-    for suite in _suites(manifest):
-        rows.append(_suite_row(run_dir, {"questions": totals.get(suite["name"]), **{k: v for k, v in suite.items() if v is not None}}, now, paint))
+    suites = [
+        _suite_row(run_dir, {"questions": totals.get(suite["name"]), **{k: v for k, v in suite.items() if v is not None}}, now, paint)
+        for suite in _suites(manifest)
+    ]
+    # Suites run one at a time. An unfinished attempt older than the newest one, or any while quality is not
+    # running, was cut short by a stop (a resume starts it again), so it is not shown as running.
+    started = {name: _suite_started(run_dir / "quality" / name) for name, status, _ in suites if status == "running"}
+    current = max(started, key=lambda name: started[name]) if started and state("quality") == "running" else None
+    for name, status, detail in suites:
+        if status == "running" and name != current:
+            answered = detail.rsplit("  ", 1)[0]  # Without the time since it began.
+            status, detail = "stopped", "stopped" + (f"  {answered}" if answered != "running" else "")
+        rows.append((name, status, detail))
     rows += _agent_rows(manifest, run_dir, state, took, paint, now, swe)
     speed = _read_json(run_dir / "speed" / "summary.json") or {}
     parts = [
@@ -439,20 +450,55 @@ def _suite_row(run_dir: Path, suite: dict[str, Any], now: datetime, paint=_ident
     # A suite in NVIDIA's eval-factory container (BFCL) writes one JSON line per answered question into
     # a file per category. Its total lives in the container's dataset: the suite's `questions` says it.
     results = sorted(attempts[-1].glob("result/*/*_result.json")) if suite.get("image") else []
-    # LiveCodeBench's runner keeps its answers in cache/<file>.json, one key per problem, saved every 10.
+    # LiveCodeBench's runner keeps its answers in cache/<file>.json, one key per problem, saved only when a
+    # batch of 10 is done. Its proxy counts each response as it comes, one request per problem and sample.
     cache = sorted(attempts[-1].glob("cache/*.json")) if suite.get("image") else []
+    stats = _response_stats(attempts[-1]) if "codegeneration" in str(suite.get("task") or "") else None
     if logs:
-        answered = f"{sum(_count_lines(log) for log in logs):,}{limit or '/all'} answered"
+        answered = f"{sum(_count_answers(log) for log in logs):,}{limit or '/all'} answered"
+    elif stats is not None:
+        samples = int(((suite.get("params") or {}).get("extra") or {}).get("n_samples") or 1)
+        cut = int((stats.get("finish_reason") or {}).get("length") or 0)
+        answered = f"{int(stats.get('successful_count') or 0) // samples:,}{limit} answered"
+        answered += f" · {paint(f'{cut} cut off', 'failed')}" if cut else ""
+        # The runner writes its answers file when every problem has one, then runs their code against the
+        # hidden tests, which can take an hour, and writes *_eval_all.json when that is done.
+        written = [path for path in attempts[-1].glob("*_Scenario.*.json") if "_eval" not in path.name]
+        answered += " · running the tests" if written and not list(attempts[-1].glob("*_eval_all.json")) else ""
     elif cache and isinstance(_read_json(cache[-1]), dict):
         answered = f"{len(_read_json(cache[-1])):,}{limit} answered"
     elif results:
         answered = f"{sum(_count_lines(path) for path in results):,}{limit} answered · {len(results)} categor{'y' if len(results) == 1 else 'ies'}"
     else:
         answered = "running"
-    # command.json is written when the suite starts.
-    marker = folder / "command.json" if (folder / "command.json").is_file() else attempts[-1]
-    begun = datetime.fromtimestamp(marker.stat().st_mtime, timezone.utc)
-    return name, "running", f"{answered}  {_elapsed(begun, None, now)}"
+    return name, "running", f"{answered}  {_elapsed(_suite_started(folder), None, now)}"
+
+
+def _response_stats(attempt: Path) -> dict[str, Any] | None:
+    """The eval-factory proxy's running totals (its response-stats interceptor): responses, how each
+    ended, status codes. Read only while the container has the database open: a WAL database whose -wal
+    and -shm files are gone would have them made again by a reader, and sma watch writes nothing."""
+    import sqlite3
+    from contextlib import closing
+
+    db = attempt / "response_stats_cache" / "cache.db"
+    if not all(Path(f"{db}{suffix}").is_file() for suffix in ("", "-wal", "-shm")):
+        return None
+    try:
+        with closing(sqlite3.connect(f"{db.resolve().as_uri()}?mode=ro", uri=True, timeout=1.0)) as connection:
+            row = connection.execute("SELECT value FROM Cache WHERE key = 'interceptor_state'").fetchone()
+        state = json.loads(row[0]) if row else None
+    except (sqlite3.Error, ValueError, TypeError):
+        return None
+    stats = state.get("aggregated_stats") if isinstance(state, dict) else None
+    return stats if isinstance(stats, dict) else None
+
+
+def _suite_started(folder: Path) -> datetime:
+    """When the suite's latest attempt began: command.json is written when it starts."""
+    attempts = sorted(folder.glob("attempt-*"), key=lambda p: p.stat().st_mtime)
+    marker = folder / "command.json" if (folder / "command.json").is_file() else (attempts[-1] if attempts else folder)
+    return datetime.fromtimestamp(marker.stat().st_mtime, timezone.utc)
 
 
 def _agent_rows(
@@ -690,6 +736,24 @@ def _read_json(path: Path) -> dict[str, Any] | None:
     except (OSError, ValueError):
         return None
     return data if isinstance(data, dict) else None
+
+
+def _count_answers(path: Path) -> int:
+    """Answers in a NeMo Evaluator inference log. Its first line is a record of the config, not an answer."""
+    try:
+        with path.open("rb") as handle:
+            return sum(1 for line in handle if not (line.startswith(b"{") and _is_meta(line)))
+    except OSError:
+        return 0
+
+
+def _is_meta(line: bytes) -> bool:
+    if b'"_type"' not in line:
+        return False
+    try:
+        return json.loads(line).get("_type") == "meta"
+    except (ValueError, AttributeError):
+        return False
 
 
 def _count_lines(path: Path) -> int:

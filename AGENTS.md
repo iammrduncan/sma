@@ -26,8 +26,9 @@ These are owner decisions. Do not change them without an explicit owner decision
   launch, by checkpoint format, by `--engine`, or because preflight shows that vLLM cannot serve the
   model. Never copy a measurement from one engine into another engine's record. The only fallback is
   the vLLM MoE backend chain.
-- A run's planned memory stays under `memory.budget_gb`. Context per stream starts at 256K or the
-  native maximum, never RoPE-stretched, and steps down to fit (docs/serving-design.md).
+- A run's planned memory stays under `memory.budget_gb`. Context per stream starts at 64K (owner decision
+  2026-10-31; 256K before) or the native maximum, never RoPE-stretched, and steps down to fit
+  (docs/serving-design.md).
 - `null` means not measured. Never invent a number, digest, backend, or percentile. Never fill a
   missing score with zero.
 - No hostname and no Hugging Face token in a run record, log, or stored error. The token comes from

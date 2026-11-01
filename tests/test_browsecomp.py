@@ -131,6 +131,24 @@ def test_a_refused_request_ends_the_question_as_wrong_but_a_dead_server_stops_th
         bcp.run_query("Q?", chat=down, search=lambda q: "[]", model="m", k=5, max_tokens=100, max_iterations=10, enable_thinking=None)
 
 
+def test_a_server_that_is_down_after_every_retry_stops_the_step_not_the_question() -> None:
+    # LFM3-1.7B BF16 on SGLang (2026-10-31): the server crashed and every retry was refused. The retries
+    # turned the ApiError into a plain SmaError, so 100 questions counted as wrong and the score read 0.
+    import socket
+
+    from sma.httpapi import request_json
+
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]  # Closed once the block ends: nothing listens there.
+
+    def chat(body: dict[str, Any]) -> dict[str, Any]:
+        return request_json("POST", f"http://127.0.0.1:{port}/v1/chat/completions", timeout_s=2, payload=body, attempts=2, backoff_s=0)
+
+    with pytest.raises(ApiError, match="failed after 2 attempts"):
+        bcp.run_query("Q?", chat=chat, search=lambda q: "[]", model="m", k=5, max_tokens=100, max_iterations=10, enable_thinking=None)
+
+
 def test_the_score_counts_every_picked_question_and_leaves_calibration_null() -> None:
     evidence, golds = bcp.read_qrels(QRELS_EVIDENCE), bcp.read_qrels(QRELS_GOLDS)
     finished = {"status": "completed", "result": [{"type": "output_text", "output": "x"}], "tool_call_counts": {"search": 2},
@@ -215,6 +233,7 @@ class FakeRunner:
 
     def start(self, rel_dir: str, name: str, command: str) -> None:
         self.started.append(command)
+        self.stopped = False  # A new search server, as the real runner starts one.
 
     def status(self, rel_dir: str, name: str) -> tuple[int | None, bool]:
         return (0, False) if self.stopped else (None, True)
@@ -297,7 +316,7 @@ def test_a_run_answers_with_search_on_the_runner_grades_with_the_judge_and_keeps
     scores = _json(suite / "scores.json")
     assert (scores["primary_metric"], scores["n"], scores["correct"]) == ("accuracy", 2, want_right)
     assert scores["primary_score"] == pytest.approx(want_right / 2)
-    assert scores["judge"] == "ornith-1.5-122b" and scores["context_per_stream"] is not None
+    assert scores["judge"] == "qwen3.8-flash-fp4" and scores["context_per_stream"] is not None
     evidence = bcp.read_qrels(QRELS_EVIDENCE)
     assert scores["evidence_recall"] == pytest.approx(sum(len({"11", "12"} & set(evidence[q])) / len(evidence[q]) for q in picked) / 2)
 
@@ -317,6 +336,74 @@ def test_a_run_answers_with_search_on_the_runner_grades_with_the_judge_and_keeps
     assert summary["quality"]["browsecomp_plus"]["score"] == pytest.approx(want_right / 2)
     validate_instance(summary, "summary.schema.json")
     validate_instance(manifest, "manifest.schema.json")
+
+
+def test_resume_redo_runs_browsecomp_plus_again_and_keeps_the_earlier_output_out_of_git(tmp_path: Path) -> None:
+    # LFM3-1.7B BF16 (2026-10-31): the server died mid-BrowseComp-Plus and its 100 errors were scored as 0.
+    # The owner chose to run the step again; the earlier output moves aside, its text still out of git.
+    import subprocess
+
+    from sma.records import load_manifest
+
+    cfg, services = _setup(tmp_path)
+    search = SearchServer()
+    cfg.browsecomp.local_port = search.port
+    services.research_runner, services.judge = FakeRunner(), FakeJudge()
+    try:
+        run_id = execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
+        run_dir = next((tmp_path / "runs").glob(f"*/*/*/{run_id}"))
+        before = _json(run_dir / "quality" / bcp.SUITE / "scores.json")
+        execute(RunSpec(repo="example/tiny", quant_flag="bf16", resume_run_id=run_id, redo=("browsecomp_plus",)), cfg, services)
+    finally:
+        search.stop()
+
+    kept = run_dir / "redone" / "browsecomp_plus-1"
+    assert _json(kept / "scores.json") == before and (kept / "trajectories.jsonl.gz").is_file()
+    after = _json(run_dir / "quality" / bcp.SUITE / "scores.json")
+    assert after["n"] == before["n"] and len(services.judge.asked) == 4  # Both questions asked and judged again.
+    manifest = load_manifest(run_dir)
+    (entry,) = manifest["redone"]
+    assert entry["suites"] == ["browsecomp_plus"] and entry["previous"]["browsecomp_plus"]["primary_score"] == before["primary_score"]
+    assert manifest["steps"]["browsecomp_plus"]["attempts"] == 2 and manifest["steps"]["quality"]["attempts"] == 1
+    validate_instance(manifest, "manifest.schema.json")
+    # The earlier bundle still holds the questions' text: git ignores it where it now lies.
+    for path in ("runs/m/e/q/r/redone/browsecomp_plus-1/trajectories.jsonl.gz", "runs/m/e/q/r/redone/browsecomp_plus-1/queries/1.json"):
+        assert subprocess.run(["git", "check-ignore", "-q", "--no-index", path], cwd=Path(__file__).resolve().parents[1]).returncode == 0
+
+
+def test_rescore_nulls_a_browsecomp_score_whose_questions_met_a_dead_server(tmp_path: Path) -> None:
+    # LFM3-1.7B BF16 on SGLang (2026-10-31): 100 questions asked of a crashed server read as 0%. Not a measurement.
+    from sma.pipeline import rescore
+
+    cfg, services = _setup(tmp_path)
+    search = SearchServer()
+    cfg.browsecomp.local_port = search.port
+    services.research_runner, services.judge = FakeRunner(), FakeJudge()
+    try:
+        run_id = execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
+    finally:
+        search.stop()
+    suite = next((tmp_path / "runs").glob(f"*/*/*/{run_id}")) / "quality" / bcp.SUITE
+    before = _json(suite / "scores.json")
+    assert before["primary_score"] is not None
+    # One question refused (a full context) counts as wrong and stays measured.
+    refused = "http://127.0.0.1:8000/v1/chat/completions returned 400: context too long"
+    dead = "POST http://127.0.0.1:8000/v1/chat/completions failed after 3 attempts: HTTP error calling x: [Errno 111] Connection refused"
+    with gzip.open(suite / "trajectories.jsonl.gz", "rt", encoding="utf-8") as handle:
+        rows = [json.loads(line) for line in handle]
+    rows[0]["answer_run"].update(status="error", error=refused)
+    write = lambda: (suite / "trajectories.jsonl.gz").write_bytes(gzip.compress("".join(json.dumps(r) + "\n" for r in rows).encode()))
+    write()
+    rescore(cfg, run_id)
+    assert _json(suite / "scores.json")["primary_score"] == before["primary_score"]
+
+    rows[1]["answer_run"].update(status="error", error=dead)
+    write()
+    assert "browsecomp_plus" in rescore(cfg, run_id)
+    after = _json(suite / "scores.json")
+    assert after["primary_score"] is None and after["error"].startswith("1 of 2 questions were asked of a server that was down")
+    summary = _json(suite.parents[1] / "summary.json")
+    assert summary["quality"]["browsecomp_plus"]["score"] is None
 
 
 def test_without_a_judge_or_a_tool_parser_the_score_is_null_and_says_why(tmp_path: Path, monkeypatch) -> None:

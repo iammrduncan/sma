@@ -252,36 +252,29 @@ def perplexity_argv(
     ]
     if reference_base:
         argv.extend(["-v", f"{reference_base}:/sma-reference/kld-base.bin:ro"])
+    argv.extend(["--entrypoint", "/app/llama-perplexity", image])
+    base = "/sma-reference/kld-base.bin" if reference_base else "/sma-run/logprobs/kld-base.bin" if write_base else None
     argv.extend(
-        [
-            "--entrypoint",
-            "/app/llama-perplexity",
-            image,
-            "-m",
-            f"/model/{model_file}",
-            "-f",
-            "/sma-run/logprobs/corpus.txt",
-            "-c",
-            str(cfg.logprobs.window_tokens),
-            "--chunks",
-            str(cfg.logprobs.llamacpp_chunks),
-            "-ngl",
-            "all",
-            "-fa",
-            "on",
-            "-ctk",
-            "q8_0",
-            "-ctv",
-            "q8_0",
-            "--seed",
-            str(cfg.seed),
-        ]
+        perplexity_args(
+            cfg, model=f"/model/{model_file}", corpus="/sma-run/logprobs/corpus.txt", base=base, compare=bool(reference_base)
+        )
     )
-    if reference_base:
-        argv.extend(["--kl-divergence-base", "/sma-reference/kld-base.bin", "--kl-divergence"])
-    elif write_base:
-        argv.extend(["--kl-divergence-base", "/sma-run/logprobs/kld-base.bin"])
     return argv
+
+
+def perplexity_args(cfg: Config, *, model: str, corpus: str, base: str | None, compare: bool) -> list[str]:
+    """llama-perplexity's flags: the corpus in chunks of window_tokens, with the server's 8-bit KV cache.
+    base is the full-vocabulary logits file: written there by a reference run, read from there with
+    compare (KL against it)."""
+    args = [
+        "-m", model, "-f", corpus, "-c", str(cfg.logprobs.window_tokens), "--chunks", str(cfg.logprobs.llamacpp_chunks),
+        "-ngl", "all", "-fa", "on", "-ctk", "q8_0", "-ctv", "q8_0", "--seed", str(cfg.seed),
+    ]  # fmt: skip
+    if base:
+        args += ["--kl-divergence-base", base]
+        if compare:
+            args.append("--kl-divergence")
+    return args
 
 
 NEL_CONFIG = "nel.yaml"
@@ -306,8 +299,21 @@ def nel_bench_ref(suite: QualitySuite) -> str:
     return packaged.name if packaged else bench
 
 
-def nel_config(cfg: Config, *, served_name: str, base_url: str, suite: QualitySuite) -> dict[str, Any]:
-    """The NeMo Evaluator config for one suite, against the running quality server."""
+def answer_limit(cfg: Config, context: int | None) -> int | None:
+    """The answer limit a quality request sends: quality.max_tokens (owner decision 2026-10-31: 128K, so an
+    answer that loops stops there, not at the end of a 262K context), when it leaves 4,096 tokens of the
+    stream's context for the prompt. Otherwise none: the answer may use the rest of the context."""
+    cap = cfg.quality.max_tokens
+    if cap is None or (context is not None and cap > context - 4096):
+        return None
+    return cap
+
+
+def nel_config(
+    cfg: Config, *, served_name: str, base_url: str, suite: QualitySuite, context: int | None = None
+) -> dict[str, Any]:
+    """The NeMo Evaluator config for one suite, against the running quality server. context: the
+    quality stream's context, for the answer limit (answer_limit)."""
     proxy: dict[str, Any] = {
         # Moves a leading <think> block out of the answer before scoring, for models that reason anyway.
         "interceptors": [{"name": "reasoning"}],
@@ -322,8 +328,9 @@ def nel_config(cfg: Config, *, served_name: str, base_url: str, suite: QualitySu
     generation: dict[str, Any] = {"seed": cfg.seed}
     if cfg.quality.temperature is not None:
         generation["temperature"] = cfg.quality.temperature
-    if cfg.quality.max_tokens is not None:
-        generation["max_tokens"] = cfg.quality.max_tokens
+    limit = answer_limit(cfg, context)
+    if limit is not None:
+        generation["max_tokens"] = limit
     return {
         "services": {
             "sma": {
@@ -432,16 +439,66 @@ def eval_factory_config(
     }
 
 
+# Run-time fixes for eval-factory images, by image repository: a folder in src/sma/patches that SMA
+# mounts read-only and puts on PYTHONPATH. Its sitecustomize.py says what it fixes.
+EVAL_FACTORY_PATCHES = {"nvcr.io/nvidia/eval-factory/livecodebench": "livecodebench", "nvcr.io/nvidia/eval-factory/bfcl": "bfcl"}
+# Patches that answer an even share of every category when SMA sets SMA_QUESTION_LIMIT (a suite's limit).
+EVAL_FACTORY_LIMITS = {"bfcl"}
+
+
+def eval_factory_takes_limit(image: str) -> bool:
+    """Whether SMA can run a share of this image's questions (its patch reads SMA_QUESTION_LIMIT)."""
+    patch = eval_factory_patch(image)
+    return patch is not None and patch.name in EVAL_FACTORY_LIMITS
+
+
+def eval_factory_patch(image: str) -> Path | None:
+    """The patch folder for an image (any tag or digest), or None."""
+    name = image.split("@", 1)[0]
+    if ":" in name.rsplit("/", 1)[-1]:
+        name = name[: name.rfind(":")]
+    folder = EVAL_FACTORY_PATCHES.get(name)
+    return Path(__file__).parent / "patches" / folder if folder else None
+
+
+# LiveCodeBench's own limit per test (its runner's --evaluation_timeout default), and the container's
+# grading processes (its num_process_evaluate default).
+LIVECODEBENCH_TEST_TIMEOUT_S = 6
+LIVECODEBENCH_GRADERS = 5
+
+
+def livecodebench_regrade_argv(
+    *, image: str, attempt_dir: Path, out_dir: Path, hf_home: Path, patch_dir: Path, uid: int, gid: int,
+    release: str, start_date: str | None, end_date: str | None,
+) -> list[str]:
+    """Grade a LiveCodeBench attempt's saved code again in its container (patches/livecodebench/regrade.py):
+    no network, the attempt read-only, the dataset from the shared cache, the regraded file into out_dir."""
+    dates = [*(["--start-date", start_date] if start_date else []), *(["--end-date", end_date] if end_date else [])]
+    return [
+        "docker", "run", "--rm", "--network", "none", "--user", f"{uid}:{gid}",
+        "-e", "HOME=/tmp", "-e", "HF_HOME=/hf-home", "-e", "HF_HUB_OFFLINE=1", "-e", "HF_DATASETS_OFFLINE=1",
+        "-v", f"{hf_home}:/hf-home", "-v", f"{attempt_dir}:/results:ro", "-v", f"{out_dir}:/out",
+        "-v", f"{patch_dir}:/sma-patch:ro", "--entrypoint", "python3", image, "/sma-patch/regrade.py",
+        "--release", release, "--timeout", str(LIVECODEBENCH_TEST_TIMEOUT_S), "--processes", str(LIVECODEBENCH_GRADERS),
+        *dates,
+    ]  # fmt: skip
+
+
 def eval_factory_argv(
-    *, name: str, image: str, attempt_dir: Path, config_path: Path, uid: int, gid: int, hf_home: Path
+    *, name: str, image: str, attempt_dir: Path, config_path: Path, uid: int, gid: int, hf_home: Path,
+    patch_dir: Path | None = None, limit: int | None = None,
 ) -> list[str]:
     """Run the container's harness against the quality server.
 
     Host networking, so 127.0.0.1 is the quality server's published port. The host user owns the
     output, so a later run can remove it. Telemetry is off: the harness would otherwise report the
     model name and task to NVIDIA. hf_home keeps the datasets a container downloads (LiveCodeBench's
-    is 4.5 GB) between runs. No Hugging Face token is passed: the datasets are public.
+    is 4.5 GB) between runs. No Hugging Face token is passed: the datasets are public. patch_dir is
+    mounted read-only and put on PYTHONPATH (eval_factory_patch); limit reaches it as SMA_QUESTION_LIMIT.
     """
+    patch = ["-e", "PYTHONPATH=/sma-patch", "-v", f"{patch_dir}:/sma-patch:ro"] if patch_dir else []
+    if limit is not None:
+        patch += ["-e", f"SMA_QUESTION_LIMIT={limit}"]
     return [
         "docker",
         "run",
@@ -464,6 +521,7 @@ def eval_factory_argv(
         f"{config_path}:/config/{EVAL_FACTORY_CONFIG}:ro",
         "-v",
         f"{hf_home}:/hf-home",
+        *patch,
         image,
         "sh",
         "-c",

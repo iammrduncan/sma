@@ -99,6 +99,63 @@ def test_resume_skips_completed_steps(tmp_path: Path) -> None:
     assert summary["status"] == "done"
 
 
+def test_a_resume_with_a_changed_config_records_the_config_each_step_used(tmp_path: Path) -> None:
+    # LFM3-1.7B on SGLang (2026-10-30): LiveCodeBench's window changed and the run resumed, but the manifest
+    # kept the old snapshot, so it named a window the suite did not run.
+    from sma.config import QualitySuite
+
+    cfg = make_config(tmp_path)
+    services, _fetcher, _runtime = make_services(tmp_path, cfg)
+    services.hooks.kill_step = "determinism"
+    with pytest.raises(SimulatedKill):
+        execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
+    run_dir = next((tmp_path / "runs").glob("*/*/*/*"))
+    before = load_manifest(run_dir)["config_snapshot"]
+
+    cfg.quality.suites = [QualitySuite("ifeval", 3, bench="lm-eval://ifeval")]
+    execute(RunSpec(repo="example/tiny", quant_flag="bf16", resume_run_id=run_dir.name), cfg, services)
+
+    manifest = load_manifest(run_dir)
+    (entry,) = manifest["config_history"]
+    assert entry["config_snapshot"] == before and entry["until"]
+    assert manifest["config_snapshot"]["quality"]["suites"][0]["limit"] == 3
+    assert before["quality"]["suites"][0]["limit"] == 2
+    assert "config_changed" in (run_dir / "logs" / "sma.log").read_text()
+
+
+def test_a_resume_with_the_same_config_adds_no_history(tmp_path: Path) -> None:
+    cfg = make_config(tmp_path)
+    services, _fetcher, _runtime = make_services(tmp_path, cfg)
+    services.hooks.kill_step = "determinism"
+    with pytest.raises(SimulatedKill):
+        execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
+    run_dir = next((tmp_path / "runs").glob("*/*/*/*"))
+    execute(RunSpec(repo="example/tiny", quant_flag="bf16", resume_run_id=run_dir.name), cfg, services)
+    assert "config_history" not in load_manifest(run_dir)
+
+
+def test_resume_redo_runs_a_finished_suite_again_and_keeps_its_earlier_score(tmp_path: Path) -> None:
+    # LiveCodeBench's grading was fixed after LFM3-1.7B's BF16 run (2026-10-31); the owner chose to run that
+    # one suite again rather than the whole run.
+    cfg = make_config(tmp_path)
+    services, _fetcher, _runtime = make_services(tmp_path, cfg)
+    execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
+    run_dir = next((tmp_path / "runs").glob("*/*/*/*"))
+    before = json.loads((run_dir / "quality" / "ifeval" / "scores.json").read_text())
+
+    with pytest.raises(SmaError, match="not a benchmark of this config"):
+        execute(RunSpec(repo="example/tiny", quant_flag="bf16", resume_run_id=run_dir.name, redo=("nope",)), cfg, services)
+    execute(RunSpec(repo="example/tiny", quant_flag="bf16", resume_run_id=run_dir.name, redo=("ifeval",)), cfg, services)
+
+    manifest = load_manifest(run_dir)
+    (entry,) = manifest["redone"]
+    assert entry["suites"] == ["ifeval"] and entry["previous"]["ifeval"]["primary_score"] == before["primary_score"]
+    assert sorted(path.name for path in (run_dir / "quality" / "ifeval").glob("attempt-*")) == ["attempt-1", "attempt-2"]
+    assert (run_dir / "quality" / "ifeval" / ".done").is_file() and manifest["steps"]["quality"]["status"] == "done"
+    assert manifest["steps"]["quality"]["attempts"] == 2 and manifest["steps"]["speed"]["attempts"] == 1
+    validate_instance(manifest, "manifest.schema.json")
+
+
 def test_a_failed_quality_step_does_not_stop_the_run_and_the_server_is_torn_down(tmp_path: Path) -> None:
     # Owner decision 2026-10-29: a failed score or suite is recorded, and the other steps still run.
     from sma.errors import RunIncomplete

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import signal
 import time
 from collections.abc import Callable
@@ -23,6 +24,12 @@ from sma.commands import (
     container_name,
     docker_argv,
     eval_factory_argv,
+    eval_factory_patch,
+    EVAL_FACTORY_LIMITS,
+    answer_limit,
+    livecodebench_regrade_argv,
+    LIVECODEBENCH_GRADERS,
+    LIVECODEBENCH_TEST_TIMEOUT_S,
     eval_factory_config,
     find_executable,
     moe_backend_chain,
@@ -32,6 +39,7 @@ from sma.commands import (
     nel_config,
     packaged_bench,
     perplexity_argv,
+    perplexity_args,
     serve_argv,
     serve_env,
 )
@@ -41,6 +49,7 @@ from sma.config import Config, QualitySuite, for_thinking
 from sma.corpus import build_windows, load_corpus
 from sma.errors import CompareRefused, RunIncomplete, SmaError
 from sma.fetch import TOKENIZER_FILES, FetchResult, download_snapshot, inspect_snapshot
+from sma.hashing import sha256_file
 from sma.identity import assert_alias_safe
 from sma.kl import parse_perplexity_log, perplexity
 from sma.locks import GpuLock
@@ -146,6 +155,8 @@ class RunSpec:
     selection_reason: str | None = None
     # The run's thinking mode, part of its identity: "off" (greedy) or "on" (config.for_thinking).
     thinking: str = "off"
+    # Resume only: quality suites to run again although they finished (sma resume --redo).
+    redo: tuple[str, ...] = ()
 
 
 @dataclass
@@ -363,8 +374,16 @@ class CommandBencher:
 
 
 def production_services(cfg: Config) -> Services:
+    runtime: Any = DockerRuntime(cfg)
+    prefix: list[str] | None = None
+    if cfg.remote.enabled:
+        from sma.remote import RemoteRuntime
+
+        runtime = RemoteRuntime(cfg)
+        prefix = runtime.telemetry_prefix()
+
     def _telemetry(run_dir: Path, config: Config) -> TelemetryRecorder:
-        recorder = TelemetryRecorder(run_dir / "telemetry.csv", config)
+        recorder = TelemetryRecorder(run_dir / "telemetry.csv", config, query_prefix=prefix)
         recorder.start(sampler=True)
         return recorder
 
@@ -373,12 +392,13 @@ def production_services(cfg: Config) -> Services:
     registry = default_registry(cfg)
     return Services(
         fetcher=HubFetcher(cfg, registry=registry, engine=cfg.engine.name),
-        runtime=DockerRuntime(cfg),
+        runtime=runtime,
         evaluator=CommandEvaluator(),
         bencher=CommandBencher(),
         telemetry_factory=_telemetry,
         registry=registry,
-        energy_counter=lambda: energy_counter_mj(cfg.doctor.gpu_index),
+        # The GPU's energy counter is read here only for a local GPU; a remote one is integrated from power.
+        energy_counter=None if cfg.remote.enabled else (lambda: energy_counter_mj(cfg.doctor.gpu_index)),
     )
 
 
@@ -468,7 +488,16 @@ def execute(
 
 def _create(spec: RunSpec, cfg: Config, services: Services) -> Ctx:
     run_id = new_run_id()
-    run_dir = run_dir_for(cfg, spec.repo, spec.quant_flag, run_id, spec.engine or "vllm", gguf=spec.gguf, thinking=spec.thinking)
+    engine_dir = spec.engine or "vllm"
+    if cfg.remote.enabled:
+        if engine_dir != "llamacpp":
+            raise SmaError(
+                f"The serving machine (remote.enabled) runs llama.cpp only, so it cannot serve {spec.repo} on {engine_dir}. "
+                "Queue a GGUF repo with --gguf QUANT."
+            )
+        # The serving hardware is part of the subject: its runs sit beside, never among, this machine's.
+        engine_dir = f"{engine_dir}-{cfg.remote.hardware}"
+    run_dir = run_dir_for(cfg, spec.repo, spec.quant_flag, run_id, engine_dir, gguf=spec.gguf, thinking=spec.thinking)
     run_dir.mkdir(parents=True, exist_ok=False)
     for name in ("fetch", "logprobs", "quality", "speed", "logs", "steps"):
         (run_dir / name).mkdir(parents=True, exist_ok=True)
@@ -487,6 +516,8 @@ def _create(spec: RunSpec, cfg: Config, services: Services) -> Ctx:
         selection_reason=spec.selection_reason,
         thinking=spec.thinking,
     )
+    if cfg.remote.enabled:
+        manifest["engine"]["image"] = f"llama.cpp source build {cfg.remote.llamacpp_build} on the serving machine (services/v100-serving)"
     handler = add_run_log(run_dir / "logs" / "sma.log")
     publish(cfg, run_dir, manifest)
     log_event("run_created", run_id=run_id, repo=spec.repo, quant=spec.quant_flag)
@@ -533,6 +564,8 @@ def _load(spec: RunSpec, cfg: Config, services: Services) -> Ctx:
     _backfill(manifest, found)
     handler = add_run_log(found / "logs" / "sma.log")
     log_event("run_resume", run_id=manifest["run_id"])
+    _record_config(manifest, cfg)
+    _redo_suites(manifest, found, cfg, spec.redo)
     ctx = Ctx(cfg=cfg, services=services, run_dir=found, manifest=manifest, log_handler=handler)
     fetch = _optional(found / "fetch" / "result.json")
     if isinstance(fetch, dict) and fetch.get("snapshot_path"):
@@ -541,6 +574,65 @@ def _load(spec: RunSpec, cfg: Config, services: Services) -> Ctx:
         manifest["engine"].get("batch_invariant_supported", True)
     )
     return ctx
+
+
+def _record_config(manifest: dict[str, Any], cfg: Config) -> None:
+    """A resumed run's steps from here use this process's config. When it differs from the recorded one,
+    the recorded one moves to config_history with the time it stopped applying, so each step's settings
+    stay on record (a suite's own folder also keeps the config it ran with)."""
+    current = json.loads(json.dumps(scrub_obj(cfg.to_snapshot())))
+    previous = manifest.get("config_snapshot")
+    if previous == current:
+        return
+    manifest.setdefault("config_history", []).append({"until": utc_now(), "config_snapshot": previous})
+    manifest["config_snapshot"] = current
+    changed = sorted(key for key in set(current) | set(previous or {}) if (previous or {}).get(key) != current.get(key))
+    log_event("config_changed", run_id=manifest["run_id"], sections=",".join(changed))
+
+
+def _redo_steps(cfg: Config) -> dict[str, tuple[tuple[str, ...], str]]:
+    """Benchmarks with steps of their own that --redo can run again: their steps, and their output folder."""
+    return {
+        "browsecomp_plus": (("browsecomp_plus", "browsecomp_plus_results"), "browsecomp_plus"),
+        "kernelbench": (("kernelbench", "kernelbench_results"), f"kernelbench_l{cfg.kernelbench.level}"),
+    }
+
+
+def _redo_suites(manifest: dict[str, Any], run_dir: Path, cfg: Config, names: tuple[str, ...]) -> None:
+    """Make finished benchmarks run again on this resume. A quality suite loses its .done marker and the
+    quality step's; its earlier attempts stay in its folder. BrowseComp-Plus or KernelBench loses its steps'
+    markers, and its folder moves to redone/<name>-<n>/, so it starts again from nothing. The manifest's
+    `redone` keeps when, by which SMA, and each one's earlier score."""
+    if not names:
+        return
+    steps = _redo_steps(cfg)
+    known = {suite.name for suite in cfg.quality.suites} | set(steps)
+    unknown = [name for name in names if name not in known]
+    if unknown:
+        raise SmaError(f"--redo {', '.join(unknown)}: not a benchmark of this config ({', '.join(sorted(known))}).")
+    previous: dict[str, Any] = {}
+    for name in names:
+        folder = run_dir / "quality" / (steps[name][1] if name in steps else name)
+        scores = _optional(folder / "scores.json")
+        if isinstance(scores, dict):
+            previous[name] = {key: scores.get(key) for key in ("primary_metric", "primary_score", "n")}
+        if name not in steps:
+            (folder / ".done").unlink(missing_ok=True)
+            marker_path(run_dir, "quality").unlink(missing_ok=True)
+            manifest["steps"]["quality"]["status"] = "pending"
+            continue
+        if folder.is_dir():
+            kept = run_dir / "redone" / f"{name}-{len(list((run_dir / 'redone').glob(f'{name}-*'))) + 1}"
+            kept.parent.mkdir(exist_ok=True)
+            folder.rename(kept)
+        for step in steps[name][0]:
+            marker_path(run_dir, step).unlink(missing_ok=True)
+            manifest["steps"][step]["status"] = "pending"
+    commit, dirty = git_identity()
+    manifest.setdefault("redone", []).append(
+        {"at": utc_now(), "sma_commit": commit, "sma_dirty": dirty, "suites": list(names), "previous": previous}
+    )
+    log_event("suite_redo", run_id=manifest["run_id"], suites=",".join(names))
 
 
 def _backfill(manifest: dict[str, Any], run_dir: Path) -> None:
@@ -976,6 +1068,29 @@ def _server_logprobs(ctx: Ctx) -> None:
 _REFERENCE_FILE_TYPES = {"ALL_F32", "MOSTLY_F16", "MOSTLY_BF16"}
 
 
+def _remote_perplexity(ctx: Ctx, logprobs_dir: Path, gguf: dict[str, Any], reference: Any, write_base: bool) -> list[str]:
+    """llama-perplexity on the serving machine: the corpus goes there, and a candidate's reference logits too
+    (once per reference run); a reference run writes its logits there for the step to copy back."""
+    runtime = ctx.services.runtime
+    folder = f"runs/{ctx.run_id}"
+    runtime.runner.put(logprobs_dir / "corpus.txt", f"{folder}/corpus.txt")
+    base = None
+    if reference is not None:
+        ref_id, ref_path = reference[0], Path(str(reference[1]))
+        base = f"runs/{ref_id}/kld-base.bin"
+        have = runtime.runner.shell(f"stat -c %s {shlex.quote(base)} 2>/dev/null; true", what="check the reference logits", timeout_s=60).strip()
+        if have != str(ref_path.stat().st_size):
+            runtime.runner.put(ref_path, base)
+    elif write_base:
+        base = f"{folder}/kld-base.bin"
+    root = ctx.cfg.remote.root
+    args = perplexity_args(
+        ctx.cfg, model=f"{runtime.ensure_model(ctx.manifest)}/{gguf.get('model_file')}", corpus=f"{root}/{folder}/corpus.txt",
+        base=f"{root}/{base}" if base else None, compare=reference is not None,
+    )  # fmt: skip
+    return runtime.perplexity_command(args)
+
+
 def _llamacpp_logprobs(ctx: Ctx) -> None:
     """llama-server returns no prompt logprobs, so llama.cpp's own llama-perplexity scores the corpus.
 
@@ -990,21 +1105,27 @@ def _llamacpp_logprobs(ctx: Ctx) -> None:
     reference = _kld_reference(ctx)
     write_base = reference is None and gguf.get("file_type") in _REFERENCE_FILE_TYPES
     assert ctx.snapshot is not None
-    argv = perplexity_argv(
-        ctx.cfg,
-        name=container_name(ctx.cfg, ctx.run_id, "logprobs"),
-        image=_resolved_image(ctx),
-        model_dir=ctx.snapshot,
-        run_dir=ctx.run_dir,
-        model_file=str(gguf.get("model_file")),
-        uid=os.getuid(),
-        gid=os.getgid(),
-        reference_base=None if reference is None else str(reference[1]),
-        write_base=write_base,
-    )
+    if ctx.cfg.remote.enabled:
+        argv = _remote_perplexity(ctx, logprobs_dir, gguf, reference, write_base)
+    else:
+        argv = perplexity_argv(
+            ctx.cfg,
+            name=container_name(ctx.cfg, ctx.run_id, "logprobs"),
+            image=_resolved_image(ctx),
+            model_dir=ctx.snapshot,
+            run_dir=ctx.run_dir,
+            model_file=str(gguf.get("model_file")),
+            uid=os.getuid(),
+            gid=os.getgid(),
+            reference_base=None if reference is None else str(reference[1]),
+            write_base=write_base,
+        )
     atomic_write_json(logprobs_dir / "command.json", {"argv": scrub_obj(argv)})
     log_path = ctx.run_dir / "logs" / "logprobs-llama-perplexity.log"
     ctx.services.evaluator.run(argv, logprobs_dir, float(ctx.cfg.timeouts.eval_s), log_path)
+    if ctx.cfg.remote.enabled and write_base:
+        # The reference's logits come back here, where a candidate's KL step and the large-file hashes find them.
+        ctx.services.runtime.runner.get(f"runs/{ctx.run_id}/kld-base.bin", logprobs_dir / "kld-base.bin")
     parsed = parse_perplexity_log(log_path.read_text(encoding="utf-8", errors="replace"))
     corpus = {
         "corpus_version": ctx.cfg.logprobs.corpus_version,
@@ -1061,8 +1182,11 @@ def _kld_reference(ctx: Ctx) -> tuple[str, Path] | None:
     ref = load_manifest(ref_dir)
     base = ref_dir / "logprobs" / "kld-base.bin"
     problem = None
+    hardware = ctx.cfg.remote.hardware if ctx.cfg.remote.enabled else None
     if (ref.get("engine") or {}).get("name") != "llamacpp":
         problem = "is not a llama.cpp run, and KL stays on one engine"
+    elif (ref.get("serving") or {}).get("hardware") != hardware:
+        problem = "was served on other hardware, and KL stays on one machine kind"
     elif not base.is_file():
         problem = "has no logits file (only a full-precision GGUF run writes one)"
     elif ref.get("tokenizer_fingerprint") != ctx.manifest.get("tokenizer_fingerprint"):
@@ -1178,13 +1302,16 @@ def _step_browsecomp_results(ctx: Ctx) -> None:
     agentic.browsecomp_results_step(ctx, warn=_warn)
 
 
-def rescore(cfg: Config, run_id: str) -> list[str]:
+def rescore(cfg: Config, run_id: str, *, run_regrade: Callable[[list[str]], None] | None = None) -> list[str]:
     """Score a finished run's quality suites again, with this SMA, from the output their harness saved.
 
     Nothing is asked of a model. Each suite with a .done marker is normalized again from its last attempt,
     so fields SMA has learned to record since (IFEval's four measures, answers_cut_off) reach old records.
+    A LiveCodeBench attempt graded before SMA's patch (its command.json names none) has its saved code
+    graded again first, at LiveCodeBench's 6 s per test, in its container (_regrade_livecodebench).
     The context and concurrency the suite ran with are kept. The manifest lists each rescore; the summary
     and the catalog are rebuilt. A run with a step still running is refused: its own process owns it.
+    run_regrade: tests only, runs the regrade's argv in place of Docker.
     """
     from sma.catalog import Catalog
 
@@ -1198,6 +1325,9 @@ def rescore(cfg: Config, run_id: str) -> list[str]:
             f"Run {run_id} has a step running ({running[0]}). Rescore it after it ends, or after `sma resume` finishes it."
         )
     suites = ((manifest.get("config_snapshot") or {}).get("quality") or {}).get("suites") or []
+    # A container suite this config limits (BFCL's even share) is scored on that share of a run that
+    # answered more, so runs from before the limit compare with runs after it.
+    limits = {suite.name: suite.limit for suite in cfg.quality.suites if suite.image and suite.limit}
     redone: list[str] = []
     for suite in suites:
         suite_dir = found / "quality" / str(suite.get("name"))
@@ -1210,7 +1340,13 @@ def rescore(cfg: Config, run_id: str) -> list[str]:
             continue
         if suite.get("image"):
             command = _optional(suite_dir / "command.json") or {}
-            normalize_eval_factory(suite_dir, attempts[-1], suite["name"], image=str(command.get("image") or suite["image"]), task=suite["task"])
+            image = str(command.get("image") or suite["image"])
+            if str(suite.get("task") or "").startswith("codegeneration") and not command.get("patch"):
+                _regrade_livecodebench(cfg, found, suite, attempts[-1], image, run_regrade)
+            normalize_eval_factory(
+                suite_dir, attempts[-1], suite["name"], image=image, task=suite["task"],
+                limit=limits.get(suite["name"]) or suite.get("limit"),
+            )  # fmt: skip
         else:
             normalize_suite(
                 suite_dir, attempts[-1], suite["name"], bench=suite.get("bench") or suite["name"],
@@ -1222,6 +1358,8 @@ def rescore(cfg: Config, run_id: str) -> list[str]:
                 scores[key] = before[key]
         atomic_write_json(suite_dir / "scores.json", scores)
         redone.append(str(suite["name"]))
+    if _null_browsecomp_server_failures(found):
+        redone.append("browsecomp_plus")
     commit, dirty = git_identity()
     manifest.setdefault("rescored", []).append(
         {"at": utc_now(), "sma_commit": commit, "sma_dirty": dirty, "suites": redone}
@@ -1229,6 +1367,60 @@ def rescore(cfg: Config, run_id: str) -> list[str]:
     publish(cfg, found, manifest)
     log_event("rescored", run_id=run_id, suites=redone)
     return redone
+
+
+def _null_browsecomp_server_failures(run_dir: Path) -> bool:
+    """A BrowseComp-Plus score from questions asked of a server that was down is not a measurement: null it,
+    and say how many and why. True when the score changed."""
+    from sma import browsecomp as bcp
+
+    suite_dir = run_dir / "quality" / bcp.SUITE
+    scores = _optional(suite_dir / "scores.json")
+    bundle = suite_dir / "trajectories.jsonl.gz"
+    if not isinstance(scores, dict) or scores.get("primary_score") is None or not bundle.is_file():
+        return False
+    failed = bcp.server_failures(bundle)
+    if not failed:
+        return False
+    scores.update(
+        primary_score=None, ci_lower=None, ci_upper=None,
+        error=(f"{len(failed)} of {scores.get('n')} questions were asked of a server that was down (every retry failed); "
+               "not measured. Rerun with `sma resume <run-id> --redo browsecomp_plus`."),
+    )  # fmt: skip
+    atomic_write_json(suite_dir / "scores.json", scores)
+    return True
+
+
+def _regrade_livecodebench(
+    cfg: Config, run_dir: Path, suite: dict[str, Any], attempt_dir: Path, image: str,
+    run_regrade: Callable[[list[str]], None] | None,
+) -> None:
+    """Grade a LiveCodeBench attempt's saved code again at LiveCodeBench's 6 s per test, in the image that
+    graded it: its runner had given each test the request timeout (hours in SMA). The original grading stays;
+    the regraded file goes to the attempt's regrade/ folder with regrade.json, and the scorer reads it."""
+    patch_dir = eval_factory_patch(image)
+    if patch_dir is None:
+        raise SmaError(f"SMA has no LiveCodeBench regrade for {image}.")
+    out_dir = attempt_dir / "regrade"
+    out_dir.mkdir(exist_ok=True)
+    extra = (suite.get("params") or {}).get("extra") or {}
+    argv = livecodebench_regrade_argv(
+        image=image, attempt_dir=attempt_dir.resolve(), out_dir=out_dir.resolve(),
+        hf_home=(cfg.cache_path() / "eval-factory").resolve(), patch_dir=patch_dir, uid=os.getuid(), gid=os.getgid(),
+        release=str(suite["task"]).split("codegeneration_", 1)[-1],
+        start_date=extra.get("start_date"), end_date=extra.get("end_date"),
+    )  # fmt: skip
+    log_event("livecodebench_regrade", run_id=run_dir.name, suite=suite["name"])
+    if run_regrade is not None:
+        run_regrade(argv)
+    else:
+        result = run_command(argv, timeout_s=float(cfg.timeouts.eval_s), what="LiveCodeBench regrade")
+        _write_log(run_dir / "logs" / f"quality-{suite['name']}-regrade.log", result.stdout + "\n" + result.stderr)
+        require_ok(result, what="LiveCodeBench regrade")
+    atomic_write_json(out_dir / "regrade.json", {
+        "at": utc_now(), "image": image, "timeout_s": LIVECODEBENCH_TEST_TIMEOUT_S, "graders": LIVECODEBENCH_GRADERS,
+        "script_sha256": sha256_file(patch_dir / "regrade.py"), "argv": scrub_obj(argv),
+    })  # fmt: skip
 
 
 def _record_suite_context(ctx: Ctx, suite_dir: Path) -> None:
@@ -1248,7 +1440,7 @@ def _run_nel_suite(ctx: Ctx, suite: QualitySuite, suite_dir: Path, attempt_dir: 
     if packaged is not None:
         # The grader that scored this run is kept with it.
         atomic_write_text(suite_dir / packaged.name, packaged.read_text(encoding="utf-8"))
-    config = nel_config(ctx.cfg, served_name=ctx.served_name, base_url=ctx.base_url, suite=suite)
+    config = nel_config(ctx.cfg, served_name=ctx.served_name, base_url=ctx.base_url, suite=suite, context=_quality_context(ctx))
     atomic_write_text(suite_dir / NEL_CONFIG, yaml.safe_dump(config, sort_keys=False))
     argv = nel_argv(ctx.cfg, output_name=attempt_dir.name)
     atomic_write_json(
@@ -1274,19 +1466,25 @@ def _run_nel_suite(ctx: Ctx, suite: QualitySuite, suite_dir: Path, attempt_dir: 
     normalize_suite(suite_dir, attempt_dir, suite.name, bench=suite.bench or suite.name, limit=suite.limit, metric=suite.metric)
 
 
+def _quality_context(ctx: Ctx) -> int:
+    """The context per stream the quality server gives each request, from the run's memory plan."""
+    plan = ctx.manifest.get("memory_plan") or {}
+    return int((plan.get("benchmarks") or {}).get("quality") or plan.get("context") or ctx.cfg.memory.quality_min_context)
+
+
 def _container_sampling(ctx: Ctx) -> tuple[dict[str, Any], dict[str, Any]]:
     """The run's settings for a container that sends temperature, top_p, and an answer limit itself
     (suite.sampling), and where the sampling came from.
 
     Thinking off: greedy. Thinking on: what the engine applies to a request that sets none. llama-server
     reports its own at /props (a GGUF's general.sampling metadata, else its defaults); vLLM and SGLang apply
-    the checkpoint's generation_config.json, and 1.0 for a field it leaves out. The answer limit is the
-    context per stream minus 4,096 for the prompt, as for KernelBench: vLLM and SGLang refuse a request whose
-    prompt and limit pass the context.
+    the checkpoint's generation_config.json, and 1.0 for a field it leaves out. The answer limit is
+    quality.max_tokens, or the context per stream minus 4,096 for the prompt if that is less, as for
+    KernelBench: vLLM and SGLang refuse a request whose prompt and limit pass the context.
     """
-    plan = ctx.manifest.get("memory_plan") or {}
-    context = int((plan.get("benchmarks") or {}).get("quality") or plan.get("context") or ctx.cfg.memory.quality_min_context)
-    params: dict[str, Any] = {"max_new_tokens": max(1024, context - 4096), "request_timeout": int(ctx.cfg.quality.request_timeout_s)}
+    context = _quality_context(ctx)
+    limit = answer_limit(ctx.cfg, context) or max(1024, context - 4096)
+    params: dict[str, Any] = {"max_new_tokens": limit, "request_timeout": int(ctx.cfg.quality.request_timeout_s)}
     if (ctx.manifest.get("thinking") or "off") == "off":
         return {**params, "temperature": 0.0, "top_p": 1.0}, {"source": "thinking off: greedy", "temperature": 0.0, "top_p": 1.0}
     if ctx.manifest["engine"]["name"] == "llamacpp":
@@ -1317,6 +1515,9 @@ def _run_eval_factory_suite(ctx: Ctx, suite: QualitySuite, suite_dir: Path, atte
     attempt_dir.mkdir(parents=True, exist_ok=True)
     hf_home = ctx.cfg.cache_path() / "eval-factory"
     hf_home.mkdir(parents=True, exist_ok=True)
+    patch_dir = eval_factory_patch(suite.image)
+    if patch_dir is not None and patch_dir.name in EVAL_FACTORY_LIMITS and not suite.limit:
+        patch_dir = None  # A patch that only picks a share has nothing to do without a limit.
     argv = eval_factory_argv(
         name=container_name(ctx.cfg, ctx.run_id, f"quality-{suite.name}"),
         image=image,
@@ -1325,19 +1526,30 @@ def _run_eval_factory_suite(ctx: Ctx, suite: QualitySuite, suite_dir: Path, atte
         uid=os.getuid(),
         gid=os.getgid(),
         hf_home=hf_home.resolve(),
+        patch_dir=patch_dir,
+        limit=suite.limit,
+    )
+    # The patch SMA applied inside the container: its name and the hash of each of its files.
+    patch = (
+        {"name": patch_dir.name, "files": {path.name: sha256_file(path) for path in sorted(patch_dir.glob("*.py"))}}
+        if patch_dir
+        else None
     )
     # The mounts are absolute host paths, which can hold the hostname.
     atomic_write_json(
         suite_dir / "command.json",
-        {"argv": scrub_obj(argv), "concurrency": ctx.cfg.quality.concurrency, "image": image, "sampling": sampling},
-    )
+        {
+            "argv": scrub_obj(argv), "concurrency": ctx.cfg.quality.concurrency, "image": image, "sampling": sampling,
+            "patch": patch, "limit": suite.limit,
+        },
+    )  # fmt: skip
     try:
         ctx.services.evaluator.run(
             argv, suite_dir, float(ctx.cfg.timeouts.eval_s), ctx.run_dir / "logs" / f"quality-{suite.name}.log"
         )
     finally:
         scrub_output(attempt_dir)
-    normalize_eval_factory(suite_dir, attempt_dir, suite.name, image=image, task=suite.task)
+    normalize_eval_factory(suite_dir, attempt_dir, suite.name, image=image, task=suite.task, limit=suite.limit)
 
 
 def _step_serve_speed(ctx: Ctx) -> None:
@@ -1881,6 +2093,9 @@ def _start_server(ctx: Ctx, mode: str) -> None:
 
 def _record_start(ctx: Ctx, mode: str, spec: StartSpec, backend: str | None, fallback: bool) -> None:
     engine = ctx.manifest["engine"]
+    if ctx.cfg.remote.enabled and not ctx.manifest.get("serving"):
+        # Where the server ran, by kind and chip (never by name): the GPUs, the driver, and the build.
+        ctx.manifest["serving"] = ctx.services.runtime.facts()
     if backend:
         engine["moe_backend_used"] = backend
         engine["moe_backend_fallback"] = fallback
@@ -2002,7 +2217,9 @@ def _start_spec(ctx: Ctx, mode: str, backend: str | None, batch_invariant: bool)
         image=_resolved_image(ctx),
         entrypoint=get_backend(name_engine).entrypoint,
     )
+    remote_model_dir = ctx.services.runtime.ensure_model(ctx.manifest) if ctx.cfg.remote.enabled else None
     return StartSpec(
+        remote_model_dir=remote_model_dir,
         name=name,
         docker_argv=command,
         env=env,
@@ -2128,6 +2345,9 @@ def _cool(ctx: Ctx) -> dict[str, Any]:
 def _maybe_clock_cap(ctx: Ctx) -> None:
     cap = ctx.cfg.engine.clock_cap_mhz
     if cap is None or not ctx.cfg.engine.apply_clock_cap:
+        return
+    if ctx.cfg.remote.enabled:
+        _warn(ctx, "engine.apply_clock_cap is set, but the serving machine gives SMA no root, so its clocks are not capped.")
         return
     argv = ["nvidia-smi", "-i", str(ctx.cfg.doctor.gpu_index), "-lgc", f"{cap},{cap}"]
     require_ok(run_command(argv, timeout_s=30, what="nvidia-smi clock cap"), what="clock cap")

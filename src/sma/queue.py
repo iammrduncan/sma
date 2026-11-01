@@ -66,13 +66,18 @@ class JobQueue:
                 jobs.append(job)
         return jobs
 
-    def claim(self, worker_id: str, host_alias: str) -> tuple[Path, dict[str, Any]] | None:
-        """Claim a pending job. The claimed file is written with a heartbeat already set."""
+    def claim(
+        self, worker_id: str, host_alias: str, *, gguf_only: bool = False
+    ) -> tuple[Path, dict[str, Any]] | None:
+        """Claim a pending job. The claimed file is written with a heartbeat already set. gguf_only: a worker
+        whose server is llama.cpp on another machine (remote.enabled) takes only jobs whose legs are all GGUF."""
         claimed = self.path / "claimed"
         now_dt = datetime.now(timezone.utc)
         for path, job in self._eligible_pending(now_dt):
             pin = job.get("pinned_host_alias")
             if pin and pin != host_alias:
+                continue
+            if gguf_only and not all(leg.get("gguf") for leg in job.get("legs") or []):
                 continue
             dest = claimed / path.name
             if dest.exists():
@@ -357,7 +362,7 @@ def run_worker(
             continue
         claimed = None
         try:
-            claimed = queue.claim(identity, cfg.host_alias)
+            claimed = queue.claim(identity, cfg.host_alias, gguf_only=cfg.remote.enabled)
             if claimed is not None:
                 path, job = claimed
                 try:

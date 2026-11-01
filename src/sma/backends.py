@@ -164,7 +164,13 @@ SGLANG_WATCHED = (
 )
 
 
+SGLANG_FLASHINFER_WORKSPACE_BYTES = 2 * 1024**3
 SGLANG_PREFILL_SECONDS = 'sglang:per_stage_req_latency_seconds_sum{stage="prefill_forward"}'
+# Tokens the scheduler has prefilled (prefix-cache hits not included) and decoded, counted as it works.
+# prompt_tokens_total and generation_tokens_total grow only when a request finishes, so over a window they
+# do not line up with the time spent: a long answer reads as nothing, then as one burst.
+SGLANG_PREFILL_TOKENS = 'sglang:realtime_tokens_total{mode="prefill_compute"}'
+SGLANG_DECODE_TOKENS = 'sglang:realtime_tokens_total{mode="decode"}'
 
 
 def docker_exec(container: str, command: list[str]) -> list[str]:
@@ -487,7 +493,11 @@ class SglangBackend:
         self, cfg: Config, *, mode: str, batch_invariant: bool, is_moe: bool = False, quant_flag: str = ""
     ) -> dict[str, str]:
         del batch_invariant, is_moe, quant_flag
-        env: dict[str, str] = {}
+        # FlashInfer's scratch space for attention planning. SGLang's 384 MiB default ran out on a long prefill
+        # with LFM3-1.7B's sliding-window layers ("Buffer overflow when allocating memory for
+        # batch_prefill_tmp_s"), and the server died mid-BrowseComp-Plus (2026-10-31). 2 GiB is what SGLang
+        # gives it in its own deterministic mode; the memory plan's engine overhead covers it.
+        env: dict[str, str] = {"SGLANG_FLASHINFER_WORKSPACE_SIZE": str(SGLANG_FLASHINFER_WORKSPACE_BYTES)}
         if mode == "quality":
             env["SGLANG_ENABLE_DETERMINISTIC_INFERENCE"] = "1"
         if cfg.engine.sglang_disable_deep_gemm:
@@ -580,26 +590,27 @@ class SglangBackend:
         )
 
     def serving_metrics(self) -> tuple[str, ...]:
-        # Each request's time in prefill, which SGLang builds after v0.5.10 report per stage (dev-lfm3 does).
-        return SGLANG_WATCHED + ("sglang:num_running_reqs", SGLANG_PREFILL_SECONDS)
+        # Each request's time in prefill, which SGLang builds after v0.5.10 report per stage (dev-lfm3 does),
+        # and the scheduler's running token counts.
+        return SGLANG_WATCHED + ("sglang:num_running_reqs", SGLANG_PREFILL_SECONDS, SGLANG_PREFILL_TOKENS, SGLANG_DECODE_TOKENS)
 
     def serving_parts(self, change: dict[str, float], seconds: float) -> dict[str, tuple[float | None, float | None]]:
         intervals, spent = change.get("sglang:inter_token_latency_seconds_count"), change.get("sglang:inter_token_latency_seconds_sum")
         return {
-            # Prompt tokens over the time requests spent in prefill, as for vLLM. SGLang v0.5.10 reports
-            # no prefill time, so its prefill rate is not measured.
-            "prefill_tok_s": (change.get("sglang:prompt_tokens_total"), change.get(SGLANG_PREFILL_SECONDS)),
+            # Prefilled tokens over the time requests spent in prefill, as for vLLM. A build without the
+            # per-stage time or the scheduler's counts (v0.5.10) has no prefill rate: not measured.
+            "prefill_tok_s": (change.get(SGLANG_PREFILL_TOKENS), change.get(SGLANG_PREFILL_SECONDS)),
             # Per stream: the tokens between intervals over the time they took.
             "decode_tok_s": (intervals, spent),
             "itl_ms": (spent, intervals),
-            "generated_tok_s_all": (change.get("sglang:generation_tokens_total"), seconds),
+            "generated_tok_s_all": (change.get(SGLANG_DECODE_TOKENS), seconds),
         }
 
     def serving_rates(self, change: dict[str, float], mean: dict[str, float], seconds: float) -> dict[str, float | None]:
         return {
             **rates_from_parts([self.serving_parts(change, seconds)]),
             "ttft_ms": _ratio(change.get("sglang:time_to_first_token_seconds_sum"), change.get("sglang:time_to_first_token_seconds_count"), 1000),
-            "prompt_tok_s_all": _ratio(change.get("sglang:prompt_tokens_total"), seconds),
+            "prompt_tok_s_all": _ratio(change.get(SGLANG_PREFILL_TOKENS), seconds),
             "in_flight": mean.get("sglang:num_running_reqs"),
         }
 

@@ -120,6 +120,14 @@ def test_sglang_turns_deep_gemm_off_on_the_gb10() -> None:
         assert serve_env(cfg, mode=mode, batch_invariant=False, engine="sglang")["SGLANG_ENABLE_JIT_DEEPGEMM"] == "0"
 
 
+def test_sglang_gets_a_flashinfer_workspace_big_enough_for_long_prefills() -> None:
+    # SGLang dev-lfm3's 384 MiB default ran out on a long prefill and the server died mid-BrowseComp-Plus (2026-10-31).
+    from sma.commands import serve_env
+
+    for mode in ("quality", "speed"):
+        assert serve_env(default_config(), mode=mode, batch_invariant=False, engine="sglang")["SGLANG_FLASHINFER_WORKSPACE_SIZE"] == str(2 * 1024**3)
+
+
 @pytest.mark.parametrize("key", ["max_model_len", "kv_cache_gib"])
 def test_removed_context_keys_say_what_replaced_them(key: str) -> None:
     from sma.config import config_from_mapping
@@ -214,14 +222,14 @@ def test_repo_config_loads() -> None:
     # Nested sections load as their dataclasses, not plain mappings.
     assert (cfg.kernelbench.level, cfg.kernelbench.enabled) == (1, True)
     assert (cfg.swebench.workers, cfg.swebench.step_limit) == (8, 250)
-    assert (cfg.browsecomp.limit, cfg.browsecomp.judge_model, cfg.browsecomp.judge_concurrency) == (100, "ornith-1.5-122b", 1)
+    assert (cfg.browsecomp.limit, cfg.browsecomp.judge_model, cfg.browsecomp.judge_concurrency) == (100, "qwen3.8-flash-fp4", 1)
     assert cfg.browsecomp.judge_extra_body == {"chat_template_kwargs": {"enable_thinking": False}, "cache_prompt": False}
     assert cfg.browsecomp == default_config().browsecomp
     assert [suite.name for suite in cfg.quality.suites] == ["ifeval", "gsm8k", "mmlu_pro", "gpqa_diamond", "musique", "bfcl_v3", "livecodebench"]
-    # Owner decision 2026-10-29: LiveCodeBench in place of SWE-bench, in LiveCodeBench's leaderboard window.
+    # Owner decisions 2026-10-29 and 2026-10-30: LiveCodeBench in place of SWE-bench, its newest 105 problems.
     livecodebench = cfg.quality.suites[-1]
-    assert (livecodebench.task, livecodebench.sampling, livecodebench.questions) == ("codegeneration_release_v6", True, 454)
-    assert livecodebench.params == {"extra": {"n_samples": 1, "start_date": "2024-08-01", "end_date": "2025-05-01"}}
+    assert (livecodebench.task, livecodebench.sampling, livecodebench.questions) == ("codegeneration_release_v6", True, 105)
+    assert livecodebench.params == {"extra": {"n_samples": 1, "start_date": "2025-02-15", "end_date": "2025-05-01", "cache_batch_size": 105}}
     assert cfg.swebench.enabled is False
     assert next(suite for suite in cfg.quality.suites if suite.name == "musique").metric == "answer_f1"
     assert [suite.name for suite in cfg.quality.suites] == [suite.name for suite in default_config().quality.suites]
@@ -249,7 +257,7 @@ def test_every_default_quality_suite_names_a_benchmark_the_installed_nel_has() -
     assert missing == []
 
 
-def test_the_nel_config_targets_the_chat_endpoint_in_the_runs_thinking_mode_with_no_answer_limit() -> None:
+def test_the_nel_config_targets_the_chat_endpoint_in_the_runs_thinking_mode_with_the_answer_cap() -> None:
     from sma.commands import nel_argv, nel_config
     from sma.config import QualitySuite, for_thinking
 
@@ -261,9 +269,9 @@ def test_the_nel_config_targets_the_chat_endpoint_in_the_runs_thinking_mode_with
     service = config["services"]["sma"]
     assert service["url"] == "http://127.0.0.1:8000/v1/chat/completions"
     assert (service["model"], service["protocol"]) == ("org/model", "chat_completions")
-    # Thinking off: greedy. No max_tokens: an answer may use the rest of its stream's context (owner decision
-    # 2026-10-29; 4,096 cut off 30% of LFM3-1.7B's MMLU-Pro answers).
-    assert service["generation"] == {"temperature": 0.0, "seed": 0}
+    # Thinking off: greedy. Answers up to 128K (owner decision 2026-10-31): loops ran to the end of a 262K
+    # context, normal answers stayed under 49K. (4,096 cut off 30% of LFM3-1.7B's MMLU-Pro answers, 2026-10-29.)
+    assert service["generation"] == {"temperature": 0.0, "seed": 0, "max_tokens": 131072}
     assert service["proxy"]["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
     assert service["proxy"]["interceptors"] == [{"name": "reasoning"}]
     assert (service["proxy"]["max_retries"], service["proxy"]["request_timeout"]) == (2, 14400.0)
@@ -275,11 +283,19 @@ def test_the_nel_config_targets_the_chat_endpoint_in_the_runs_thinking_mode_with
 
     # Thinking on: no temperature, so the engine applies the model's own sampling.
     on = nel_config(for_thinking(default_config(), "on"), served_name="m", base_url="http://x", suite=QualitySuite("gsm8k", 50))
-    assert on["services"]["sma"]["generation"] == {"seed": 0}
+    assert on["services"]["sma"]["generation"] == {"seed": 0, "max_tokens": 131072}
     assert on["services"]["sma"]["proxy"]["extra_body"] == {"chat_template_kwargs": {"enable_thinking": True}}
     capped = default_config()
     capped.quality.max_tokens = 4096
     assert nel_config(capped, served_name="m", base_url="http://x", suite=QualitySuite("gsm8k", 50))["services"]["sma"]["generation"]["max_tokens"] == 4096
+    # The limit is sent only where it leaves the prompt 4,096 tokens of the stream's context; a smaller
+    # context gets none, so the answer may use the rest of it.
+    def limit(context):
+        return nel_config(default_config(), served_name="m", base_url="http://x", suite=QualitySuite("gsm8k", 50), context=context)["services"]["sma"]["generation"].get("max_tokens")
+    assert (limit(262144), limit(135168), limit(135167), limit(32768)) == (131072, 131072, None, None)
+    unlimited = default_config()
+    unlimited.quality.max_tokens = None
+    assert "max_tokens" not in nel_config(unlimited, served_name="m", base_url="http://x", suite=QualitySuite("gsm8k", 50), context=262144)["services"]["sma"]["generation"]
 
     cfg = default_config()
     plain = nel_config(cfg, served_name="m", base_url="http://127.0.0.1:8000", suite=QualitySuite("mmlu_pro", None))
@@ -306,11 +322,14 @@ def test_an_unknown_packaged_benchmark_is_refused_before_any_download() -> None:
         validate_config(config_from_mapping({"quality": {"suites": [{"name": "x", "bench": "sma:nope"}]}}))
 
 
-def test_quality_max_tokens_must_leave_room_for_the_prompt() -> None:
+def test_quality_max_tokens_is_a_cap_above_any_floor_but_must_be_positive() -> None:
+    # Owner decision 2026-10-31: 128K, sent only where the stream's context leaves room (commands.answer_limit),
+    # so it no longer has to sit under memory.quality_min_context.
     from sma.config import config_from_mapping, validate_config
 
+    validate_config(config_from_mapping({"quality": {"max_tokens": 131072}}))
     with pytest.raises(SmaError, match="quality.max_tokens"):
-        validate_config(config_from_mapping({"quality": {"max_tokens": 8192}}))
+        validate_config(config_from_mapping({"quality": {"max_tokens": 0}}))
 
 
 def test_scrub_keeps_a_per_token_count_and_still_redacts_token_fields() -> None:

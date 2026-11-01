@@ -235,7 +235,10 @@ def _bfcl_items(attempt_dir: Path) -> list[dict[str, Any]]:
 def _livecodebench_items(attempt_dir: Path) -> list[dict[str, Any]]:
     """One row per LiveCodeBench problem from its *_eval_all.json: the answer, the code taken from it, and
     whether that code passed every hidden test. SMA asks for one answer per problem, so correct is that one."""
-    found = sorted(attempt_dir.rglob("*_eval_all.json"))
+    # A regrade (sma rescore) replaces the container's grading; the original stays beside it.
+    found = sorted((attempt_dir / "regrade").glob("*_eval_all.json")) or sorted(
+        path for path in attempt_dir.rglob("*_eval_all.json") if "regrade" not in path.relative_to(attempt_dir).parts
+    )
     if not found:
         return []
     rows: list[dict[str, Any]] = []
@@ -258,7 +261,9 @@ def _livecodebench_items(attempt_dir: Path) -> list[dict[str, Any]]:
     return rows
 
 
-def normalize_eval_factory(suite_dir: Path, attempt_dir: Path, suite_name: str, *, image: str, task: str) -> dict[str, Any]:
+def normalize_eval_factory(
+    suite_dir: Path, attempt_dir: Path, suite_name: str, *, image: str, task: str, limit: int | None = None
+) -> dict[str, Any]:
     """Read an eval-factory container's output into scores.json and samples.jsonl.
 
     The score is accuracy over every question SMA can pair across runs, with a Wilson interval: BFCL's
@@ -270,6 +275,12 @@ def normalize_eval_factory(suite_dir: Path, attempt_dir: Path, suite_name: str, 
         raise SmaError(f"The {task} container did not write results.yml for {suite_name} under {attempt_dir}")
     if task.startswith("bfcl"):
         rows = _bfcl_items(attempt_dir)
+        if limit:
+            # The even share the container's patch answers; from a run that answered more, the same questions.
+            from sma.patches.bfcl.sma_subset import even_share
+
+            keep = even_share([row["id"] for row in rows], limit)
+            rows = [row for row in rows if row["id"] in keep]
     elif task.startswith(("codegeneration", "livecodebench")):
         rows = _livecodebench_items(attempt_dir)
     else:
@@ -291,10 +302,15 @@ def normalize_eval_factory(suite_dir: Path, attempt_dir: Path, suite_name: str, 
         "ci_lower": lower,
         "ci_upper": upper,
         "n": len(rows) or None,
-        "limit": None,
+        "limit": limit if task.startswith("bfcl") else None,
         "categories": categories,
+        # The container's own scores, from its own grading (before any regrade).
         "harness_metrics": _harness_metrics(results_yml),
     }
+    regrade = attempt_dir / "regrade" / "regrade.json"
+    if regrade.is_file():
+        found = json.loads(regrade.read_text(encoding="utf-8"))
+        payload["regrade"] = {key: found.get(key) for key in ("at", "timeout_s", "graders", "image", "script_sha256")}
     atomic_write_json(suite_dir / "scores.json", payload)
     atomic_write_text(suite_dir / "samples.jsonl", "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows))
     return payload

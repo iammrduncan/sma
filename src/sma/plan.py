@@ -55,7 +55,7 @@ def render_plan(
     answer = (
         "no answer limit (an answer may use the rest of its stream's context)"
         if cfg.quality.max_tokens is None
-        else f"max_tokens {cfg.quality.max_tokens}"
+        else f"answers up to {cfg.quality.max_tokens:,} tokens, or the rest of the stream's context if less"
     )
     kernel_budget = (
         "up to the context per stream minus 4,096 output tokens"

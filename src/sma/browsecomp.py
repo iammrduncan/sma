@@ -14,6 +14,7 @@ import json
 import random
 import re
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from sma.errors import SmaError
@@ -301,6 +302,25 @@ def per_query(query_id: str, record: dict[str, Any], judgment: dict[str, Any] | 
         "parse_error": bool(judged.get("parse_error")) if judgment and judgment.get("skipped") is None else None,
         "confidence": judged.get("confidence"),
     }
+
+
+def server_failures(bundle: Path) -> list[str]:
+    """The questions in a run's trajectories bundle whose conversation ended because every retry met a server
+    that was down, timed out, or failed (5xx, 429), as request_json words it after its retries. A refused
+    request (4xx) is not retried, so it never reads "failed after". Since 2026-10-31 such a failure stops the
+    step instead; runs from before scored these questions as wrong (LFM3-1.7B BF16, 100 of 100)."""
+    import gzip
+
+    found = []
+    with gzip.open(bundle, "rt", encoding="utf-8") as handle:
+        for line in handle:
+            row = json.loads(line)
+            run = row.get("answer_run") or {}
+            error = str(run.get("error") or "")
+            server = ("HTTP error calling", "timed out calling", " returned 5", " returned 429")
+            if run.get("status") == "error" and "failed after" in error and any(mark in error for mark in server):
+                found.append(str(row.get("query_id")))
+    return found
 
 
 def score(rows: list[dict[str, Any]], *, judge: str, limit: int | None) -> dict[str, Any]:

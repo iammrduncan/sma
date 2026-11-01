@@ -7,7 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from sma.backends import get_backend
+from sma.backends import SGLANG_DECODE_TOKENS as DECODED
+from sma.backends import SGLANG_PREFILL_SECONDS, SGLANG_PREFILL_TOKENS, get_backend
 from sma.config import default_config
 from sma.serving import Series, recent_series, window
 from sma.telemetry import ENGINE_METRICS_FILE, TelemetryRecorder
@@ -122,8 +123,8 @@ def test_rates_over_two_engines_are_one_average_from_summed_tokens_and_seconds()
         (10.0, {"llamacpp:tokens_predicted_total": 100, "llamacpp:tokens_predicted_seconds_total": 10}),
     ])  # fmt: skip
     sglang = Series("sglang", [
-        (20.0, {"sglang:inter_token_latency_seconds_count": 0, "sglang:inter_token_latency_seconds_sum": 0, "sglang:generation_tokens_total": 0}),
-        (30.0, {"sglang:inter_token_latency_seconds_count": 300, "sglang:inter_token_latency_seconds_sum": 10, "sglang:generation_tokens_total": 300}),
+        (20.0, {"sglang:inter_token_latency_seconds_count": 0, "sglang:inter_token_latency_seconds_sum": 0, DECODED: 0}),
+        (30.0, {"sglang:inter_token_latency_seconds_count": 300, "sglang:inter_token_latency_seconds_sum": 10, DECODED: 300}),
     ])  # fmt: skip
     rates = combined_rates(window([llamacpp, sglang], start=0.0, max_gap_s=60.0))
     # 400 tokens in 20 decode-seconds: 20 tok/s per stream, 50 ms between tokens; 400 tokens in 20 s of wall time.
@@ -138,7 +139,8 @@ def test_sglang_prefill_comes_from_its_per_stage_latency_and_only_the_prefill_st
     from sma.telemetry import engine_values
 
     text = "\n".join([
-        'sglang:prompt_tokens_total{is_streaming="false",model_name="m"} 171986.0',
+        'sglang:realtime_tokens_total{mode="prefill_compute",model_name="m"} 171986.0',
+        'sglang:realtime_tokens_total{mode="decode",model_name="m"} 400.0',
         'sglang:per_stage_req_latency_seconds_sum{model_name="m",stage="request_process"} 0.0153',
         'sglang:per_stage_req_latency_seconds_sum{model_name="m",stage="prefill_forward"} 61.4436',
         'sglang:inter_token_latency_seconds_sum{model_name="m"} 10.0',
@@ -151,3 +153,42 @@ def test_sglang_prefill_comes_from_its_per_stage_latency_and_only_the_prefill_st
     # An SGLang without the stage reports no prefill rate: not measured, not zero.
     older = engine_values("\n".join(line for line in text.splitlines() if "per_stage" not in line), backend.serving_metrics())
     assert backend.serving_rates(older, {}, 100.0)["prefill_tok_s"] is None
+
+
+def test_sglang_rates_follow_the_schedulers_counts_not_the_counters_a_finished_request_adds_to() -> None:
+    # SGLang dev-lfm3 on a Spark (2026-10-30): one IFEval answer decoded for hours at 17 tok/s while
+    # generation_tokens_total stood still, then grew by 262K when it ended. Rates built on it read 0, then a
+    # 17,441 tok/s peak, and a prefill average above its own peak.
+    from sma.serving import combined_peaks, combined_rates
+
+    finished = {"sglang:generation_tokens_total": 0, "sglang:prompt_tokens_total": 0}
+    rows = []
+    for step in range(4):
+        rows.append((15.0 * step, {
+            **finished,
+            DECODED: 255.0 * step,  # 17 tok/s, counted as the scheduler decodes.
+            "sglang:inter_token_latency_seconds_count": 255.0 * step,
+            "sglang:inter_token_latency_seconds_sum": 15.0 * step,
+            SGLANG_PREFILL_TOKENS: 1000.0 * min(step, 1),
+            SGLANG_PREFILL_SECONDS: 0.5 * min(step, 1),
+        }))
+        finished = {"sglang:generation_tokens_total": 262_000.0, "sglang:prompt_tokens_total": 76.0} if step == 2 else finished
+    windows = window([Series("sglang", rows)], start=0.0, max_gap_s=60.0)
+    rates, peaks = combined_rates(windows), combined_peaks(windows)
+    assert rates["generated_tok_s_all"] == pytest.approx(17.0) and peaks["generated_tok_s_all"] == pytest.approx(17.0)
+    assert rates["prefill_tok_s"] == peaks["prefill_tok_s"] == 2000.0
+    # A build without the scheduler's counts: not measured, not the finished-request counters.
+    older = [(t, {k: v for k, v in values.items() if "realtime" not in k}) for t, values in rows]
+    rates = combined_rates(window([Series("sglang", older)], start=0.0, max_gap_s=60.0))
+    assert rates["generated_tok_s_all"] is None and rates["prefill_tok_s"] is None
+
+
+def test_a_window_averages_only_the_sample_pairs_that_report_a_counter() -> None:
+    # The LFM3-1.7B run's worker was restarted with SGLang's scheduler counts (2026-10-30): hours of samples
+    # without them, then minutes with. Summing every pair's seconds read 2.8 tok/s over all streams, not 200.
+    from sma.serving import combined_rates
+
+    rows = [(15.0 * step, {DECODED + "x": 0.0}) for step in range(240)]  # An hour without the counter.
+    rows += [(3600.0 + 15.0 * step, {DECODED: 3000.0 * step}) for step in range(5)]
+    rates = combined_rates(window([Series("sglang", rows)], start=0.0, max_gap_s=60.0))
+    assert rates["generated_tok_s_all"] == pytest.approx(200.0)
