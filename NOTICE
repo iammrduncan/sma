@@ -1,0 +1,8 @@
+SMA (Small Model Arena launcher)
+Copyright 2026 iamMrDuncan
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Vendored third-party files keep their own licenses, next to them:
+- src/sma/data/kernelbench/ (KernelBench), see its LICENSE.
+- services/browsecomp-plus and src/sma/browsecomp.py adapt BrowseComp-Plus (MIT).
