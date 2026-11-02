@@ -7,7 +7,8 @@ import os
 import shlex
 import signal
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,10 @@ import yaml
 from sma.atomic import atomic_write_json, atomic_write_json_stream, atomic_write_text
 from sma.cleanup import drop_page_cache, idle_until_cool
 from sma.commands import (
+    LIVECODEBENCH_GRADING_LOCK,
+    cpu_union,
+    harness_args,
+    livecodebench_grading_args,
     EVAL_FACTORY_CONFIG,
     NEL_CONFIG,
     bench_argv,
@@ -52,7 +57,7 @@ from sma.fetch import TOKENIZER_FILES, FetchResult, download_snapshot, inspect_s
 from sma.hashing import sha256_file
 from sma.identity import assert_alias_safe
 from sma.kl import parse_perplexity_log, perplexity
-from sma.locks import GpuLock
+from sma.locks import FifoLock, GpuLock, SharedFileLock
 from sma.nvml import energy_counter_mj
 from sma.logsetup import add_run_log, log_event, remove_run_log
 from sma.probe import run_determinism
@@ -157,6 +162,8 @@ class RunSpec:
     thinking: str = "off"
     # Resume only: quality suites to run again although they finished (sma resume --redo).
     redo: tuple[str, ...] = ()
+    # Warnings the run's record must carry, from outside the run: the dispatcher's memory guard stopping it.
+    notes: tuple[str, ...] = ()
 
 
 @dataclass
@@ -179,6 +186,8 @@ class Ctx:
     failed_steps: list[str] = field(default_factory=list)
     # Set by the memory guard on the telemetry thread; the step that ends next records it (_guard_note).
     memory_guard_note: str | None = None
+    # The speed steps' turn on a slot (_speed_turn): the lock and how long the run waited for it.
+    speed_turn: dict[str, Any] | None = None
 
     @property
     def base_url(self) -> str:
@@ -437,6 +446,8 @@ def execute(
             ctx = _load(spec, cfg, services)
         else:
             ctx = _create(spec, cfg, services)
+        for note in spec.notes:
+            _warn(ctx, note)
         if on_created is not None:
             on_created(ctx.run_id)
         handler = _SignalGuard(lambda: _teardown_containers(ctx))
@@ -447,7 +458,9 @@ def execute(
                 ctx.manifest["timestamps"]["started"] = utc_now()
             publish(cfg, ctx.run_dir, ctx.manifest)
             ctx.telemetry = services.telemetry_factory(ctx.run_dir, cfg)
-            if cfg.memory.guard_free_gb > 0:
+            # On a slot (sma worker --slots), the dispatcher guards the harness's memory for every slot and stops
+            # only the run using the most (owner decision 2026-11-01); each run guarding alone would stop them all.
+            if cfg.memory.guard_free_gb > 0 and not cfg.remote.slot:
                 ctx.telemetry.guard_memory(int(cfg.memory.guard_free_gb * 1e9), lambda available: _memory_guard(ctx, available))
             ctx.telemetry.set_phase("startup")
             backend = get_backend(ctx.manifest["engine"]["name"])
@@ -465,8 +478,9 @@ def execute(
                 # fails this step only. The service has timed the kernels while SWE-bench and BrowseComp-Plus ran.
                 _run_step(ctx, "browsecomp_plus_results", _step_browsecomp_results)
                 _run_step(ctx, "kernelbench_results", _step_kernelbench_results)
-                _run_step(ctx, "serve_speed", _step_serve_speed)
-                _run_step(ctx, "speed", _step_speed)
+                with _speed_turn(ctx):
+                    _run_step(ctx, "serve_speed", _step_serve_speed)
+                    _run_step(ctx, "speed", _step_speed)
                 ctx.manifest["timestamps"]["finished"] = utc_now()
                 publish(cfg, ctx.run_dir, ctx.manifest)
                 if ctx.failed_steps:
@@ -1080,7 +1094,11 @@ def _remote_perplexity(ctx: Ctx, logprobs_dir: Path, gguf: dict[str, Any], refer
         base = f"runs/{ref_id}/kld-base.bin"
         have = runtime.runner.shell(f"stat -c %s {shlex.quote(base)} 2>/dev/null; true", what="check the reference logits", timeout_s=60).strip()
         if have != str(ref_path.stat().st_size):
-            runtime.runner.put(ref_path, base)
+            # Two candidates of one reference (thinking off and on) can get here at once: each sends its own copy
+            # and moves it into place, so neither reads a half-written file.
+            part = f"{base}.part-{ctx.run_id}"
+            runtime.runner.put(ref_path, part)
+            runtime.runner.shell(f"mv -f {shlex.quote(part)} {shlex.quote(base)}", what="move the reference logits into place", timeout_s=60)
     elif write_base:
         base = f"{folder}/kld-base.bin"
     root = ctx.cfg.remote.root
@@ -1179,6 +1197,10 @@ def _kld_reference(ctx: Ctx) -> tuple[str, Path] | None:
     if ref_dir is None:
         _warn(ctx, f"Reference run {reference_id} was not found. KL was not computed.")
         return None
+    waited = _wait_for_reference(ctx, str(reference_id), ref_dir)
+    if waited:
+        _warn(ctx, f"Reference run {reference_id} {waited}. KL was not computed.")
+        return None
     ref = load_manifest(ref_dir)
     base = ref_dir / "logprobs" / "kld-base.bin"
     problem = None
@@ -1199,6 +1221,42 @@ def _kld_reference(ctx: Ctx) -> tuple[str, Path] | None:
         _warn(ctx, f"Reference run {reference_id} {problem}. KL was not computed.")
         return None
     return str(reference_id), base
+
+
+def _wait_for_reference(ctx: Ctx, reference_id: str, ref_dir: Path) -> str | None:
+    """Wait for the reference run's logprobs step, which writes the logits KL needs. A candidate on a slot starts
+    beside its reference (sma worker --slots), so the logits may not exist yet. None when the step is done; else
+    why KL cannot use it. logprobs/waiting.json says what the step waits for while it waits (sma watch reads it)."""
+    marker = marker_path(ref_dir, "logprobs")
+    waiting = ctx.run_dir / "logprobs" / "waiting.json"
+    deadline = time.monotonic() + float(ctx.cfg.logprobs.reference_wait_s)
+    noted = False
+    try:
+        while True:
+            try:
+                ref = load_manifest(ref_dir)
+            except (SmaError, ValueError):
+                ref = {}
+            step = (ref.get("steps") or {}).get("logprobs") or {}
+            # The marker comes first, then the manifest that records the logits' hashes: wait for both.
+            if marker.is_file() and step.get("status") == "done":
+                if noted:
+                    log_event("reference_ready", run_id=ctx.run_id, reference=reference_id)
+                return None
+            finished = (ref.get("timestamps") or {}).get("finished")
+            if step.get("status") == "failed":
+                return f"failed its logprobs step ({str(step.get('error') or '').splitlines()[0][:200] if step.get('error') else 'no error recorded'})"
+            if finished and not marker.is_file():
+                return "ended without its logprobs step"
+            if time.monotonic() >= deadline:
+                return f"did not finish its logprobs step within logprobs.reference_wait_s ({ctx.cfg.logprobs.reference_wait_s:.0f} s)"
+            if not noted:
+                noted = True
+                atomic_write_json(waiting, {"reference_run_id": reference_id, "since": utc_now()})
+                log_event("reference_wait", run_id=ctx.run_id, reference=reference_id)
+            time.sleep(min(30.0, ctx.cfg.queue.poll_s))
+    finally:
+        waiting.unlink(missing_ok=True)
 
 
 def _window_positions(ctx: Ctx, token_ids: list[int]) -> list[dict[str, Any]]:
@@ -1409,6 +1467,7 @@ def _regrade_livecodebench(
         hf_home=(cfg.cache_path() / "eval-factory").resolve(), patch_dir=patch_dir, uid=os.getuid(), gid=os.getgid(),
         release=str(suite["task"]).split("codegeneration_", 1)[-1],
         start_date=extra.get("start_date"), end_date=extra.get("end_date"),
+        extra=harness_args(cfg, cpus=cfg.harness.cpus_timed) + livecodebench_grading_args(cfg),
     )  # fmt: skip
     log_event("livecodebench_regrade", run_id=run_dir.name, suite=suite["name"])
     if run_regrade is not None:
@@ -1419,7 +1478,8 @@ def _regrade_livecodebench(
         require_ok(result, what="LiveCodeBench regrade")
     atomic_write_json(out_dir / "regrade.json", {
         "at": utc_now(), "image": image, "timeout_s": LIVECODEBENCH_TEST_TIMEOUT_S, "graders": LIVECODEBENCH_GRADERS,
-        "script_sha256": sha256_file(patch_dir / "regrade.py"), "argv": scrub_obj(argv),
+        "script_sha256": sha256_file(patch_dir / "regrade.py"), "grading_sha256": sha256_file(patch_dir / "sma_grading.py"),
+        "grading_cpus": cfg.harness.cpus_timed, "argv": scrub_obj(argv),
     })  # fmt: skip
 
 
@@ -1518,6 +1578,11 @@ def _run_eval_factory_suite(ctx: Ctx, suite: QualitySuite, suite_dir: Path, atte
     patch_dir = eval_factory_patch(suite.image)
     if patch_dir is not None and patch_dir.name in EVAL_FACTORY_LIMITS and not suite.limit:
         patch_dir = None  # A patch that only picks a share has nothing to do without a limit.
+    grading = patch_dir is not None and patch_dir.name == "livecodebench"
+    # LiveCodeBench grades on the timed CPUs under the machine's grading lock (its patch); the rest of every
+    # container runs on the untimed CPUs, all in the harness's slice.
+    cpus = cpu_union(ctx.cfg.harness.cpus_untimed, ctx.cfg.harness.cpus_timed) if grading else ctx.cfg.harness.cpus_untimed
+    extra = harness_args(ctx.cfg, cpus=cpus) + (livecodebench_grading_args(ctx.cfg) if grading else [])
     argv = eval_factory_argv(
         name=container_name(ctx.cfg, ctx.run_id, f"quality-{suite.name}"),
         image=image,
@@ -1528,7 +1593,9 @@ def _run_eval_factory_suite(ctx: Ctx, suite: QualitySuite, suite_dir: Path, atte
         hf_home=hf_home.resolve(),
         patch_dir=patch_dir,
         limit=suite.limit,
+        extra=extra,
     )
+    _refuse_local_gpu(ctx, argv)
     # The patch SMA applied inside the container: its name and the hash of each of its files.
     patch = (
         {"name": patch_dir.name, "files": {path.name: sha256_file(path) for path in sorted(patch_dir.glob("*.py"))}}
@@ -1541,6 +1608,9 @@ def _run_eval_factory_suite(ctx: Ctx, suite: QualitySuite, suite_dir: Path, atte
         {
             "argv": scrub_obj(argv), "concurrency": ctx.cfg.quality.concurrency, "image": image, "sampling": sampling,
             "patch": patch, "limit": suite.limit,
+            # Where it ran on this machine: its CPUs, and for LiveCodeBench, the CPUs and lock its grading used.
+            "cpus": cpus, "grading_cpus": ctx.cfg.harness.cpus_timed if grading else None,
+            "grading_lock": LIVECODEBENCH_GRADING_LOCK if grading else None,
         },
     )  # fmt: skip
     try:
@@ -1572,6 +1642,12 @@ def _step_speed(ctx: Ctx) -> None:
     summary = summarize_cells(cells_out, stat=ctx.cfg.speed.derive_stat)
     summary["prefill_formula"] = "input_len / TTFT_seconds at concurrency 1, using the configured percentile"
     summary["decode_formula"] = "1 / TPOT_seconds at concurrency 1, using the configured percentile"
+    summary["client_cpus"] = ctx.cfg.harness.cpus_timed
+    if ctx.cfg.remote.slot:
+        # The other slots keep running while this one measures speed (owner decision 2026-11-01): what they did.
+        window_start = _parse_utc(ctx.manifest["steps"]["speed"].get("started")) or time.time()
+        summary["speed_turn"] = ctx.speed_turn
+        summary["concurrent_load"] = _concurrent_load(ctx, window_start, time.time())
     atomic_write_json(ctx.run_dir / "speed" / "summary.json", summary)
     atomic_write_json(ctx.run_dir / "speed" / "windows.json", {"windows": windows})
     cells = summary.get("cells") or []
@@ -1598,6 +1674,100 @@ def _step_speed(ctx: Ctx) -> None:
             f"{gap_n} speed cell(s) are unverified because of a telemetry gap, missing samples, or N/A flags. "
             "They were not retried and are excluded from the headline tok/s.",
         )
+
+
+@contextmanager
+def _speed_turn(ctx: Ctx) -> Iterator[None]:
+    """On a slot, the speed steps take turns across the serving machine's slots, in arrival order (owner decision
+    2026-11-01): the client and its timings are on this machine. The other slots keep running their own steps."""
+    done = marker_path(ctx.run_dir, "serve_speed").is_file() and marker_path(ctx.run_dir, "speed").is_file()
+    if not ctx.cfg.remote.slot or done:
+        yield
+        return
+    lock = FifoLock(ctx.cfg.lock_dir() / f"speed-{ctx.cfg.remote.hardware}.lock")
+    if ctx.telemetry is not None:
+        ctx.telemetry.set_phase("speed_turn")
+    log_event("speed_turn_wait", run_id=ctx.run_id, lock=lock.path.name)
+    started = time.monotonic()
+    lock.acquire()
+    # LiveCodeBench's grading is timed on the same CPUs as the speed client (harness.cpus_timed): on the GB10's
+    # slower cores 2 of 105 problems failed the 6 s limit that pass on the faster ones (2026-11-01). So speed also
+    # waits for, and holds, the grading lock, and no grading runs while it measures.
+    grading = SharedFileLock(ctx.cfg.lock_dir() / LIVECODEBENCH_GRADING_LOCK)
+    turn = time.monotonic()
+    try:
+        grading.acquire()
+    except BaseException:
+        lock.release()
+        raise
+    ctx.speed_turn = {
+        "lock": lock.path.name, "waited_s": round(time.monotonic() - started, 1), "taken": utc_now(),
+        "grading_lock": LIVECODEBENCH_GRADING_LOCK, "grading_waited_s": round(time.monotonic() - turn, 1),
+    }  # fmt: skip
+    log_event("speed_turn", run_id=ctx.run_id, waited_s=ctx.speed_turn["waited_s"])
+    try:
+        yield
+    finally:
+        grading.release()
+        lock.release()
+
+
+def _parse_utc(value: Any) -> float | None:
+    from datetime import datetime, timezone
+
+    try:
+        return datetime.strptime(str(value), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp()
+    except ValueError:
+        return None
+
+
+def _concurrent_load(ctx: Ctx, start: float, end: float) -> list[dict[str, Any]]:
+    """The other runs on this serving machine during [start, end]: each one's slot, the steps it ran, its GPU's
+    mean power (its telemetry), and its tokens generated per second (its engine counters)."""
+    from sma.serving import Series, _read_samples, combined_rates, window
+    from sma.telemetry import read_samples
+
+    rows: list[dict[str, Any]] = []
+    for path in sorted(ctx.cfg.runs_path().glob("*/*/*/*/manifest.json")):
+        run_dir = path.parent
+        try:
+            if run_dir.name == ctx.run_id or path.stat().st_mtime < start:
+                continue
+            manifest = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        serving = manifest.get("serving") or {}
+        if serving.get("hardware") != ctx.cfg.remote.hardware:
+            continue
+        stamps = manifest.get("timestamps") or {}
+        began, ended = _parse_utc(stamps.get("started")), _parse_utc(stamps.get("finished")) or end
+        if began is None or began > end or ended < start:
+            continue
+        steps = []
+        for name, step in (manifest.get("steps") or {}).items():
+            if not isinstance(step, dict) or not step.get("started"):
+                continue
+            s0, s1 = _parse_utc(step.get("started")) or end, _parse_utc(step.get("finished")) or end
+            if s0 <= end and s1 >= start:
+                steps.append(name)
+        power = [sample.power_w for sample in read_samples(run_dir / "telemetry.csv") if start <= sample.ts_unix <= end and sample.power_w is not None]
+        engine = (manifest.get("engine") or {}).get("name") or ""
+        samples = _read_samples(run_dir / "engine_metrics.jsonl") if (run_dir / "engine_metrics.jsonl").is_file() else []
+        windows = window([Series(engine, samples, run_dir.name)], start=start, max_gap_s=3 * ctx.cfg.telemetry.engine_metrics_interval_s)
+        rates = combined_rates(windows) if windows else {}
+        rows.append({
+            "run_id": run_dir.name, "slot": serving.get("slot"), "gpus": serving.get("gpus"), "steps": steps,
+            "gpu_power_w_mean": round(sum(power) / len(power), 1) if power else None,
+            "generated_tok_s": rates.get("generated_tok_s_all"),
+        })  # fmt: skip
+    return rows
+
+
+def _refuse_local_gpu(ctx: Ctx, argv: list[str]) -> None:
+    """With models served elsewhere, this machine's GPU is the KernelBench service's alone: no SMA container here
+    may take it."""
+    if ctx.cfg.remote.enabled and "--gpus" in argv:
+        raise SmaError("This run serves its model on another machine, so its containers here must not use this machine's GPU (KernelBench times kernels on it).")
 
 
 def _read_energy(ctx: Ctx) -> int | None:
@@ -2197,6 +2367,10 @@ def _start_spec(ctx: Ctx, mode: str, backend: str | None, batch_invariant: bool)
         engine=name_engine,
         tool_parser=ctx.manifest["engine"].get("tool_call_parser"),
     )
+    if ctx.cfg.remote.enabled:
+        from sma.remote import thread_args
+
+        serve = [*serve, *thread_args(ctx.cfg)]
     env = serve_env(
         ctx.cfg,
         mode=mode,
@@ -2303,6 +2477,9 @@ def _teardown_containers(ctx: Ctx) -> None:
 
 
 def _guard_containers(ctx: Ctx) -> None:
+    if ctx.cfg.remote.slot:
+        _guard_slot(ctx)
+        return
     for name in ctx.services.runtime.list_sma():
         if ctx.run_id in name:
             ctx.services.runtime.stop(name)
@@ -2313,9 +2490,27 @@ def _guard_containers(ctx: Ctx) -> None:
         )
 
 
+def _guard_slot(ctx: Ctx) -> None:
+    """A run on a slot: its own leftovers stop; other slots' runs are expected; a server left on this slot's GPU
+    by no run here is refused (the dispatcher stops those when it starts)."""
+    runtime = ctx.services.runtime
+    for name in runtime.list_sma():
+        if ctx.run_id in name:
+            runtime.stop(name)
+    on_gpu = [name for name, gpus in runtime.servers_on().items() if gpus == ctx.cfg.remote.gpus and ctx.run_id not in name]
+    if on_gpu:
+        raise SmaError(
+            f"Server {', '.join(on_gpu)} is still running on GPU {ctx.cfg.remote.gpus} of the serving machine (slot "
+            f"{ctx.cfg.remote.slot}). One run uses a slot at a time. Restart the dispatcher, which stops servers no run owns."
+        )
+
+
 def _cleanup(ctx: Ctx) -> None:
     page = {"attempted": False, "permitted": None, "ok": None, "error": None}
-    if ctx.cfg.telemetry.drop_page_cache:
+    if ctx.cfg.remote.enabled:
+        # The model loads on the serving machine; this machine's page cache is not part of the run.
+        page["error"] = "not applicable: the model is served on another machine"
+    elif ctx.cfg.telemetry.drop_page_cache:
         page = drop_page_cache()
         if page.get("ok") is not True:
             _warn(ctx, "Page cache was not dropped. The next model may see leftover file cache.")

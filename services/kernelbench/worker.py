@@ -4,6 +4,10 @@ server.py starts one for each kernel, each baseline problem and each environment
 reads one JSON request on stdin, sandboxes itself (sandbox.py), runs KernelBench and writes
 one JSON result to the request's result_path. A fresh process per kernel means a crash, a hung
 kernel or a sticky CUDA error ends with that process and never reaches the next kernel.
+
+With KERNELBENCH_TIMING_CPUS and KERNELBENCH_COMPILE_CPUS set (README.md, "On the harness GB10"),
+the worker times on the timing CPUs and every process it starts (nvcc, ninja, c++) compiles on
+the compile CPUs.
 """
 import contextlib
 import io
@@ -26,6 +30,78 @@ def limits(timeout_s: int):
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     resource.setrlimit(resource.RLIMIT_FSIZE, (8 << 30, 8 << 30))
     resource.setrlimit(resource.RLIMIT_CPU, (timeout_s * 16, timeout_s * 16))  # nvcc runs in parallel
+
+
+def cpu_list(text: str | None) -> set[int]:
+    """The CPUs in a Linux CPU list such as "10-14,16"; none for an empty or unset value."""
+    cpus = set()
+    for part in (text or "").split(","):
+        part = part.strip()
+        if not part:
+            continue
+        m = re.fullmatch(r"(\d+)(?:-(\d+))?", part)
+        if not m or int(m.group(2) or m.group(1)) < int(m.group(1)):
+            raise ValueError(f"{text!r} is not a CPU list such as 10-14,16")
+        cpus.update(range(int(m.group(1)), int(m.group(2) or m.group(1)) + 1))
+    return cpus
+
+
+def cpu_list_text(cpus) -> str:
+    """CPUs as a Linux CPU list: {10, 11, 12, 16} is "10-12,16"."""
+    ranges = []
+    for c in sorted(set(cpus)):
+        if ranges and c == ranges[-1][1] + 1:
+            ranges[-1][1] = c
+        else:
+            ranges.append([c, c])
+    return ",".join(str(a) if a == b else f"{a}-{b}" for a, b in ranges)
+
+
+def pin_first(cpus: set[int], preexec_fn=None, setaffinity=os.sched_setaffinity):
+    """A preexec_fn that moves the new child onto cpus, then runs the caller's own preexec_fn."""
+    def preexec():
+        setaffinity(0, cpus)
+        if preexec_fn is not None:
+            preexec_fn()
+    return preexec
+
+
+def pinned_popen(popen: type, cpus: set[int]) -> type:
+    """subprocess.Popen whose children start on cpus. What a child starts in turn inherits them."""
+    class PinnedPopen(popen):
+        def __init__(self, *args, preexec_fn=None, **kwargs):
+            super().__init__(*args, preexec_fn=pin_first(cpus, preexec_fn), **kwargs)
+    return PinnedPopen
+
+
+def pin(cpus: set[int], name: str):
+    """Moves this process onto exactly cpus. The kernel quietly drops CPUs outside the container's
+    cpuset, which would time somewhere other than the environment says: refuse instead."""
+    try:
+        os.sched_setaffinity(0, cpus)
+    except OSError as e:
+        raise OSError(f"{name}={cpu_list_text(cpus)}: {e}. Keep it inside docker run --cpuset-cpus") from e
+    got = os.sched_getaffinity(0)
+    if got != cpus:
+        raise OSError(f"{name}={cpu_list_text(cpus)}, but this container may run on only {cpu_list_text(got)} "
+                      "of them. Keep it inside docker run --cpuset-cpus")
+
+
+def pin_cpus() -> dict:
+    """Timing on KERNELBENCH_TIMING_CPUS, compiles on KERNELBENCH_COMPILE_CPUS; unset leaves the CPUs
+    as they are. This runs before torch is imported, so the threads torch starts inherit the timing
+    CPUs, and the nvcc, ninja and c++ that torch's load_inline starts through subprocess get the
+    compile CPUs."""
+    timing = cpu_list(os.environ.get("KERNELBENCH_TIMING_CPUS"))
+    compile_cpus = cpu_list(os.environ.get("KERNELBENCH_COMPILE_CPUS"))
+    before = os.sched_getaffinity(0)
+    if compile_cpus:
+        pin(compile_cpus, "KERNELBENCH_COMPILE_CPUS")      # proves the children may run on all of them
+        subprocess.Popen = pinned_popen(subprocess.Popen, compile_cpus)
+        os.sched_setaffinity(0, before)
+    if timing:
+        pin(timing, "KERNELBENCH_TIMING_CPUS")
+    return {"timing": cpu_list_text(timing) or None, "compile": cpu_list_text(compile_cpus) or None}
 
 
 def problem(level: int, problem_id: int):
@@ -133,18 +209,19 @@ def smi(fields: str) -> list[str]:
     return [v.strip() for v in out.stdout.strip().split(",")] if out.returncode == 0 else []
 
 
-def run_probe(box: dict) -> dict:
+def run_probe(box: dict, cpus: dict) -> dict:
     import platform
     import torch
     env = {"python": platform.python_version(), "torch": torch.__version__, "cuda_runtime": torch.version.cuda,
            "cudnn": torch.backends.cudnn.version(), "kernelbench_commit": os.environ.get("KERNELBENCH_COMMIT"),
-           "torch_cuda_arch_list": os.environ.get("TORCH_CUDA_ARCH_LIST"), "sandbox": box}
+           "torch_cuda_arch_list": os.environ.get("TORCH_CUDA_ARCH_LIST"), "sandbox": box,
+           "cpus": {**cpus, "allowed": cpu_list_text(os.sched_getaffinity(0))}}
     nvcc = subprocess.run(["nvcc", "--version"], capture_output=True, text=True)
     env["nvcc"] = (nvcc.stdout.strip().splitlines() or ["?"])[-1]
     keys = ["name", "driver_version", "pci_bus_id", "memory_total_mib", "power_limit_w", "clocks_max_sm_mhz",
-            "persistence_mode"]
+            "persistence_mode", "compute_mode"]
     env["gpu"] = dict(zip(keys, smi("name,driver_version,pci.bus_id,memory.total,power.limit,clocks.max.sm,"
-                                    "persistence_mode")))
+                                    "persistence_mode,compute_mode")))
     env["gpu"]["compute_capability"] = ".".join(map(str, torch.cuda.get_device_capability(0)))
     # The clocks while the GPU is busy: with the host's clock lock (README.md) the SM clock must
     # sit at it, not boost or throttle.
@@ -176,8 +253,9 @@ def main():
     box = sandbox.restrict([scratch, "/dev", "/proc/self"])
     started = time.monotonic()
     try:
+        cpus = pin_cpus()           # Landlock does not cover CPU affinity; no capability is needed for it
         out = {"eval": lambda: run_eval(req, scratch), "baseline": lambda: run_baseline(req),
-               "probe": lambda: run_probe(box)}[req["mode"]]()
+               "probe": lambda: run_probe(box, cpus)}[req["mode"]]()
     except Exception as e:
         out = {"worker_error": f"{type(e).__name__}: {e}", "traceback": traceback.format_exc()}
     out["worker_seconds"] = round(time.monotonic() - started, 2)

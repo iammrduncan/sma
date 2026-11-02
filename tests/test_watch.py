@@ -78,7 +78,7 @@ def test_watch_shows_the_current_runs_steps_scores_and_answered_counts(tmp_path:
     screen = _screen(cfg, ["sma-20261029T020534Z-aaaa-quality"])
 
     assert "CURRENT RUN  20261029T020534Z-aaaa  LiquidAI/LFM3-1.7B-GGUF BF16 on llamacpp" in screen
-    run = screen.split("CURRENT RUN")[1].split("SERVING")[0]
+    run = screen.split("CURRENT RUN")[1].split("\n\n")[0]
     # One line per benchmark, in the order the run does them. No setup or bookkeeping steps.
     names = [line.split()[1] for line in run.splitlines()[1:] if line.strip()]
     assert names == ["determinism", "perplexity", "ifeval", "mmlu_pro", "bfcl_v3", "kernelbench", "swebench", "browsecomp", "speed"]
@@ -103,7 +103,7 @@ def test_watch_counts_answers_not_nels_config_line_and_shows_a_cut_short_attempt
         (run_dir / "quality" / name / "command.json").write_text("{}")
         os.utime(run_dir / "quality" / name / "command.json", (NOW.timestamp() - age_s,) * 2)
 
-    run = _screen(cfg, ["sma-20261029T020534Z-aaaa-quality"]).split("CURRENT RUN")[1].split("SERVING")[0]
+    run = _screen(cfg, ["sma-20261029T020534Z-aaaa-quality"]).split("CURRENT RUN")[1].split("\n\n")[0]
 
     assert "▶ ifeval           2/50 answered  10m00s" in run
     assert "◼ mmlu_pro         stopped  2/700 answered\n" in run
@@ -112,7 +112,7 @@ def test_watch_counts_answers_not_nels_config_line_and_shows_a_cut_short_attempt
     steps = json.loads((run_dir / "manifest.json").read_text())
     steps["steps"]["quality"]["status"] = "failed"
     (run_dir / "manifest.json").write_text(json.dumps(steps))
-    run = _screen(cfg, ["sma-20261029T020534Z-aaaa-quality"]).split("CURRENT RUN")[1].split("SERVING")[0]
+    run = _screen(cfg, ["sma-20261029T020534Z-aaaa-quality"]).split("CURRENT RUN")[1].split("\n\n")[0]
     assert "◼ ifeval           stopped  2/50 answered\n" in run
 
 
@@ -138,17 +138,17 @@ def test_watch_counts_livecodebench_answers_from_its_proxys_running_totals(tmp_p
     writer.execute("INSERT INTO Cache (key, value) VALUES ('interceptor_state', ?)", (json.dumps(state),))
     writer.commit()
 
-    run = _screen(cfg, ["sma-20261029T020534Z-aaaa-quality"]).split("CURRENT RUN")[1].split("SERVING")[0]
+    run = _screen(cfg, ["sma-20261029T020534Z-aaaa-quality"]).split("CURRENT RUN")[1].split("\n\n")[0]
     assert "▶ livecodebench    12/454 answered · 1 cut off  " in run
     # Every problem answered: the runner writes its answers, then runs them against the hidden tests.
     (stats_dir.parent / "LiquidAI_LFM3-1.7B_Scenario.codegeneration_release_v6_1_.json").write_text("[]")
-    run = _screen(cfg, ["sma-20261029T020534Z-aaaa-quality"]).split("CURRENT RUN")[1].split("SERVING")[0]
+    run = _screen(cfg, ["sma-20261029T020534Z-aaaa-quality"]).split("CURRENT RUN")[1].split("\n\n")[0]
     assert "▶ livecodebench    12/454 answered · 1 cut off · running the tests" in run
 
     # Once the container closes it, the database is left alone: a reader would make its -wal and -shm again.
     writer.close()
     assert not (stats_dir / "cache.db-wal").exists()
-    run = _screen(cfg, ["sma-20261029T020534Z-aaaa-quality"]).split("CURRENT RUN")[1].split("SERVING")[0]
+    run = _screen(cfg, ["sma-20261029T020534Z-aaaa-quality"]).split("CURRENT RUN")[1].split("\n\n")[0]
     assert "▶ livecodebench    running" in run
     assert sorted(path.name for path in stats_dir.iterdir()) == ["cache.db"]
 
@@ -265,9 +265,9 @@ def test_watch_lists_pending_queue_jobs(tmp_path: Path) -> None:
 
     screen = _screen(cfg, [])
 
-    assert "QUEUE  1 job in sma queue" in screen
-    # Each line starts with the engine the job runs on (owner, 2026-10-30): VLLM, SGL, or CPP.
-    assert "VLLM · Qwen/Qwen3-8B  · bf16  pending" in screen
+    assert "QUEUE  1 job, in the order they start" in screen
+    # Each line starts with the engine the job runs on (owner, 2026-10-30): VLLM, SGL, or CPP; then its place.
+    assert "VLLM  1. Qwen/Qwen3-8B  waiting  · bf16" in screen
     assert "CURRENT RUN  none" in screen
 
 
@@ -364,7 +364,8 @@ def test_watch_serving_shows_each_windows_averages_and_dashes_what_the_engine_la
 
 def test_watch_serving_says_when_no_run_recorded_samples(tmp_path: Path) -> None:
     screen = _screen(make_config(tmp_path), [])
-    assert "no engine counters in the last 24 hours, and no server up" in screen
+    # Nothing at work: one line, not a table of dashes.
+    assert "SERVING  nothing is serving now" in screen and "24 hours" not in screen.split("SERVING")[1]
 
 
 LLAMA_SCRAPE = (
@@ -608,7 +609,61 @@ def test_a_run_with_steps_left_is_stopped_and_resumable_not_failed(tmp_path: Pat
     plan.write_text("LiquidAI/LFM3-1.7B-GGUF BF16\n")
     Catalog(cfg.runs_path()).rebuild()
     screen = render(cfg, View([], None, NOW), plan=plan)
-    assert any("LFM3-1.7B-GGUF BF16" in line and "stopped" in line for line in screen.split("CURRENT RUN")[0].splitlines())
+    assert any("LFM3-1.7B-GGUF BF16" in line and "stopped" in line for line in screen.split("QUEUE")[1].split("\n\n")[0].splitlines())
     finished = screen.split("FINISHED")[1]
     assert "◼ LiquidAI/LFM3-1.7B-GGUF BF16 (stopped, resumable)" in finished
     assert "✓ Org/Done BF16" in finished
+
+
+def test_watch_shows_each_slot_its_run_the_queue_with_legs_and_kernelbench_s_fifo(tmp_path: Path) -> None:
+    # Step 11 of the V100 slot plan: a dispatcher runs one run per slot; the screen shows every slot.
+    cfg = make_config(tmp_path)
+    ref = _run(cfg, "20261029T020534Z-aaaa", "LiquidAI/LFM3-1.7B-GGUF", "F16", steps={"fetch": "done", "determinism": "done", "logprobs": "done", "quality": "running"})
+    (ref / "logprobs").mkdir()
+    (ref / "logprobs" / "perplexity.json").write_text(json.dumps({"perplexity": 24.019}))
+    cand = _run(cfg, "20261029T020540Z-bbbb", "LiquidAI/LFM3-1.7B-GGUF", "QAD-Q4_0", steps={"fetch": "done", "determinism": "done", "logprobs": "running"})
+    (cand / "logprobs").mkdir()
+    (cand / "logprobs" / "waiting.json").write_text(json.dumps({"reference_run_id": "20261029T020534Z-aaaa", "since": "x"}))
+    queue = JobQueue(cfg.queue_path())
+    job = queue.add([{"repo": "LiquidAI/LFM3-1.7B-GGUF", "quant": "gguf", "gguf": g, "engine": "llamacpp"} for g in ("F16", "QAD-Q4_0", "QAD-Q4_0")], kind="pair")
+    queue.claim_job(job["job_id"], "dispatcher-v100-pod", "v100-pod")
+
+    def legs(j):
+        j["legs"][0].update(status="running", slot="v100-0", run_id="20261029T020534Z-aaaa")
+        j["legs"][1].update(status="running", slot="v100-1", run_id="20261029T020540Z-bbbb")
+        j["legs"][2].update(status="pending", guard_trips=1)
+
+    queue.update(job["job_id"], legs)
+    state = {"pid": os.getpid(), "updated": "x", "slots": [
+        {"name": "v100-0", "gpus": "0", "state": "busy", "run_id": "20261029T020534Z-aaaa", "repo": "LiquidAI/LFM3-1.7B-GGUF", "gguf": "F16", "thinking": "off"},
+        {"name": "v100-1", "gpus": "1", "state": "busy", "run_id": "20261029T020540Z-bbbb", "repo": "LiquidAI/LFM3-1.7B-GGUF", "gguf": "QAD-Q4_0", "thinking": "off"},
+        {"name": "v100-2", "gpus": "2", "state": "idle"},
+        {"name": "v100-3", "gpus": "3", "state": "down", "reason": "its server failed to start 2 times in a row"},
+    ], "memory_guard": None}
+    (cfg.queue_path() / "dispatcher").mkdir(parents=True)
+    (cfg.queue_path() / "dispatcher" / f"{cfg.host_alias}.json").write_text(json.dumps(state))
+    jobs = [
+        {"id": "kb-1", "name": "20261029T010000Z-old", "status": "running", "created_at": "2026-10-29T02:00:00Z", "started_at": "2026-10-29T02:30:00Z", "progress": {"done": 41, "total": 100}},
+        {"id": "kb-3", "name": "20261029T020540Z-bbbb", "status": "queued", "created_at": "2026-10-29T02:50:00Z"},
+        {"id": "kb-2", "name": "20261029T020534Z-aaaa", "status": "queued", "created_at": "2026-10-29T02:40:00Z"},
+        {"id": "kb-0", "name": "x", "status": "done", "created_at": "2026-10-29T01:00:00Z"},
+    ]
+    Catalog(cfg.runs_path()).rebuild()
+    screen = re.sub(r"\033\[[0-9;]*m", "", render(cfg, View([], (90 * 2**30, 121 * 2**30), NOW, kernelbench=jobs)))
+
+    assert "SLOTS  2 of 4 busy on the serving machine" in screen and "CURRENT RUN" not in screen
+    # One line per slot: its model, its time so far, what it is on and how far.
+    slots = screen.split("SLOTS")[1].split("\n\n")[0].splitlines()[1:]
+    assert len(slots) == 4 and "v100-0   GPU 0  LFM3-1.7B F16" in slots[0]
+    assert re.search(r"v100-1   GPU 1  LFM3-1.7B QAD-Q4_0 +\S+ +perplexity +waiting for the reference's logits", slots[1])
+    assert "v100-2   GPU 2  idle" in slots[2] and "down: its server failed to start 2 times in a row" in slots[3]
+    # Then each busy slot's run, whole, as CURRENT RUN shows a run alone (the TUI shows the selected one).
+    window = screen.split("v100-1  LiquidAI/LFM3-1.7B-GGUF QAD-Q4_0 on llamacpp, thinking off")[1].split("\n\n")[0]
+    assert "▶ perplexity       waiting for the reference's logits (20261029T020534Z-aaaa)" in window
+    assert "v100-0  LiquidAI/LFM3-1.7B-GGUF F16 on llamacpp" in screen and "✓ perplexity       24.019" in screen
+    queue_line = next(line for line in screen.splitlines() if "QAD-Q4_0 on v100-1" in line)
+    assert "waiting for the reference's logits" in queue_line and "(stopped by the memory guard, resumes)" in queue_line
+    assert "KERNELBENCH  1 timing, 2 queued" in screen and "20261029T010000Z-old  41/100 kernels" in screen
+    assert "stopped, resumable" not in screen.split("FINISHED")[1]  # The slots' runs are running, not stopped.
+    kb = screen.split("KERNELBENCH")[1]
+    assert kb.index("1. LiquidAI/LFM3-1.7B-GGUF F16") < kb.index("2. LiquidAI/LFM3-1.7B-GGUF QAD-Q4_0")

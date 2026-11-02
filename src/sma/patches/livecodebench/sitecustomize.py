@@ -7,7 +7,8 @@ and a correct answer slower than 6 s passed (LFM3-1.7B on SGLang, 2026-10-31).
 
 SMA mounts this folder and puts it on PYTHONPATH, so Python imports this file in every process of the
 container. It only acts when the runner's scenario_router module loads: grading then gets
---evaluation_timeout as its timeout. Requests keep --timeout. Nothing else changes.
+--evaluation_timeout as its timeout. Requests keep --timeout. With SMA_GRADING_LOCK and SMA_GRADING_CPUS set
+(grading_turn), grading also waits for the machine's grading lock and runs on the timed CPUs.
 """
 
 import importlib.abc
@@ -26,7 +27,10 @@ def _patch(module):
         graded = copy.copy(args)
         graded.timeout = args.evaluation_timeout
         print(f"SMA patch: grading with --evaluation_timeout {graded.timeout} s per test, not --timeout {args.timeout} s", file=sys.stderr, flush=True)
-        return original(scenario, graded, *rest, **kwargs)
+        from sma_grading import grading_turn  # Beside this file, on PYTHONPATH.
+
+        with grading_turn():
+            return original(scenario, graded, *rest, **kwargs)
 
     module.get_metrics = get_metrics
 

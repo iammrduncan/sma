@@ -2,7 +2,9 @@
 
 SMA's models write CUDA kernels for [KernelBench](https://github.com/ScalingIntelligence/KernelBench)'s problems. This service takes a batch of those kernels over HTTP. It compiles each one, checks it against KernelBench's PyTorch reference, and times both on its own GPU. It returns one result per kernel, with the environment the numbers came from.
 
-It runs on its own machine. Compiling and timing kernels next to a model server would disturb SMA's speed numbers, and model-written code should not run where models are served. The lab runs it on a second DGX Spark. The baselines in [`runs/gb10/baseline/kernelbench/`](../../runs/gb10/baseline/kernelbench/README.md) were measured with this code (only its comments and the state folder line in the Containerfile differ from that service's).
+It never runs beside a model server. Compiling and timing kernels next to one would disturb SMA's speed numbers, and model-written code should not run where models are served. Since 2026-11-01 the lab runs it on the harness GB10, the DGX Spark that runs SMA's harness ([On the harness GB10](#on-the-harness-gb10-smas-machine)). That is acceptable now because no model is served there: the models are on the V100 pod. CPU, memory, GPU and interrupt isolation keeps the harness from disturbing the timings. The sandbox keeps model-written code away from the run records and the harness: Landlock in each worker, an internal network, a read-only container and no capabilities.
+
+Before, the lab ran it on a second DGX Spark. The baselines in [`runs/gb10/baseline/kernelbench/`](../../runs/gb10/baseline/kernelbench/README.md) were measured there, with this code before CPU pinning and the `cpus`, `compute_mode` and `memory_reserved_gib` fields were added. Without the pinning variables the service times and fingerprints as it did then.
 
 ## Files
 
@@ -13,7 +15,9 @@ It runs on its own machine. Compiling and timing kernels next to a model server 
 | `worker.py` | One evaluation in its own process: a kernel, a baseline problem, or the environment probe |
 | `sandbox.py` | Landlock for each worker process |
 | `stubs/` | Stand-ins for the model clients KernelBench imports but never uses here |
-| `kernelbench-gpu-clocks.service` | A systemd unit that locks the GPU clock |
+| `kernelbench-gpu-clocks.service` | A systemd unit that locks the GPU clock and gives the GPU to one process at a time |
+| `host-setup.sh` | Isolates the service on the harness GB10 (CPUs, memory, GPU, interrupts), and checks it |
+| `sma-dispatcher.service` | The template for SMA's dispatcher unit, which `host-setup.sh` installs on the harness GB10 |
 
 ## What you need
 
@@ -50,13 +54,14 @@ Then set `TORCH_CUDA_ARCH_LIST` to the card's compute capability (`nvidia-smi --
 
 A GPU boosts and throttles with temperature and power, so the same kernel times differently from run to run. A fixed clock keeps times comparable. On a GB10 locked at 2200 MHz, the clock held 2184–2190 MHz for 120 s of fp32 matrix multiplies, at 60–65 W and up to 72 °C. Unlocked, it fell from 2463 to 2385 MHz as it reached 79 °C at its power cap. The lock made Level 1's times 2.6% longer (geometric mean): the compute-bound problems lose the boost, and the memory-bound ones barely move.
 
-The service does not set the clock. The host does, with `kernelbench-gpu-clocks.service`. Set `GPU` and `CLOCK_MHZ` in it, then:
+The service does not set the clock. The host does, with `kernelbench-gpu-clocks.service`. The unit also sets compute mode `EXCLUSIVE_PROCESS`, so only one process can hold a CUDA context on the GPU: the worker. Stopping the unit resets the clocks and the compute mode. On the harness GB10, `host-setup.sh` installs it. Elsewhere, set `GPU` and `CLOCK_MHZ` in it, then:
 
 ```bash
 sudo install -m 0644 kernelbench-gpu-clocks.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now kernelbench-gpu-clocks.service
 nvidia-smi -q -d CLOCK          # "Applications Clocks" and the SM clock under load
+nvidia-smi --query-gpu=compute_mode --format=csv,noheader    # Exclusive_Process
 ```
 
 Pick a clock the card can hold under load. A GB10 lists no supported clocks (`nvidia-smi -q -d SUPPORTED_CLOCKS` says N/A); any clock up to `clocks.max.sm` (3003 MHz) is accepted, and 2200 MHz holds. Other cards list theirs; the RTX 4070 SUPER used 1980 MHz. Pass the same number to the service as `KERNELBENCH_GPU_CLOCK_LOCK_MHZ`. It goes into the environment fingerprint, so results with and without a lock are never compared. Every job's environment also shows the clocks sampled under load, so a lock that did not hold shows up there.
@@ -103,8 +108,73 @@ The image runs as uid 10001 with no capabilities.
 | `MAX_JOBS` | unset | ninja's parallel compiles per kernel |
 | `KERNELBENCH_HOST_MEMORY_FLOOR_GIB` | `0` (off) | Stop a worker when the machine's available memory falls below this. Set it on unified memory (GB10), where the GPU's allocations are not charged to the container |
 | `KERNELBENCH_GPU_CLOCK_LOCK_MHZ` | unset | The host's clock lock, reported in every environment and part of the fingerprint |
+| `KERNELBENCH_TIMING_CPUS` | unset | The CPUs each worker times on, such as `15-19`. Reported in the environment's `cpus` and part of the fingerprint |
+| `KERNELBENCH_COMPILE_CPUS` | unset | The CPUs for every process a worker starts (nvcc, ninja, c++), such as `10-14`. The server's own threads run there too |
+| `KERNELBENCH_MEMORY_RESERVED_GIB` | unset | The memory the host keeps for the service (`host-setup.sh`'s `KB_MEMORY_MIN`), reported as `memory_reserved_gib`. The host enforces it, not the service |
 | `KERNELBENCH_PORT` | `8000` | The port the server listens on |
 | `KERNELBENCH_KEEP_DAYS` | `30` | How long finished jobs are kept |
+
+## On the harness GB10 (SMA's machine)
+
+Since 2026-11-01 the service runs on the GB10 that runs SMA's harness: its clients, grading and records. The models are served on the V100 pod, so the GB10's GPU is free. The GB10's 20 cores are not alike. CPUs 0–4 and 10–14 are Cortex-A725 (slower), and 5–9 and 15–19 are Cortex-X925 (fast). KernelBench gets the second cluster to itself:
+
+| | KernelBench | The harness and everything else |
+| --- | --- | --- |
+| CPUs | 10–19: it times on 15–19 (X925) and compiles on 10–14 (A725) | 0–9 |
+| Memory | 80 GiB, always free | `sma-harness.slice` at most 32 GiB, `system.slice` 3 GiB, `user.slice` 3 GiB, the kernel and driver about 3.7 GiB |
+| GPU | All of it: compute mode `EXCLUSIVE_PROCESS`, clock locked at 2200 MHz | None |
+| Interrupts | Only the ones the kernel will not move (NVMe queues that serve their own CPUs) | Every device IRQ that can move |
+
+On a GB10 the GPU's memory is the machine's RAM, and GPU allocations are charged to no cgroup. So a memory limit on the container cannot keep room for KernelBench. Everything else is capped instead: 121.7 GiB, less 38 GiB of caps and about 3.7 GiB for the kernel and driver, leaves 80 GiB. `kernelbench.slice` also gets `MemoryMin=80G`, which keeps the container's own memory from being reclaimed for others.
+
+Set it up from the repository root:
+
+1. Build the image as in [Build](#build): `docker build -t kernelbench-eval:gb10 -f Containerfile .` in this folder. Build it first: dockerd runs in `system.slice`, and after step 2 a build shares its 3 GiB cap.
+2. Apply the isolation. It needs root and is safe to run again. `--print` shows every file it writes first.
+
+   ```bash
+   bash services/kernelbench/host-setup.sh --print     # what it will write
+   sudo bash services/kernelbench/host-setup.sh        # apply, then check
+   bash services/kernelbench/host-setup.sh --check     # one line per item; every line must say ok
+   ```
+
+   It writes `kernelbench.slice` and `sma-harness.slice`, and drop-ins that keep `system.slice`, `user.slice` and `init.scope` on CPUs 0–9 under their caps. It installs and starts `kernelbench-gpu-clocks.service`. It moves IRQs to CPUs 0–9, now and at every boot (`kernelbench-irq-affinity.service`), and bans irqbalance, if installed, from 10–19. It installs `sma-dispatcher.service` and does not start it. Its parameters are environment variables (`--help` lists them). `--check --json` gives the same check as JSON.
+3. Create the network and the state volume as in [Run](#run), then run the container in `kernelbench.slice`, on CPUs 10–19:
+
+   ```bash
+   docker run -d --name kernelbench --restart unless-stopped \
+     --gpus all --network kernelbench --ip 172.30.99.2 \
+     --read-only --tmpfs /tmp:rw,exec,nosuid,size=1g \
+     -v kernelbench-state:/var/lib/kernelbench \
+     --cap-drop ALL --security-opt no-new-privileges \
+     --cgroup-parent kernelbench.slice --cpuset-cpus 10-19 --memory 80g \
+     -e TORCH_CUDA_ARCH_LIST=12.1 -e MAX_JOBS=5 \
+     -e KERNELBENCH_HOST_MEMORY_FLOOR_GIB=8 -e KERNELBENCH_GPU_CLOCK_LOCK_MHZ=2200 \
+     -e KERNELBENCH_TIMING_CPUS=15-19 -e KERNELBENCH_COMPILE_CPUS=10-14 \
+     -e KERNELBENCH_MEMORY_RESERVED_GIB=80 \
+     kernelbench-eval:gb10
+   bash services/kernelbench/host-setup.sh --check     # now also checks the container's slice and CPUs
+   curl -s http://172.30.99.2:8000/v1/environment     # cpus, gpu.compute_mode, memory_reserved_gib
+   ```
+
+   `MAX_JOBS=5` runs one compile per compile CPU. A worker that names CPUs outside `--cpuset-cpus` refuses to run, so the environment never claims CPUs it did not get.
+4. In the root `.env`, set `KERNELBENCH_URL=http://172.30.99.2:8000`. The host reaches the container's address directly, so no SSH forward is needed. Set `KERNELBENCH_HOST` to this machine's name and `KERNELBENCH_GPU_PCI` to its GPU's PCI bus id (`nvidia-smi --query-gpu=pci.bus_id --format=csv,noheader`). SMA scrubs both from run records.
+5. Record the Level 1 baseline before you score any run:
+
+   ```bash
+   curl -s -X POST http://172.30.99.2:8000/v1/baselines -H 'Content-Type: application/json' -d '{"levels": [1]}'
+   ```
+
+   The timing CPUs are part of the fingerprint, so this machine's baselines never mix with the old Spark's.
+6. Start the dispatcher when its config (`.sma/v100/sma-v100.yaml`) is ready: `sudo systemctl enable --now sma-dispatcher.service`, and follow it with `journalctl -u sma-dispatcher.service -f`. It runs as your user in `sma-harness.slice`.
+
+Things to know:
+
+- SMA's own containers join `sma-harness.slice`. A container started without `--cgroup-parent` lands in `system.slice`, under its 3 GiB cap.
+- A `sma` command typed in a login shell runs in `user.slice`, under its 3 GiB cap. Long work goes through the dispatcher.
+- With `EXCLUSIVE_PROCESS`, a second process cannot open the GPU while a worker holds it. `nvidia-smi` queries still work.
+- To undo it: `sudo systemctl disable --now sma-dispatcher.service kernelbench-irq-affinity.service kernelbench-gpu-clocks.service`, delete the files `--print` lists, run `sudo systemctl daemon-reload`, and reboot. The reboot drops the values set on the running units and the IRQ moves.
+- Not verified on the GB10 yet: `host-setup.sh` has run only as `--print` and `--check`, never applied. Compute mode `EXCLUSIVE_PROCESS` on a GB10, the `init.scope` drop-in, the pinned worker inside the container, and `sma-dispatcher.service` are untested there.
 
 ## Record a baseline
 
@@ -155,7 +225,7 @@ curl -s $KERNELBENCH_URL/v1/jobs/<job_id>        # poll until status is done
 | `error_kind` | null when the kernel compiled, was correct and was timed. Otherwise `compile` (nvcc's output is in `error`), `runtime` (an exception, a CUDA error, out of memory, or a memory limit below), `incorrect`, `timing`, `timeout`, or `crash` (the worker died, or the service died twice on this kernel and skipped it) |
 | `kernel_sha256`, `label`, `eval_seconds`, `attempts` | Bookkeeping |
 
-**The environment** is probed at the start of every job and returned with it: the GPU, its driver and compute capability, PyTorch and its CUDA, nvcc, Python, the KernelBench commit, the clock lock, the clocks sampled under load, and the sandbox. Its `fingerprint` hashes what a speedup depends on: GPU, driver, CUDA, nvcc, PyTorch, KernelBench commit and clock lock. Compare speedups only within one fingerprint. Baselines are stored by fingerprint.
+**The environment** is probed at the start of every job and returned with it: the GPU, its driver, compute capability and compute mode, PyTorch and its CUDA, nvcc, Python, the KernelBench commit, the clock lock, the clocks sampled under load, the CPUs (`cpus`: the timing and compile CPUs, and the CPUs the worker may run on), the memory the host keeps for the service, and the sandbox. Its `fingerprint` hashes what a speedup depends on: GPU, driver, CUDA, nvcc, PyTorch, KernelBench commit and clock lock, plus the timing CPUs when the worker is pinned. Compare speedups only within one fingerprint. Baselines are stored by fingerprint.
 
 ## How kernels are contained
 
@@ -172,4 +242,4 @@ A kernel can still read the image and its own inputs. It can also lie about its 
 
 - **Logs:** `docker logs kernelbench`. One line per request; a failed job keeps its error.
 - **State:** jobs, results and baselines are in the `kernelbench-state` volume. Finished jobs are kept for 30 days. A job interrupted by a restart resumes where it stopped.
-- **Update:** pull, rebuild the image, and recreate the container. A new KernelBench commit, PyTorch, driver or clock lock changes the fingerprint: record a new baseline before you compare.
+- **Update:** pull, rebuild the image, and recreate the container. A new KernelBench commit, PyTorch, driver, clock lock or set of timing CPUs changes the fingerprint: record a new baseline before you compare.

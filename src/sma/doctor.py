@@ -145,7 +145,35 @@ def default_checks(cfg: Config) -> list[Check]:
                 "(`uv sync --extra quality`).",
             )
         )
+    if cfg.harness.cgroup_parent:
+        checks.extend(isolation_checks())
     return checks
+
+
+# The KernelBench host's isolation script (services/kernelbench/host-setup.sh), in a source checkout.
+HOST_SETUP = Path(__file__).resolve().parents[2] / "services" / "kernelbench" / "host-setup.sh"
+
+
+def isolation_checks(script: Path = HOST_SETUP) -> list[Check]:
+    """The harness GB10's isolation for KernelBench, as host-setup.sh --check reports it: the slices' CPUs and
+    memory, processes and interrupts off KernelBench's cores, the GPU's compute mode and clock lock."""
+    import json
+
+    if not script.is_file():
+        return [Check("isolation", "warn", f"{script.name} is not here (a source checkout has it under services/kernelbench).")]
+    result = _try_command(["bash", str(script), "--check", "--json"], timeout_s=120, what="host-setup.sh --check")
+    try:
+        rows = json.loads(result.stdout or "[]")
+    except ValueError:
+        rows = None
+    if not isinstance(rows, list) or not rows:
+        detail = (result.stderr or result.stdout or "no output")[-300:]
+        return [Check("isolation", "fail", f"host-setup.sh --check gave no report: {detail}")]
+    return [
+        Check(f"isolation:{row.get('name')}", "ok" if row.get("ok") else "fail", str(row.get("detail") or ""))
+        for row in rows
+        if isinstance(row, dict)
+    ]
 
 
 def format_checks(checks: list[Check]) -> str:

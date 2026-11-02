@@ -21,7 +21,10 @@ These are owner decisions. Do not change them without an explicit owner decision
 - SMA never quantizes or converts weights. It downloads GGUF files as published. A checkpoint that
   does not match the quant flag is refused. It is never converted or relabeled. The KV cache is
   always 8-bit: FP8 on vLLM and SGLang, Q8_0 on llama.cpp.
-- Tensor parallelism is always 1. One Spark runs one model at a time, under `gpu.lock`.
+- Tensor parallelism is always 1. One GPU runs one model at a time: a Spark under `gpu.lock`, a serving
+  machine's GPU slot under its slot's lock (`sma worker --slots`, owner decision 2026-11-01). Runs across
+  GPUs are not built. On a serving machine, the slots' speed steps take turns (a FIFO lock), and the speed
+  summary records what the other slots ran meanwhile.
 - The engine is part of the subject. Never switch engines as a fallback. The engine is chosen before
   launch, by checkpoint format, by `--engine`, or because preflight shows that vLLM cannot serve the
   model. Never copy a measurement from one engine into another engine's record. The only fallback is
@@ -62,7 +65,7 @@ uv run sma run Qwen/Qwen3-8B --bf16 --dry-run         # prints the plan; no GPU,
 | Area | Modules in `src/sma/` |
 | --- | --- |
 | Entry points | `cli.py` (argparse; `SmaError` exits 2), `plan.py` (dry-run), `doctor.py` |
-| Orchestration | `pipeline.py` (steps, markers, teardown), `agentic.py` (the KernelBench, SWE-bench, and BrowseComp-Plus steps), `queue.py` (filesystem queue, worker), `locks.py` |
+| Orchestration | `pipeline.py` (steps, markers, teardown), `agentic.py` (the KernelBench, SWE-bench, and BrowseComp-Plus steps), `queue.py` (filesystem queue, worker), `dispatcher.py` (`sma worker --slots`: one run per GPU slot, the memory guard), `remote.py` (serving on the V100 pod over SSH), `locks.py` |
 | Commands | `commands.py`, `backends.py` (`EngineBackend` for vLLM and SGLang), `engines.py`, `runtime.py` (Docker) |
 | Checkpoint | `fetch.py`, `quant.py`, `gguf.py` (GGUF header reader), `preflight.py`, `params.py`, `safetensors.py`, `hashing.py` |
 | Memory plan | `memplan.py` (KV layout, context ladder, budget; pure), `runplan.py` (SMA's benchmarks as needs, serve plan) |

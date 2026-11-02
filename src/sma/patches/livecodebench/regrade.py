@@ -37,9 +37,12 @@ def main() -> None:
     if missing:
         raise SystemExit(f"{len(missing)} problems are not in {args.release} between the dates given, e.g. {missing[:3]}.")
     samples = [problems[row["question_id"]].get_evaluation_sample() for row in rows]
-    metrics = codegen_metrics(
-        samples, [row["code_list"] for row in rows], k_list=[1], num_process_evaluate=args.processes, timeout=args.timeout
-    )
+    from sma_grading import grading_turn  # Beside this script: the grading lock and CPUs, as in a run.
+
+    with grading_turn():
+        metrics = codegen_metrics(
+            samples, [row["code_list"] for row in rows], k_list=[1], num_process_evaluate=args.processes, timeout=args.timeout
+        )
     graded = extract_instance_results(metrics[1])
     for row, graded_list, metadata in zip(rows, graded, metrics[2]):
         row["graded_list"] = graded_list

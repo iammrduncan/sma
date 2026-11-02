@@ -1,10 +1,12 @@
-# Lock the GPU's clock for KernelBench timing (README.md, "Lock the GPU clock"). Set GPU and
-# CLOCK_MHZ below, then:
+# Lock the GPU's clock for KernelBench timing and give the GPU to one process at a time (README.md,
+# "Lock the GPU clock"). host-setup.sh installs it with GPU and CLOCK_MHZ filled in. By hand, set
+# them below, then:
 #   sudo install -m 0644 kernelbench-gpu-clocks.service /etc/systemd/system/
 #   sudo systemctl daemon-reload && sudo systemctl enable --now kernelbench-gpu-clocks.service
-# Stopping the unit resets the clocks.
+# EXCLUSIVE_PROCESS lets one process hold a CUDA context: KernelBench's worker, never a neighbour.
+# Stopping the unit resets the clocks and the compute mode. It leaves persistence mode on.
 [Unit]
-Description=Persistence mode and a locked GPU clock for KernelBench timing
+Description=Persistence mode, a locked GPU clock and exclusive compute for KernelBench timing
 Wants=nvidia-persistenced.service
 After=nvidia-persistenced.service
 
@@ -15,7 +17,9 @@ RemainAfterExit=yes
 Environment=GPU=0 CLOCK_MHZ=2200
 ExecStart=/usr/bin/nvidia-smi -i ${GPU} --persistence-mode=1
 ExecStart=/usr/bin/nvidia-smi -i ${GPU} --lock-gpu-clocks=${CLOCK_MHZ},${CLOCK_MHZ}
+ExecStart=/usr/bin/nvidia-smi -i ${GPU} -c EXCLUSIVE_PROCESS
 ExecStop=/usr/bin/nvidia-smi -i ${GPU} --reset-gpu-clocks
+ExecStop=/usr/bin/nvidia-smi -i ${GPU} -c DEFAULT
 
 [Install]
 WantedBy=multi-user.target

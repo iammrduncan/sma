@@ -186,6 +186,26 @@ def follow_to_file(argv: list[str], path: Path, *, what: str) -> Following:
     return Following(process=process, thread=thread, path=path)
 
 
+def start_detached(argv: list[str], log_path: Path, *, cpus: set[int] | None, what: str) -> subprocess.Popen[bytes]:
+    """Start a long-lived process in its own session, its output appended to log_path, on cpus when given.
+
+    For the dispatcher's units: the output goes to the file directly, not through a pipe this process copies,
+    so a unit outlives a dispatcher that dies (the next one adopts it), and only the dispatcher's own stop
+    reaches it. The log is local state (the queue folder), not a run record; each run keeps its own scrubbed logs.
+    """
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def _pin() -> None:
+        if cpus:
+            os.sched_setaffinity(0, cpus)
+
+    try:
+        with open(log_path, "ab") as out:
+            return subprocess.Popen(argv, stdout=out, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True, preexec_fn=_pin)
+    except FileNotFoundError as exc:
+        raise SmaError(f"{what} could not start; {argv[0]} is not installed") from exc
+
+
 def require_ok(result: CommandResult, *, what: str) -> CommandResult:
     if result.ok:
         return result

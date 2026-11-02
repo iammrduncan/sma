@@ -96,10 +96,14 @@ def _parser() -> argparse.ArgumentParser:
     status.set_defaults(func=_cmd_status)
 
     watching = sub.add_parser(
-        "watch", help="Live view: the queue, the current run's steps and benchmarks, and finished runs"
+        "watch",
+        help="Live view: health, each slot or run with its steps, the queue, KernelBench, serving, finished runs",
+        description="On a terminal: an interactive screen. Tab moves between panels, the arrows select, Enter opens "
+        "a run or queue job, Esc goes back, / filters, r reads again, ? shows the keys, q quits. Piped, or with "
+        "--once: the same main screen as plain text. It only reads, and the screen is scrubbed like a run record.",
     )
-    watching.add_argument("--interval", type=float, default=5.0, help="Seconds between redraws (default 5)")
-    watching.add_argument("--once", action="store_true", help="Print one screen and exit")
+    watching.add_argument("--interval", type=float, default=5.0, help="Seconds between reads (default 5)")
+    watching.add_argument("--once", action="store_true", help="Print the main screen once as plain text and exit")
     watching.add_argument(
         "--plan",
         type=Path,
@@ -192,9 +196,25 @@ def _parser() -> argparse.ArgumentParser:
     _add_common(qreassign)
     qreassign.set_defaults(func=_cmd_queue_reassign)
 
-    worker = sub.add_parser("worker", help="Pull whole jobs and run them one at a time")
+    qdrop = qsub.add_parser(
+        "drop",
+        help="Take a job off the queue even if it has started (its worker must be gone). Its runs stay resumable by hand.",
+    )
+    qdrop.add_argument("job_id")
+    _add_common(qdrop)
+    qdrop.set_defaults(func=_cmd_queue_drop)
+
+    worker = sub.add_parser("worker", help="Pull whole jobs and run them one at a time, or one per GPU slot with --slots")
     _add_common(worker)
     worker.add_argument("--once", action="store_true", help="Run at most one job, then exit")
+    worker.add_argument(
+        "--slots",
+        action="store_true",
+        help="Run one leg per GPU slot of the serving machine (remote.slots), many at once: each queued leg takes the "
+        "first free slot, in queue order. One per serving machine.",
+    )
+    worker.add_argument("--run-unit", nargs=2, metavar=("JOB_ID", "LEG"), default=None, help=argparse.SUPPRESS)
+    worker.add_argument("--slot", default=None, help=argparse.SUPPRESS)
     worker.set_defaults(func=_cmd_worker)
     return parser
 
@@ -595,6 +615,20 @@ def _cmd_watch(args: argparse.Namespace) -> int:
         except SmaError:
             return ""
 
+    def kernelbench_jobs():
+        """The KernelBench service's queue, or None when KERNELBENCH_URL is not set or the service does not answer."""
+        import os
+
+        from sma.kbservice import URL_ENV, KernelBenchService
+
+        url = os.environ.get(URL_ENV)
+        if not url or not cfg.kernelbench.enabled:
+            return None
+        try:
+            return KernelBenchService(url, timeout_s=5.0, attempts=1).jobs()
+        except SmaError:
+            return None
+
     watch(
         cfg,
         plan=args.plan,
@@ -606,6 +640,7 @@ def _cmd_watch(args: argparse.Namespace) -> int:
         machines=lambda: gather(cfg),
         started_at=started_at,
         swe_progress=swe_progress,
+        kernelbench=kernelbench_jobs,
     )
     return 0
 
@@ -740,6 +775,16 @@ def _cmd_queue_remove(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_queue_drop(args: argparse.Namespace) -> int:
+    cfg = _cfg(args)
+    job = JobQueue(cfg.queue_path()).drop(args.job_id, stale_s=cfg.queue.stale_claim_s)
+    runs = [leg["run_id"] for leg in job["legs"] if leg.get("run_id")]
+    print(f"{job['job_id']} dropped ({job['removed_from']}): {', '.join(_leg_name(leg) for leg in job['legs'])}")
+    for run_id in runs:
+        print(f"  run {run_id} stays in runs/; resume it with sma resume {run_id}")
+    return 0
+
+
 def _cmd_queue_unpin(args: argparse.Namespace) -> int:
     cfg = _cfg(args)
     job = JobQueue(cfg.queue_path()).unpin(args.job_id)
@@ -757,6 +802,25 @@ def _cmd_queue_reassign(args: argparse.Namespace) -> int:
 def _cmd_worker(args: argparse.Namespace) -> int:
     cfg = _cfg(args)
     from sma.pipeline import production_services
+
+    if args.run_unit:
+        # A dispatcher's child: one leg on one slot. Not for use by hand.
+        from sma.dispatcher import run_unit
+
+        if not args.slot:
+            raise SmaError("--run-unit needs --slot NAME.")
+        job_id, leg = args.run_unit
+        if not leg.isdigit():
+            raise SmaError("--run-unit takes a job id and a leg number.")
+        return run_unit(cfg, production_services, job_id, int(leg), args.slot)
+    if args.slots:
+        from sma.dispatcher import run_dispatcher
+
+        if args.once:
+            raise SmaError("--once runs one job on a one-run worker; --slots keeps every slot busy until stopped.")
+        print(f"dispatcher alias {cfg.host_alias}, slots {', '.join(slot.name for slot in cfg.remote.slots)}")
+        run_dispatcher(cfg, config_path=args.config, runs_dir=args.runs_dir)
+        return 0
 
     worker_id = "worker-" + uuid.uuid4().hex[:8]
     print(f"worker {worker_id} alias {cfg.host_alias}")

@@ -58,6 +58,10 @@ CGROUP = Path("/sys/fs/cgroup")
 # falls below this floor (0: off, for a card with its own memory).
 HOST_MEMORY_FLOOR = int(float(os.environ.get("KERNELBENCH_HOST_MEMORY_FLOOR_GIB", "0")) * 2**30)
 MEMINFO = Path("/proc/meminfo")
+# The memory the host keeps for this service (host-setup.sh's KB_MEMORY_MIN), reported in every
+# environment. The host enforces it, not the service.
+MEMORY_RESERVED_GIB = float(os.environ["KERNELBENCH_MEMORY_RESERVED_GIB"]) \
+    if os.environ.get("KERNELBENCH_MEMORY_RESERVED_GIB") else None
 # KernelBench's eval_from_generations.py defaults, except a longer timeout (compiles share the
 # machine's CPUs with its other services).
 DEFAULTS = {"num_correct_trials": 5, "num_perf_trials": 100, "timing_method": "cuda_event", "backend": "cuda",
@@ -233,6 +237,12 @@ def fingerprint(env: dict | None) -> str | None:
         return None
     key = {k: env.get(k) for k in ("torch", "cuda_runtime", "nvcc", "kernelbench_commit", "clock_lock_mhz")}
     key.update(gpu=env["gpu"].get("name"), driver=env["gpu"].get("driver_version"))
+    # The timing CPUs only when the worker is pinned (worker.pin_cpus): environments without pinning
+    # keep the fingerprints their baselines are stored under, and a pinned GB10 does not share one
+    # with an unpinned GB10 that has the same GPU, driver, CUDA, PyTorch and clock lock.
+    timing_cpus = (env.get("cpus") or {}).get("timing")
+    if timing_cpus:
+        key["timing_cpus"] = timing_cpus
     return hashlib.sha256(json.dumps(key, sort_keys=True).encode()).hexdigest()[:16]
 
 
@@ -406,6 +416,7 @@ def probe() -> dict:
     raw["fingerprint"] = fingerprint(raw)
     raw["host_memory_budget_gib"] = round(MEMORY_BUDGET / 2**30, 1) if MEMORY_BUDGET else None
     raw["host_memory_floor_gib"] = round(HOST_MEMORY_FLOOR / 2**30, 1) if HOST_MEMORY_FLOOR else None
+    raw["memory_reserved_gib"] = MEMORY_RESERVED_GIB
     raw["probed_at"] = now()
     return raw
 
@@ -619,6 +630,11 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    if os.environ.get("KERNELBENCH_COMPILE_CPUS"):
+        # The server's own threads (HTTP, the memory watch every 20 ms) stay off the timing CPUs.
+        # Each worker it starts moves itself onto them (worker.pin_cpus).
+        from worker import cpu_list
+        os.sched_setaffinity(0, cpu_list(os.environ["KERNELBENCH_COMPILE_CPUS"]))
     (STATE / "jobs").mkdir(parents=True, exist_ok=True)
     (STATE / "baselines").mkdir(parents=True, exist_ok=True)
     load_jobs()

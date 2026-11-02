@@ -1,8 +1,11 @@
-"""`sma watch`: a live view of this Spark's work. The queue, the run in progress with each step and
-benchmark, serving rates over the last 5 minutes, hour, and 24 hours, and the latest finished runs.
+"""`sma watch`: a live view of this machine's work. Health first (problems and warnings on top), then each slot
+or running run on one line with the selected one's list beneath, the queue, KernelBench's queue, serving rates,
+and finished runs.
 
-It reads run folders, the queue, /proc/meminfo, and the SMA containers that are up. It changes nothing.
-The screen is scrubbed like a run record (no hostname, lab machine, or key), so it can be shared.
+This module is the model: it reads run folders, the queue, the dispatcher's state, /proc/meminfo, the SMA
+containers that are up, and the services' status endpoints, and builds a Board of painted lines. sma.tui lays
+the Board out on a terminal and follows keys; `--once` prints it as text. It changes nothing. The screen is
+scrubbed like a run record (no hostname, lab machine, or key), so it can be shared.
 """
 
 from __future__ import annotations
@@ -11,6 +14,7 @@ import json
 import os
 import re
 import shutil
+import statistics
 import sys
 import time
 from dataclasses import dataclass, field
@@ -21,25 +25,45 @@ from typing import Any, Callable, TextIO
 from sma.backends import get_backend
 from sma.catalog import Catalog
 from sma.config import Config
+from sma.dispatcher import state_path, unit_alive
 from sma.errors import SmaError
+from sma.locks import lock_held
 from sma.machines import Machine
 from sma.queue import JobQueue
 from sma.records import STEP_NAMES
 from sma.scrub import scrub_text
 from sma.serving import WINDOWS, Series, combined_peaks, combined_rates, recent_series, window
 from sma.telemetry import ENGINE_METRICS_FILE, engine_values
+from sma.tui import Board, Item, Panel, pad, plain, plain_text
 
 # Steps that send work elsewhere and report their own progress in the run folder.
 _AGENT_SUITES = {"kernelbench": "kernelbench_l1", "swebench": "swebench_verified_mini", "browsecomp_plus": "browsecomp_plus"}
 _MARK = {"done": "✓", "running": "▶", "failed": "✗", "pending": "·", "queued": "·", "stopped": "◼"}
 _COLOR = {
     "done": "32", "running": "33", "failed": "31", "pending": "2", "queued": "2", "stopped": "33", "head": "1;36",
+    "warn": "33",
     # SERVING cells: the window's average in blue, its peak in purple (owner, 2026-10-30).
     "avg": "38;5;39", "max": "38;5;135",
 }  # fmt: skip
+# Finished runs `--once` prints; the TUI scrolls through all of them.
 _FINISHED_SHOWN = 3
+# A run's progress on its slot line is cut to this many characters; its window below has it whole.
+_PROGRESS_WIDTH = 50
 # The machines are asked again this often: whether each answers can change, what it is does not.
 _MACHINES_EVERY_S = 60.0
+# The KernelBench service's queue is asked again this often.
+_KERNELBENCH_EVERY_S = 15.0
+# A running run that writes none of these for this long is flagged: its process may be gone. Telemetry and
+# memory are sampled every second and engine counters every 15 s while a run works.
+_QUIET_S = 600.0
+_WRITES = ("manifest.json", ENGINE_METRICS_FILE, "telemetry.csv", "memory.csv", "logs/sma.log")
+# A memory-guard stop stays an alert this long.
+_GUARD_ALERT_S = 3600.0
+# The dispatcher's systemd unit, where services/kernelbench/host-setup.sh installs it.
+_DISPATCHER_UNIT = Path("/etc/systemd/system/sma-dispatcher.service")
+# Free memory under this many GiB is a problem (red); under _MEMORY_LOW_GIB, yellow.
+_MEMORY_CRITICAL_GIB, _MEMORY_LOW_GIB = 16, 32
+_MACHINE_NAMES = {"model": "this machine", "kernel": "the KernelBench service", "swe": "the x86_64 runner", "judge": "the judge"}
 
 
 @dataclass
@@ -75,23 +99,144 @@ class View:
     interval_s: float | None = None
     # SWE-bench progress read from the runner for the current run (read_swe), or None.
     swe: dict[str, Any] | None = None
+    # The KernelBench service's latest jobs (GET /v1/jobs), anyone's; None when it is not set or does not answer.
+    kernelbench: list[dict[str, Any]] | None = None
 
 
 def render(cfg: Config, view: View, *, plan: Path | None = None) -> str:
-    """One screen of text."""
+    """One screen of text: the TUI's main screen with every panel in full (`sma watch --once`)."""
+    return plain(board(cfg, view, plan=plan), view.width)
+
+
+def board(cfg: Config, view: View, *, plan: Path | None = None, open_item: tuple[str, str] | None = None) -> Board:
+    """Everything one screen shows, read now: the top line, the alerts, each panel, and the open item's detail
+    (open_item: ("run", run id) or ("job", job id))."""
     paint = _painter(view.color)
+    now = view.now
     runs = _runs(cfg)
-    current = _current_run(runs, view.containers)
-    lines = _header(view, paint)
-    lines += _queue_lines(cfg, runs, current, plan, paint)
+    by_id = {row["run_id"]: row for row in runs}
+    # The runs served where this config serves (the serving machine's GPUs, or this Spark's): FINISHED and the
+    # usual step times. A run on other hardware is another machine's work.
+    here = [row for row in runs if _served_on(row) == (cfg.remote.hardware if cfg.remote.enabled else None)]
     # A run's own config names its suites; a total added to sma.yaml since then still counts for it.
     totals = {suite.name: suite.questions for suite in cfg.quality.suites if suite.questions}
-    swe = view.swe if current and view.swe and view.swe.get("run_id") == current["run_id"] else None
-    lines += (_run_lines(current, view.now, paint, totals, swe) if current else [paint("CURRENT RUN", "head") + "  none"]) + [""]
-    lines += _serving_lines(cfg, view, paint, current["run_id"] if current else None) + [""]
-    lines += _finished_lines(runs, current, paint)
-    text = scrub_text("\n".join(lines))
-    return "\n".join(_clip(line, view.width) for line in text.splitlines()) if view.width else text
+    usual = _usual_durations(here)
+    jobs = [job for job in JobQueue(cfg.queue_path()).list_jobs() if isinstance(job.get("legs"), list)]
+    # In the order they were queued, which is the order they start (a job's id begins with its creation time).
+    queued = sorted((job for job in jobs if job.get("state") in ("pending", "claimed")), key=lambda job: str(job["job_id"]))
+    series = recent_series(cfg.runs_path(), now=now.timestamp(), span_s=WINDOWS[0][1])
+    state = _dispatcher_state(cfg)
+    if state is None and cfg.remote.slots:
+        # Slots and no dispatcher state yet: the slots, idle, and a dispatcher that is not running.
+        state = {"slots": [{"name": slot.name, "gpus": slot.gpus, "state": "idle"} for slot in cfg.remote.slots], "alive": False}
+    alerts = _machine_alerts(view) + _queue_alerts(cfg, queued, now)
+    current: dict[str, Any] | None = None
+    # (label, run) for each run at work: the alerts and the serving rows name them by it.
+    active: list[tuple[str, dict[str, Any]]] = []
+    if state is not None:
+        # A dispatcher runs one run per slot of the serving machine: each slot's run, compact.
+        active_panel = _slots_panel(cfg, state, by_id, now, paint, totals, usual, series)
+        for slot in state["slots"]:
+            row = by_id.get(str(slot.get("run_id") or "")) if slot.get("state") == "busy" else None
+            if row is not None:
+                active.append((f"{slot.get('name')} {_run_name(row)}", row))
+        alerts += _dispatcher_alerts(cfg, state, by_id, queued, now)
+        busy = sum(1 for slot in state["slots"] if slot.get("state") == "busy")
+        down = sum(1 for slot in state["slots"] if slot.get("state") == "down")
+        activity = f"{busy} of {len(state['slots'])} slots busy" + (f", {down} down" if down else "")
+    else:
+        running = _running_runs(runs, view.containers, now, lock_held(cfg.lock_file()))
+        active = [(_run_name(row), row) for row in running]
+        if len(running) > 1:
+            active_panel = _running_panel(cfg, running, now, paint, totals, usual, series)
+        else:
+            current = running[0] if running else None
+            swe = view.swe if current and view.swe and view.swe.get("run_id") == current["run_id"] else None
+            active_panel = _current_panel(current, now, paint, totals, usual, swe)
+        activity = f"{len(running)} run{'' if len(running) == 1 else 's'}" if running else "no run"
+    for label, row in active:
+        alerts += [(level, f"{label}: {text}") for level, text in _run_problems(row, now, usual)]
+    # What runs, what is next, then the rest.
+    panels = [_machines_panel(view, paint), active_panel, _queue_panel(runs, current, plan, paint, queued, jobs)]
+    if view.kernelbench is not None:
+        panels.append(_kernelbench_panel(view.kernelbench, by_id, now, paint))
+    if not active:
+        lines = [paint("SERVING", "head") + "  nothing is serving now"]
+    elif len(active) > 1 or state is not None:
+        # Short labels: the running panel above names each run in full.
+        slot_of = {str(slot.get("run_id")): slot.get("name") for slot in (state or {}).get("slots") or [] if slot.get("state") == "busy"}
+        rows = [(f"{slot_of.get(row['run_id']) or row['model_repo'].split('/')[-1]} {row['quant']}"
+                 + (" thinking" if _thinking(row) else ""), row["run_id"]) for _name, row in active]  # fmt: skip
+        lines = _serving_rows(cfg, now, paint, rows)
+    else:
+        lines = _serving_lines(cfg, view, paint, current["run_id"] if current else None)
+    # On a short screen the table gives way to one line, never a heading with no numbers.
+    short = paint("SERVING", "head") + paint(f"  the table needs {len(lines)} rows; a run's detail (Enter) has its own", "pending")
+    panels.append(Panel("serving", lines[0], notes=lines[1:], compact=short if len(lines) > 1 else None))
+    active_ids = {row["run_id"] for _name, row in active}
+    where = f"served on {cfg.remote.hardware}" if cfg.remote.enabled else "on this Spark"
+    panels.append(_finished_panel([row for row in here if row["run_id"] not in active_ids], current, paint, where))
+    detail = None
+    if open_item is not None:
+        detail = _detail(cfg, view, open_item, by_id, jobs, state, active_ids, usual, totals, paint)
+    summary = _summary(view, paint, alerts, activity, queued)
+    painted = [paint(("✗ " if level == "failed" else "! ") + text, level) for level, text in alerts]
+    return _scrubbed(Board(summary, painted, panels, detail))
+
+
+def _scrubbed(screen: Board) -> Board:
+    """Every line scrubbed like a run record. Painted parts were scrubbed before their color codes."""
+    for panel in screen.panels:
+        panel.title = scrub_text(panel.title)
+        panel.notes = [scrub_text(line) for line in panel.notes]
+        panel.compact = scrub_text(panel.compact) if panel.compact else None
+        for item in panel.items:
+            item.lines = [scrub_text(line) for line in item.lines]
+    screen.summary = scrub_text(screen.summary)
+    screen.alerts = [scrub_text(line) for line in screen.alerts]
+    screen.detail = [scrub_text(line) for line in screen.detail] if screen.detail is not None else None
+    return screen
+
+
+class Sources:
+    """The outside world for one screen, through the CLI's readers. The machines and SWE-bench progress are asked
+    at most once a minute and the KernelBench service every 15 s; the rest on every read."""
+
+    def __init__(
+        self,
+        cfg: Config,
+        *,
+        interval_s: float,
+        containers: Callable[[], list[str]],
+        memory: Callable[[], tuple[int, int] | None],
+        scrape: Callable[[str, str], str],
+        machines: Callable[[], list[Machine]] | None = None,
+        started_at: Callable[[str], datetime | None] | None = None,
+        swe_progress: Callable[[str], dict[str, Any] | None] | None = None,
+        kernelbench: Callable[[], list[dict[str, Any]] | None] | None = None,
+    ) -> None:
+        self.cfg, self.containers, self.memory, self.scrape = cfg, containers, memory, scrape
+        self.machines, self.started_at, self.swe_progress, self.kernelbench = machines, started_at, swe_progress, kernelbench
+        self.live = Live(interval_s=interval_s)
+        self.known: list[Machine] | None = None
+        self.swe: dict[str, Any] | None = None
+        self.kb_jobs: list[dict[str, Any]] | None = None
+        self.asked = self.swe_asked = self.kb_asked = -1e9
+
+    def read(self, *, color: bool, width: int | None, interval_s: float | None) -> View:
+        up, now = self.containers(), datetime.now(timezone.utc)
+        read_live(self.cfg, self.live, up, now, self.scrape, self.started_at)
+        if self.machines is not None and time.monotonic() - self.asked >= _MACHINES_EVERY_S:
+            self.known, self.asked = self.machines(), time.monotonic()
+        # SWE-bench's progress lives on the runner: read it at most once a minute, while the step runs.
+        if self.swe_progress is not None and self.live.run_id and time.monotonic() - self.swe_asked >= _MACHINES_EVERY_S:
+            self.swe_asked = time.monotonic()
+            self.swe = self.swe_progress(self.live.run_id) if _swe_running(self.cfg, self.live.run_id) else None
+            if self.swe is not None:
+                self.swe["run_id"] = self.live.run_id
+        if self.kernelbench is not None and time.monotonic() - self.kb_asked >= _KERNELBENCH_EVERY_S:
+            self.kb_jobs, self.kb_asked = self.kernelbench(), time.monotonic()
+        return View(up, self.memory(), now, color, self.live, width, self.known, interval_s, self.swe, self.kb_jobs)
 
 
 def watch(
@@ -106,35 +251,32 @@ def watch(
     machines: Callable[[], list[Machine]] | None = None,
     started_at: Callable[[str], datetime | None] | None = None,
     swe_progress: Callable[[str], dict[str, Any] | None] | None = None,
+    kernelbench: Callable[[], list[dict[str, Any]] | None] | None = None,
     out: TextIO | None = None,
 ) -> None:
-    """Print the screen once, or redraw it every interval_s seconds until Ctrl-C. scrape(base_url, path)
-    returns the engine's /metrics text, or "" when it does not answer."""
+    """Print the screen once (--once); on a terminal, run the TUI until q or Ctrl-C; otherwise (piped, or curses
+    cannot start) print a screen every interval_s seconds until Ctrl-C. scrape(base_url, path) returns the
+    engine's /metrics text, or "" when it does not answer."""
     out = out or sys.stdout
+    sources = Sources(cfg, interval_s=interval_s, containers=containers, memory=memory, scrape=scrape, machines=machines,
+                      started_at=started_at, swe_progress=swe_progress, kernelbench=kernelbench)  # fmt: skip
+    if not once and out.isatty() and sys.stdin.isatty():
+        from sma.tui import run
+
+        def read(open_item: tuple[str, str] | None) -> Board:
+            return board(cfg, sources.read(color=True, width=None, interval_s=None), plan=plan, open_item=open_item)
+
+        if run(read, interval_s):
+            return
     color = out.isatty() and not os.environ.get("NO_COLOR")
-    live = Live(interval_s=interval_s)
-    known: list[Machine] | None = None
-    asked = 0.0
-    swe: dict[str, Any] | None = None
-    swe_asked = 0.0
     while True:
-        up, now = containers(), datetime.now(timezone.utc)
-        read_live(cfg, live, up, now, scrape, started_at)
-        if machines is not None and time.monotonic() - asked >= _MACHINES_EVERY_S:
-            known, asked = machines(), time.monotonic()
-        # SWE-bench's progress lives on the runner: read it at most once a minute, while the step runs.
-        if swe_progress is not None and live.run_id and time.monotonic() - swe_asked >= _MACHINES_EVERY_S:
-            swe_asked = time.monotonic()
-            swe = swe_progress(live.run_id) if _swe_running(cfg, live.run_id) else None
-            if swe is not None:
-                swe["run_id"] = live.run_id
         width = shutil.get_terminal_size().columns if out.isatty() else None
-        view = View(up, memory(), now, color, live, width, known, None if once else interval_s, swe)
-        text = render(cfg, view, plan=plan)
+        text = render(cfg, sources.read(color=color, width=width, interval_s=None if once else interval_s), plan=plan)
         if once:
             out.write(text + "\n")
             return
-        out.write("\033[H\033[2J" + text + "\n")
+        # A terminal is redrawn in place; a pipe gets one screen after another.
+        out.write(("\033[H\033[2J" if out.isatty() else "\n") + text + "\n")
         out.flush()
         time.sleep(interval_s)
 
@@ -197,18 +339,173 @@ def _identity(text: str, _style: str) -> str:
     return text
 
 
-def _header(view: View, paint) -> list[str]:
-    title = f"{paint('SMA watch', 'head')}  {view.now.astimezone().strftime('%Y-%m-%d %H:%M:%S')}"
+# The top line and the alerts.
+
+
+def _summary(view: View, paint, alerts: list[tuple[str, str]], activity: str, queued: list[dict[str, Any]]) -> str:
+    """Time, health, what runs, the queue, KernelBench's queue, free memory."""
+    title = f"{paint('SMA watch', 'head')}  {view.now.astimezone().strftime('%Y-%m-%d %H:%M:%S')}  "
+    problems = sum(1 for level, _text in alerts if level == "failed")
+    warnings = len(alerts) - problems
+    if not alerts:
+        health = paint("✓ healthy", "done")
+    else:
+        counts = [_count(problems, "problem") if problems else "", _count(warnings, "warning") if warnings else ""]
+        health = paint(("✗ " if problems else "! ") + ", ".join(part for part in counts if part), "failed" if problems else "warn")
+    parts = [health, activity, f"queue {_count(len(queued), 'job')}"]
+    if view.kernelbench is not None:
+        timing = sum(1 for job in view.kernelbench if job.get("status") == "running")
+        waiting = sum(1 for job in view.kernelbench if job.get("status") == "queued")
+        parts.append(f"KernelBench {timing} timing" + (f", {waiting} queued" if waiting else ""))
+    if view.memory is not None:
+        free = view.memory[0] / 2**30
+        parts.append(paint(f"{free:.1f} GiB free", _memory_style(free)))
+    line = title + " · ".join(parts)
     if view.interval_s:
-        title += paint(f"  ·  redraws every {view.interval_s:g} s, Ctrl-C quits", "pending")
+        line += paint(f"  ·  redraws every {view.interval_s:g} s, Ctrl-C quits", "pending")
+    return line
+
+
+def _count(number: int, noun: str) -> str:
+    return f"{number} {noun}{'' if number == 1 else 's'}"
+
+
+def _memory_style(free_gib: float) -> str:
+    return "failed" if free_gib < _MEMORY_CRITICAL_GIB else "running" if free_gib < _MEMORY_LOW_GIB else "done"
+
+
+def _machine_alerts(view: View) -> list[tuple[str, str]]:
+    alerts = [("failed", f"{_MACHINE_NAMES.get(m.role, m.role)} does not answer") for m in view.machines or [] if m.up is False]
+    if view.memory is not None and view.memory[0] / 2**30 < _MEMORY_CRITICAL_GIB:
+        alerts.append(("failed", f"memory is low on this machine: {view.memory[0] / 2**30:.1f} GiB free"))
+    return alerts
+
+
+def _queue_alerts(cfg: Config, queued: list[dict[str, Any]], now: datetime) -> list[tuple[str, str]]:
+    """A claim whose heartbeat stopped (its worker may be gone), and legs that failed for good."""
+    alerts = []
+    stale_s = max(300.0, 3 * max(cfg.queue.heartbeat_s, cfg.queue.poll_s))
+    for job in queued:
+        repo = (job["legs"][0] if job["legs"] else {}).get("repo")
+        beat = _time(job.get("heartbeat"))
+        if job.get("state") == "claimed" and beat is not None and (now - beat).total_seconds() > stale_s:
+            alerts.append(("warn", f"{repo}: the queue claim's heartbeat is {_elapsed(beat, None, now)} old; is its worker still running? (sma queue reclaim)"))
+        for leg in job["legs"]:
+            if leg.get("dead_lettered"):
+                error = f": {_one_line(leg['error'])[:100]}" if leg.get("error") else ""
+                alerts.append(("failed", f"{repo} {_leg_name(leg)} failed for good{error}"))
+    return alerts
+
+
+def _dispatcher_alerts(cfg: Config, state: dict[str, Any], by_id: dict[str, dict], queued: list[dict[str, Any]], now: datetime) -> list[tuple[str, str]]:
+    """A dead or silent dispatcher, down slots, and the memory guard's last stop."""
+    alerts = []
+    busy = any(slot.get("state") == "busy" for slot in state["slots"])
+    if not state.get("alive") and (busy or queued):
+        start = "sudo systemctl start sma-dispatcher.service" if _DISPATCHER_UNIT.is_file() else "sma worker --slots --config <yaml>"
+        alerts.append(("failed", f"the dispatcher is not running: {_count(len(queued), 'queued job')} wait{'s' if len(queued) == 1 else ''}, and the memory guard is off. Start it: {start}"))
+    updated = _time(state.get("updated"))
+    silent_s = max(120.0, 3 * cfg.queue.poll_s)
+    if state.get("alive") and updated is not None and (now - updated).total_seconds() > silent_s:
+        alerts.append(("warn", f"the dispatcher has not written its state for {_elapsed(updated, None, now)} (it writes every {cfg.queue.poll_s:g} s)"))
+    for slot in state["slots"]:
+        if slot.get("state") == "down":
+            alerts.append(("failed", f"slot {slot.get('name')} is down: {slot.get('reason') or 'no reason given'}"))
+    guard = state.get("memory_guard") or {}
+    at = _time(guard.get("at"))
+    if at is not None and (now - at).total_seconds() < _GUARD_ALERT_S:
+        row = by_id.get(str(guard.get("run_id") or ""))
+        alerts.append(("warn", f"the memory guard stopped {_run_name(row) if row else guard.get('run_id')} on {guard.get('slot')} "
+                               f"{_elapsed(at, None, now)} ago ({guard.get('source')}); it resumes later"))  # fmt: skip
+    return alerts
+
+
+def _run_problems(row: dict[str, Any], now: datetime, usual: dict[str, float]) -> list[tuple[str, str]]:
+    """A running run's failed steps, steps far past their usual time, and silence in its folder."""
+    problems = []
+    quiet = _quiet_for(row, now)
+    for name, step in _ordered_steps(row["manifest"]):
+        if step.get("status") == "failed":
+            problems.append(("failed", f"{name} failed: {_one_line(step.get('error') or 'no error recorded')[:120]}"))
+        # A silent run's step is late because nothing runs it; the silence is the one warning.
+        late = None if quiet else _overdue(name, step, usual, now)
+        if late:
+            problems.append(("warn", f"{name} {late}"))
+    if quiet:
+        problems.append(("warn", f"nothing written to its run folder for {quiet}; is its process still running?"))
+    return problems
+
+
+def _usual_durations(runs: list[dict[str, Any]]) -> dict[str, float]:
+    """The median seconds each step took on its first attempt, over this folder's runs, for steps seen 3 times."""
+    took: dict[str, list[float]] = {}
+    for row in runs:
+        for name, step in _ordered_steps(row["manifest"]):
+            start, end = _time(step.get("started")), _time(step.get("finished"))
+            if step.get("status") == "done" and int(step.get("attempts") or 0) <= 1 and start and end:
+                took.setdefault(name, []).append((end - start).total_seconds())
+    return {name: statistics.median(values) for name, values in took.items() if len(values) >= 3}
+
+
+def _overdue(name: str, step: dict[str, Any], usual: dict[str, float], now: datetime) -> str | None:
+    """"has run 2h10m, usually 40m" for a first attempt far past its usual time: twice it, and 15 minutes over."""
+    started = _time(step.get("started"))
+    if step.get("status") != "running" or int(step.get("attempts") or 0) > 1 or started is None or name not in usual:
+        return None
+    seconds, typical = (now - started).total_seconds(), usual[name]
+    if seconds <= max(2 * typical, typical + 900):
+        return None
+    return f"has run {_elapsed(started, None, now)}, usually {_elapsed(now - timedelta(seconds=typical), None, now)}"
+
+
+def _quiet_for(row: dict[str, Any], now: datetime) -> str | None:
+    """How long the run's folder has had no write, when that is over _QUIET_S."""
+    times = [moment for moment in (_mtime(Path(row["run_dir"]) / name) for name in _WRITES) if moment]
+    latest = max(times, default=None)
+    if latest is None or (now - latest).total_seconds() <= _QUIET_S:
+        return None
+    return _elapsed(latest, None, now)
+
+
+def _ordered_steps(manifest: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+    steps = {name: step for name, step in (manifest.get("steps") or {}).items() if isinstance(step, dict)}
+    return sorted(steps.items(), key=lambda item: STEP_NAMES.index(item[0]) if item[0] in STEP_NAMES else len(STEP_NAMES))
+
+
+def _one_line(text: Any) -> str:
+    return re.sub(r"\s*\n\s*", " ", str(text)).strip()
+
+
+def _run_name(row: dict[str, Any]) -> str:
+    return f"{row['model_repo']} {row['quant']}{_thinking(row)}"
+
+
+def _served_on(row: dict[str, Any]) -> str | None:
+    """The serving machine's hardware a run was served on (v100), or None for a Spark's own GPU. The engine folder
+    says it too (llamacpp-v100 beside llamacpp), for a run that stopped before its record named its hardware."""
+    hardware = ((row.get("manifest") or {}).get("serving") or {}).get("hardware")
+    if hardware:
+        return str(hardware)
+    folder, engine = Path(row["run_dir"]).parent.parent.name, str(row.get("engine") or "")
+    return folder[len(engine) + 1 :] if engine and folder.startswith(engine + "-") else None
+
+
+def _leg_name(leg: dict[str, Any]) -> str:
+    return f"{leg.get('gguf') or leg.get('quant')}" + (" thinking" if leg.get("thinking") == "on" else "")
+
+
+# The panels.
+
+
+def _machines_panel(view: View, paint) -> Panel:
     if view.memory is None:
-        memory = "memory unknown"
+        memory = free_only = "memory unknown"
     else:
         free, total = view.memory[0] / 2**30, view.memory[1] / 2**30
-        style = "failed" if free < 16 else "running" if free < 32 else "done"
+        style = _memory_style(free)
         memory = f"memory {paint(f'{free:.1f}', style)} of {total:.1f} GiB free"
         free_only = f"{paint(f'{free:.1f}', style)} free"
-    lines = [title, "", paint("MACHINES", "head")]
+    lines, marks = [], []
     for machine in view.machines or [Machine("model", True)]:
         if machine.up is None:
             mark, text = paint("○", "pending"), paint("not set in .env", "pending")
@@ -222,7 +519,9 @@ def _header(view: View, paint) -> list[str]:
             # The summary ends with the memory total; add what is free to it.
             text = f"{text}, {free_only}" if text.endswith(" GiB") else f"{text} · {memory}" if text else memory
         lines.append(f"  {mark} {machine.role:7} {text}")
-    return lines
+        marks.append(f"{mark} {machine.role}")
+    title = paint("MACHINES", "head")
+    return Panel("machines", title, notes=lines, compact=f"{title}  " + "  ".join(marks))
 
 
 def _runs(cfg: Config) -> list[dict[str, Any]]:
@@ -251,22 +550,368 @@ def _current_run(runs: list[dict[str, Any]], containers: list[str]) -> dict[str,
     return max(pool, key=lambda row: row["run_id"]) if pool else None
 
 
-def _queue_lines(cfg, runs, current, plan: Path | None, paint) -> list[str]:
-    jobs = [job for job in JobQueue(cfg.queue_path()).list_jobs() if job.get("state") in ("pending", "claimed")]
-    lines = [paint("QUEUE", "head") + f"  {len(jobs)} job{'' if len(jobs) == 1 else 's'} in sma queue"]
-    for job in jobs:
-        state = "running" if job["state"] == "claimed" else "queued"
-        # One line per job: each leg with its mark (a pair: the reference, then the 4-bit quant with thinking
-        # off and on). A leg whose run had failed steps shows as failed; its record says which.
+def _running_runs(runs: list[dict[str, Any]], containers: list[str], now: datetime, held: bool | None = None) -> list[dict[str, Any]]:
+    """The runs at work when no dispatcher writes its state: each with a container up or a write to its folder in
+    the last 10 minutes. With none, the newest run still "running" in its record, but only while a process holds
+    the GPU lock (held, from /proc/locks; None: not known): a record a crash left "running" is not a run."""
+    live = [row for row in runs if any(name.startswith(f"sma-{row['run_id']}-") for name in containers)]
+    pool = live or [row for row in runs if row["status"] == "running"]
+    working = [row for row in pool if row in live or not _quiet_for(row, now)]
+    if working:
+        return sorted(working, key=lambda row: row["run_id"])
+    return [max(pool, key=lambda row: row["run_id"])] if pool and held is not False else []
+
+
+def _queue_panel(runs, current, plan: Path | None, paint, queued: list[dict[str, Any]], jobs: list[dict[str, Any]]) -> Panel:
+    """One item per job: each leg with its mark (a pair: the reference, then the 4-bit quant with thinking off and
+    on). A leg whose run had failed steps shows as failed; its record says which. Then the plan's lines."""
+    failed = sum(1 for job in jobs if job.get("state") == "failed")
+    title = paint("QUEUE", "head") + (f"  {_count(len(queued), 'job')}, in the order they start" if queued else "  empty")
+    title += f" · {failed} failed (sma queue list)" if failed else ""
+    by_id = {row["run_id"]: row for row in runs}
+    items = []
+    rows = []
+    for job in queued:
         legs = []
         for leg in job["legs"]:
             status = {"done": "done", "running": "running", "failed": "failed", "incomplete": "failed"}.get(leg.get("status"), "queued")
-            name = f"{leg.get('gguf') or leg['quant']}" + (" thinking" if leg.get("thinking") == "on" else "")
+            name = _leg_name(leg)
+            if status == "running" and leg.get("slot"):
+                name += f" on {leg['slot']}"
+                row = by_id.get(leg.get("run_id") or "")
+                if row and (Path(row["run_dir"]) / "logprobs" / "waiting.json").is_file():
+                    name += ", waiting for the reference's logits"
+            elif status == "queued" and int(leg.get("guard_trips") or 0):
+                name += " (stopped by the memory guard, resumes)"
             legs.append(f"{paint(_MARK[status], status)} {name}")
-        lines.append(f"  {engine_tag(job.get('engine')):4} {paint(_MARK[state], state)} {job['legs'][0]['repo']}  {'  '.join(legs)}  {paint(job['state'], state)}")
+        rows.append((job, legs))
+    # Columns line up: the repo, then each leg in its place (a long one, a running leg's note, only pushes its own line).
+    repo_width = max((len(job["legs"][0]["repo"]) for job in queued), default=0)
+    leg_widths = [max((len(plain_text(legs[n])) for _job, legs in rows if n < len(legs) and len(plain_text(legs[n])) <= 30), default=0)
+                  for n in range(max((len(legs) for _job, legs in rows), default=0))]  # fmt: skip
+    for position, (job, legs) in enumerate(rows, 1):
+        state, word = ("running", "started") if job["state"] == "claimed" else ("queued", "waiting")
+        cells = "  ".join(leg + " " * max(0, leg_widths[n] - len(plain_text(leg))) for n, leg in enumerate(legs))
+        # Each line starts with the engine the job runs on (owner, 2026-10-30).
+        line = f"  {engine_tag(job.get('engine')):4} {position:>2}. {job['legs'][0]['repo']:<{repo_width}}  {paint(f'{word:7}', state)}  {cells}"
+        items.append(Item([line.rstrip()], ("job", str(job["job_id"]))))
     if plan is not None:
-        lines += _plan_lines(plan, runs, current, paint)
+        plan_title, plan_items = _plan_items(plan, runs, current, paint)
+        items += [Item([plan_title])] + plan_items
+    return Panel("queue", title, items)
+
+
+def _dispatcher_state(cfg: Config) -> dict[str, Any] | None:
+    """The dispatcher's state file (sma worker --slots), with "alive" from its pid. None when there is none."""
+    state = _read_json(state_path(cfg))
+    if not state or not isinstance(state.get("slots"), list):
+        return None
+    pid = state.get("pid")
+    try:
+        os.kill(int(pid), 0)
+        state["alive"] = True
+    except (ProcessLookupError, TypeError, ValueError):
+        state["alive"] = False
+    except PermissionError:
+        state["alive"] = True
+    for slot in state["slots"]:
+        # A slot whose unit process is gone runs nothing, whatever a stopped dispatcher last wrote.
+        if slot.get("state") == "busy" and slot.get("pid") and not unit_alive(slot["pid"]):
+            slot["state"] = "idle"
+    return state
+
+
+def _decode_rates(cfg: Config, series: list[Series], run_id: str, now: datetime) -> tuple[dict, dict] | None:
+    """The run's averages and peaks over the last 5 minutes, from its own counters; None without samples."""
+    mine = [one for one in series if one.run_id == run_id]
+    windows = window(mine, start=now.timestamp() - WINDOWS[0][1], max_gap_s=3 * cfg.telemetry.engine_metrics_interval_s)
+    return (combined_rates(windows), combined_peaks(windows)) if windows else None
+
+
+def _decode(cfg: Config, series: list[Series], run_id: str, now: datetime) -> str:
+    """The run's decode rate over the last 5 minutes, average/peak per stream, and over all streams."""
+    found = _decode_rates(cfg, series, run_id, now)
+    if found is None:
+        return ""
+    rates, peaks = found
+    return f"  decode {_number(rates.get('decode_tok_s'))}/{_number(peaks.get('decode_tok_s'))} tok/s per stream, {_number(rates.get('generated_tok_s_all'))} all"
+
+
+def _flags(row: dict[str, Any], now: datetime, usual: dict[str, float], paint) -> str:
+    """The run's warnings, in place on its first line."""
+    warnings = [text for level, text in _run_problems(row, now, usual) if level == "warn"]
+    return "".join(paint(f"  ! {text.split(';')[0]}", "warn") for text in warnings)
+
+
+def _started(row: dict[str, Any] | None, now: datetime) -> str:
+    started = _time(((row or {}).get("manifest") or {}).get("timestamps", {}).get("started")) if row else None
+    return _elapsed(started, None, now) if started else "starting"
+
+
+@dataclass
+class _Work:
+    """What one run at work is doing: its list (_run_rows), the line it is on, its time so far, its decode rate."""
+
+    row: dict[str, Any] | None
+    rows: list[tuple[str, str, str]] = field(default_factory=list)
+    on: str = ""
+    progress: str = "starting"
+    elapsed: str = "starting"
+    rate: str = ""
+    rates: str = ""
+    flags: str = ""
+
+
+def _work(cfg: Config, row: dict[str, Any] | None, now: datetime, paint, totals: dict[str, int], usual: dict[str, float],
+          series: list[Series]) -> _Work:  # fmt: skip
+    if row is None:
+        return _Work(None)
+    rows = _run_rows(row, now, paint, totals)
+    on = next(((name, detail) for name, status, detail in rows if status == "running"), None)
+    # A step at work with no row of its own yet: quality before its first suite starts.
+    on = on or next(((name, "starting") for name, step in _ordered_steps(row["manifest"]) if step.get("status") == "running"), None)
+    rate = _decode_rates(cfg, series, row["run_id"], now)
+    return _Work(
+        row, rows, on[0] if on else "", on[1] if on else "between steps", _started(row, now),
+        f"{_number(rate[0].get('decode_tok_s'))} tok/s" if rate else "", _decode(cfg, series, row["run_id"], now),
+        _flags(row, now, usual, paint),
+    )
+
+
+def _work_lines(leads: list[str], works: list[_Work]) -> list[str]:
+    """One line per run at work, its columns aligned: the lead (mark, slot, model), its time so far, what it is on
+    and how far, its decode rate per stream over the last 5 minutes, and its warnings."""
+    lead_width = max((len(plain_text(lead)) for lead in leads), default=0)
+    on_width = max((len(work.on) for work in works), default=0)
+    progress_width = min(max((len(plain_text(work.progress)) for work in works), default=0), _PROGRESS_WIDTH)
+    return [
+        f"{pad(lead, lead_width)}  {work.elapsed:>8}  {work.on:<{on_width}}  {pad(work.progress, progress_width)}  {work.rate:>11}".rstrip()
+        + work.flags
+        for lead, work in zip(leads, works)
+    ]
+
+
+def _window(row: dict[str, Any] | None, work: _Work, paint, slot: str | None = None) -> list[str]:
+    """A run's window, shown under the slots or runs for the selected one: its title, then its whole list, as
+    CURRENT RUN shows a run alone."""
+    if row is None:
+        return [paint(slot or "", "head") + "  starting"]
+    name = f"{row['model_repo']} {row['quant']}"
+    title = (paint(slot, "head") + f"  {name}" if slot else paint(name, "head")) + f" on {row['engine']}, thinking "
+    title += f"{row['manifest'].get('thinking') or 'off'}  {work.elapsed}{work.rates}"
+    return [title, *_list_lines(work.rows, paint)]
+
+
+def _short_name(repo: str, quant: str, thinking: bool) -> str:
+    """The model without its organization or a -GGUF suffix, then the quant: LFM3-1.7B QAD-Q4_0."""
+    name = repo.split("/")[-1]
+    return f"{name.removesuffix('-GGUF')} {quant}" + (" thinking" if thinking else "")
+
+
+def _slots_panel(cfg: Config, state: dict[str, Any], by_id: dict[str, dict], now: datetime, paint, totals: dict[str, int],
+                 usual: dict[str, float], series: list[Series]) -> Panel:  # fmt: skip
+    """One line per slot: its GPU, its model, its time so far, what it is on and how far, and its decode rate over
+    the last 5 minutes (from the run's own counters). The selected slot's run shows whole beneath (its window)."""
+    slots = state["slots"]
+    busy = sum(1 for slot in slots if slot.get("state") == "busy")
+    title = paint("SLOTS", "head") + f"  {busy} of {len(slots)} busy on the serving machine"
+    if not state.get("alive"):
+        title += paint("  ·  the dispatcher is not running", "failed")
+    elif state.get("stopping"):
+        title += paint("  ·  the dispatcher is stopping", "warn")
+    items, busy, leads, works = [], [], [], []
+    for slot in slots:
+        name, gpus = slot.get("name"), slot.get("gpus")
+        if slot.get("state") == "busy":
+            short = _short_name(str(slot.get("repo")), str(slot.get("gguf")), slot.get("thinking") == "on")
+            busy.append(len(items))
+            leads.append(f"  {paint(_MARK['running'], 'running')} {name:8} GPU {gpus}  {short}")
+            works.append(_work(cfg, by_id.get(str(slot.get("run_id") or "")), now, paint, totals, usual, series))
+            items.append(Item([], ("run", str(slot["run_id"])) if slot.get("run_id") else None))
+        elif slot.get("state") == "down":
+            items.append(Item([f"  {paint(_MARK['failed'], 'failed')} {name:8} GPU {gpus}  {paint('down: ' + str(slot.get('reason') or ''), 'failed')}"]))
+        else:
+            items.append(Item([f"  {paint(_MARK['pending'], 'pending')} {name:8} GPU {gpus}  {paint('idle', 'pending')}"]))
+    # The busy slots' lines are made together, so their columns line up.
+    for index, line, work in zip(busy, _work_lines(leads, works), works):
+        items[index].lines, items[index].window = [line], _window(work.row, work, paint, str(slots[index].get("name")))
+    guard = state.get("memory_guard") or {}
+    notes = [paint(f"  memory guard: stopped {guard.get('run_id')} on {guard.get('slot')} at {guard.get('at')} ({guard.get('source')})", "stopped")] if guard else []
+    return Panel("active", title, items, notes)
+
+
+def _running_panel(cfg: Config, running: list[dict[str, Any]], now: datetime, paint, totals: dict[str, int],
+                   usual: dict[str, float], series: list[Series]) -> Panel:  # fmt: skip
+    """Several runs at once with no dispatcher state: one line per run, the selected one whole beneath."""
+    works = [_work(cfg, row, now, paint, totals, usual, series) for row in running]
+    leads = [f"  {paint(_MARK['running'], 'running')} {_run_name(row)} on {row['engine']}" for row in running]
+    items = [Item([line], ("run", row["run_id"]), _window(row, work, paint)) for line, row, work in zip(_work_lines(leads, works), running, works)]
+    return Panel("active", paint("RUNNING", "head") + f"  {len(running)} runs", items)
+
+
+def _current_panel(current: dict[str, Any] | None, now: datetime, paint, totals: dict[str, int], usual: dict[str, float],
+                   swe: dict[str, Any] | None) -> Panel:  # fmt: skip
+    """The one current run: its title, then one line per benchmark (as before the slots)."""
+    if current is None:
+        return Panel("active", paint("CURRENT RUN", "head") + "  none")
+    lines = _run_lines(current, now, paint, totals, swe)
+    return Panel("active", lines[0] + _flags(current, now, usual, paint), [Item(lines[1:], ("run", current["run_id"]))])
+
+
+def _kernelbench_panel(jobs: list[dict[str, Any]], by_id: dict[str, dict], now: datetime, paint) -> Panel:
+    """The KernelBench service's FIFO: the job it is timing, then the queued jobs in the order it takes them."""
+
+    def label(job: dict[str, Any]) -> str:
+        row = by_id.get(str(job.get("name") or ""))
+        return _run_name(row) if row else str(job.get("name") or job.get("id"))
+
+    def key(job: dict[str, Any]) -> tuple[str, str] | None:
+        return ("run", str(job["name"])) if str(job.get("name") or "") in by_id else None
+
+    running = [job for job in jobs if job.get("status") == "running"]
+    queued = sorted((job for job in jobs if job.get("status") == "queued"), key=lambda job: str(job.get("created_at") or ""))
+    title = paint("KERNELBENCH", "head") + f"  {len(running)} timing, {len(queued)} queued (one job at a time, oldest first)"
+    items = []
+    for job in running:
+        progress = job.get("progress") or {}
+        line = f"  {paint(_MARK['running'], 'running')} {label(job)}  {progress.get('done')}/{progress.get('total')} kernels  {_elapsed(_time(job.get('started_at')), None, now)}"
+        items.append(Item([line], key(job)))
+    for position, job in enumerate(queued, 1):
+        line = f"  {paint(_MARK['queued'], 'queued')} {position}. {label(job)}  queued {_elapsed(_time(job.get('created_at')), None, now)}"
+        items.append(Item([line], key(job)))
+    return Panel("kernelbench", title, items)
+
+
+def _finished_panel(runs: list[dict[str, Any]], current: dict[str, Any] | None, paint, where: str) -> Panel:
+    """Every run here that is not running, newest first, with its scores. `--once` shows the latest few."""
+    done = [row for row in runs if row is not current and _label(row, current) in ("done", "failed", "stopped")]
+    done.sort(key=lambda row: row["run_id"], reverse=True)
+    items = []
+    for row in done:
+        summary = _read_json(Path(row["run_dir"]) / "summary.json") or {}
+        parts = []
+        if isinstance(summary.get("perplexity"), (int, float)):
+            parts.append(f"ppl {summary['perplexity']:.2f}")
+        if isinstance(summary.get("kl_mean"), (int, float)):
+            parts.append(f"KL {summary['kl_mean']:.4f}")
+        for suite, item in (summary.get("quality") or {}).items():
+            if isinstance(item, dict) and isinstance(item.get("score"), (int, float)):
+                parts.append(f"{suite} {_percent(item['score'], paint)}")
+        state = _label(row, current)
+        scores = "  " + " · ".join(parts) if parts else ""
+        note = paint(" (stopped, resumable)", "stopped") if state == "stopped" else ""
+        items.append(Item([f"  {paint(_MARK[state], state)} {_run_name(row)}{note}{scores}"], ("run", row["run_id"])))
+    title = paint("FINISHED", "head") + (f"  {_count(len(done), 'run')} {where}, newest first" if done else f"  none {where} yet")
+    return Panel("finished", title, items, once_items=_FINISHED_SHOWN)
+
+
+# The detail view.
+
+
+def _detail(cfg: Config, view: View, open_item: tuple[str, str], by_id: dict[str, dict], jobs: list[dict[str, Any]],
+            state: dict[str, Any] | None, active_ids: set[str], usual: dict[str, float], totals: dict[str, int], paint) -> list[str] | None:  # fmt: skip
+    kind, key = open_item
+    if kind == "job":
+        job = next((job for job in jobs if job.get("job_id") == key), None)
+        return _job_detail(job, view.now, paint) if job else None
+    row = by_id.get(key)
+    if row is None:
+        return None
+    slot = next((slot for slot in (state or {}).get("slots") or [] if slot.get("run_id") == key and slot.get("state") == "busy"), None)
+    swe = view.swe if view.swe and view.swe.get("run_id") == key else None
+    return _run_detail(cfg, view, row, slot, key in active_ids, usual, totals, swe, paint)
+
+
+def _run_detail(cfg: Config, view: View, row: dict[str, Any], slot: dict[str, Any] | None, running: bool, usual: dict[str, float],
+                totals: dict[str, int], swe: dict[str, Any] | None, paint) -> list[str]:  # fmt: skip
+    """Everything about one run: where it runs, its list as the main screen shows it (with whole errors), its
+    serving rates, and its recent events."""
+    now, manifest, run_dir = view.now, row["manifest"], Path(row["run_dir"])
+    stamps = manifest.get("timestamps") or {}
+    started, finished = _time(stamps.get("started")), _time(stamps.get("finished"))
+    lines = [paint(f"RUN  {row['run_id']}", "head") + f"  {row['model_repo']} {row['quant']} on {row['engine']}, thinking {manifest.get('thinking') or 'off'}"
+             + (_flags(row, now, usual, paint) if running else "")]  # fmt: skip
+    serving = manifest.get("serving") if isinstance(manifest.get("serving"), dict) else {}
+    facts = ["running" if running else _label(row, None)]
+    if slot:
+        facts.append(f"slot {slot.get('name')}, GPU {slot.get('gpus')}")
+    elif serving.get("slot"):
+        facts.append(f"slot {serving['slot']}, GPU {serving.get('gpus')}")
+    if serving.get("hardware"):
+        facts.append(f"served on {serving['hardware']}" + (f" ({', '.join(map(str, serving['gpu_names']))})" if serving.get("gpu_names") else ""))
+    if started:
+        facts.append(f"started {_clock(started)}, " + (f"took {_elapsed(started, finished, now)}" if finished else f"{_elapsed(started, None, now)} ago"))
+    lines += ["  " + " · ".join(facts), f"  folder {run_dir}", ""]
+    lines += _list_lines(_run_rows(row, now, paint, totals, swe, active=running, cut=None), paint)
+    lines += [""] + _serving_lines(cfg, view, paint, row["run_id"])
+    events = _events(run_dir)
+    lines += ["", paint("EVENTS", "head") + f"  the last {len(events)} of logs/sma.log"] + [f"  {event}" for event in events]
     return lines
+
+
+def _job_detail(job: dict[str, Any], now: datetime, paint) -> list[str]:
+    """One queue job: its claim and heartbeat, then each leg with its status, slot, run, attempts, and notes."""
+    created = _time(job.get("created"))
+    lines = [paint(f"JOB  {job['job_id']}", "head") + f"  {job.get('kind')} on {engine_tag(job.get('engine'))}, {job.get('state')}"
+             + (f", queued {_elapsed(created, None, now)} ago" if created else "")]  # fmt: skip
+    claim = job.get("claim") if isinstance(job.get("claim"), dict) else {}
+    if claim:
+        beat = _time(job.get("heartbeat"))
+        heartbeat = f"; heartbeat {_elapsed(beat, None, now)} ago" if beat else "; no heartbeat"
+        lines.append(f"  claimed by {claim.get('worker_id')} on {claim.get('host_alias')} at {_clock(_time(claim.get('when')))}{heartbeat}")
+    if job.get("attempts"):
+        lines.append(f"  attempts {job['attempts']}")
+    if job.get("error"):
+        lines.append("  " + paint(_one_line(job["error"]), "failed"))
+    lines += ["", paint("LEGS", "head")]
+    for index, leg in enumerate(job["legs"], 1):
+        status = str(leg.get("status") or "pending")
+        style = {"done": "done", "running": "running", "failed": "failed", "incomplete": "failed"}.get(status, "queued")
+        lines.append(f"  {paint(_MARK[style], style)} {index}. {leg.get('repo')} {leg.get('gguf') or leg.get('quant')}, thinking {leg.get('thinking') or 'off'}  {status}")
+        facts = [
+            f"slot {leg['slot']}" if leg.get("slot") else "",
+            f"run {leg['run_id']}" if leg.get("run_id") else "",
+            f"attempts {leg['attempts']}" if leg.get("attempts") else "",
+            f"waits until {leg['not_before']}" if leg.get("not_before") else "",
+            f"stopped by the memory guard {_count(int(leg['guard_trips']), 'time')}" if leg.get("guard_trips") else "",
+        ]
+        if any(facts):
+            lines.append("       " + " · ".join(fact for fact in facts if fact))
+        for note in leg.get("guard_notes") or []:
+            text = f"{note.get('at')} {note.get('note')}" if isinstance(note, dict) else str(note)
+            lines.append("       " + paint(f"memory guard: {_one_line(text)}", "stopped"))
+        if leg.get("error"):
+            lines.append("       " + paint(_one_line(leg["error"]), "failed"))
+        if leg.get("dead_lettered"):
+            lines.append("       " + paint("failed for good: the queue keeps its record in failed/", "failed"))
+    return lines
+
+
+def _events(run_dir: Path, count: int = 12) -> list[str]:
+    """The last events of the run's logs/sma.log, one line each: the time, then the event's message."""
+    path, chunk = run_dir / "logs" / "sma.log", 32768
+    try:
+        with path.open("rb") as handle:
+            size = handle.seek(0, os.SEEK_END)
+            handle.seek(max(0, size - chunk))
+            rows = handle.read().decode("utf-8", "replace").splitlines()
+    except OSError:
+        return []
+    events = []
+    for raw in rows[1 if size > chunk else 0 :]:
+        try:
+            event = json.loads(raw)
+        except ValueError:
+            continue
+        if isinstance(event, dict):
+            moment = _time(event.get("ts"))
+            events.append(f"{_clock(moment) if moment else '':8}  {_one_line(event.get('message') or event.get('event') or '')}")
+    return events[-count:]
+
+
+def _clock(moment: datetime | None) -> str:
+    """A time of day on this machine's clock."""
+    return moment.astimezone().strftime("%H:%M:%S") if moment else ""
 
 
 def engine_tag(engine: str | None) -> str:
@@ -274,10 +919,11 @@ def engine_tag(engine: str | None) -> str:
     return {"sglang": "SGL", "llamacpp": "CPP", "vllm": "VLLM"}.get(engine or "", "?")
 
 
-def _plan_lines(plan: Path, runs, current, paint) -> list[str]:
+def _plan_items(plan: Path, runs, current, paint) -> tuple[str, list[Item]]:
     """A plan file lists the runs a script will start, one "REPO QUANT" per line, in order; "REPO QUANT
     thinking" is the thinking-on run. A line "since TIME" (ISO time, or a run id) ignores runs created
-    before it. Each line shows the newest run of that repo, quant, and thinking mode since then, or queued."""
+    before it. Each line shows the newest run of that repo, quant, and thinking mode since then, or queued.
+    Returns the PLAN title line and one item per line, which opens its run."""
     try:
         text = plan.read_text(encoding="utf-8")
     except OSError as exc:
@@ -291,7 +937,8 @@ def _plan_lines(plan: Path, runs, current, paint) -> list[str]:
             items.append((words[0], words[1], len(words) == 3))
         elif words:
             raise SmaError(f"Plan file {plan}: '{raw.strip()}' is not 'REPO QUANT', 'REPO QUANT thinking', or 'since TIME'.")
-    lines = [paint("PLAN", "head") + f"  {plan}" + (f"  (runs since {since})" if since else "")]
+    title = paint("PLAN", "head") + f"  {plan}" + (f"  (runs since {since})" if since else "")
+    lines = []
     for repo, quant, thinking in items:
         matches = [
             row for row in runs
@@ -301,8 +948,9 @@ def _plan_lines(plan: Path, runs, current, paint) -> list[str]:
         row = max(matches, key=lambda r: r["run_id"]) if matches else None
         state = "queued" if row is None else _label(row, current)
         name = f"{repo} {quant}" + (" thinking" if thinking else "")
-        lines.append(f"  {paint(_MARK.get(state, '?'), state)} {name:44} {paint(state, state):8}  {row['run_id'] if row else ''}")
-    return lines
+        line = f"  {paint(_MARK.get(state, '?'), state)} {name:44} {paint(state, state):8}  {row['run_id'] if row else ''}"
+        lines.append(Item([line], ("run", row["run_id"]) if row else None))
+    return title, lines
 
 
 def _run_id_time(value: str) -> str:
@@ -321,25 +969,51 @@ def _run_id_time(value: str) -> str:
 def _run_lines(
     row: dict[str, Any], now: datetime, paint, totals: dict[str, int] | None = None, swe: dict[str, Any] | None = None
 ) -> list[str]:
-    """The run's title, then one line per benchmark: its score, its progress, or queued. Setup and
-    bookkeeping steps (fetch, servers, results, teardown) get a line only while running or failed."""
-    manifest, run_dir = row["manifest"], Path(row["run_dir"])
+    """The current run's title, then its list (_run_rows)."""
+    manifest = row["manifest"]
     started = _time((manifest.get("timestamps") or {}).get("started"))
-    lines = [
+    title = (
         paint(f"CURRENT RUN  {row['run_id']}", "head")
         + f"  {row['model_repo']} {row['quant']} on {row['engine']}, thinking {manifest.get('thinking') or 'off'}  "
         + _elapsed(started, None, now)
-    ]
-    steps = {name: step for name, step in (manifest.get("steps") or {}).items() if isinstance(step, dict)}
-    for name in sorted(steps, key=lambda n: STEP_NAMES.index(n) if n in STEP_NAMES else len(STEP_NAMES)):
-        status = steps[name].get("status")
+    )
+    return [title, *_list_lines(_run_rows(row, now, paint, totals, swe), paint)]
+
+
+def _run_rows(
+    row: dict[str, Any], now: datetime, paint, totals: dict[str, int] | None = None, swe: dict[str, Any] | None = None,
+    *, active: bool = True, cut: int | None = 100,
+) -> list[tuple[str, str, str]]:
+    """A run's list as (name, state, detail): one row per benchmark (its score, its progress, or queued), in the
+    order the run does them, after the setup and bookkeeping steps (fetch, servers, results, teardown) that are
+    running or failed. Errors are cut to cut characters (None: whole). In a run no longer at work (active False),
+    what its record left running is shown stopped."""
+    manifest, run_dir = row["manifest"], Path(row["run_dir"])
+    steps = dict(_ordered_steps(manifest))
+    rows: list[tuple[str, str, str]] = []
+    for name, step in steps.items():
+        status = step.get("status")
         if name not in _BENCHMARK_STEPS and status in ("running", "failed"):
-            error = paint(str(steps[name].get("error") or "")[:100], "failed")
-            lines.append(f"  {paint(_MARK[status], status)} {name:16} {status}  {error}".rstrip())
-    for name, status, detail in _benchmarks(manifest, run_dir, steps, now, totals or {}, paint, swe):
-        detail = re.sub(r"\s*\n\s*", " ", detail)  # An error's traceback would break the one-line layout.
-        lines.append(f"  {paint(_MARK.get(status, '?'), status)} {name:16} {detail if status != 'queued' else paint('queued', 'queued')}")
-    return lines
+            error = _one_line(step.get("error") or "")[:cut]
+            rows.append((name, status, f"{status}  {paint(error, 'failed')}" if error else status))
+    waiting = _read_json(run_dir / "logprobs" / "waiting.json")
+    for name, status, detail in _benchmarks(manifest, run_dir, steps, now, totals or {}, paint, swe, cut=cut):
+        if name == "perplexity" and status == "running" and waiting:
+            detail = f"waiting for the reference's logits ({waiting.get('reference_run_id')})"
+        rows.append((name, status, _one_line(detail)))  # An error's traceback would break the one-line layout.
+    if not active:
+        rows = [(name, "stopped", _stopped(detail)) if status == "running" else (name, status, detail) for name, status, detail in rows]
+    return rows
+
+
+def _stopped(detail: str) -> str:
+    """A running row's detail in a run no longer at work: stopped, how far it got, but not the time since."""
+    left = re.sub(r"(^|\s+)\d+(h\d+m|m\d+s|s)$", "", detail)
+    return "stopped" if left in ("", "running") else f"stopped  {left}"
+
+
+def _list_lines(rows: list[tuple[str, str, str]], paint) -> list[str]:
+    return [f"  {paint(_MARK.get(status, '?'), status)} {name:16} {paint('queued', 'queued') if status == 'queued' else detail}" for name, status, detail in rows]
 
 
 # The steps that measure something. Each gets a line; the others only while running or failed.
@@ -348,9 +1022,10 @@ _BENCHMARK_STEPS = ("determinism", "logprobs", "quality", "kernelbench", "sweben
 
 def _benchmarks(
     manifest, run_dir: Path, steps: dict[str, dict], now: datetime, totals: dict[str, int], paint=_identity,
-    swe: dict[str, Any] | None = None,
+    swe: dict[str, Any] | None = None, *, cut: int | None = 100,
 ) -> list[tuple[str, str, str]]:
-    """(name, state, detail) for each benchmark, in the order the run does them."""
+    """(name, state, detail) for each benchmark, in the order the run does them; a failed step's error cut to cut
+    characters (None: whole)."""
 
     def state(step: str) -> str:
         status = (steps.get(step) or {}).get("status") or "pending"
@@ -359,7 +1034,7 @@ def _benchmarks(
     def took(step: str) -> str:
         info = steps.get(step) or {}
         if info.get("status") == "failed":
-            return str(info.get("error") or "failed")[:100]
+            return str(info.get("error") or "failed")[:cut]
         if info.get("status") == "running" and int(info.get("attempts") or 0) > 1:
             # A redone step keeps its first attempt's start and finish, so no elapsed time is shown.
             return f"attempt {info['attempts']}"
@@ -619,17 +1294,8 @@ def _serving_lines(cfg: Config, view: View, paint, run_id: str | None = None) ->
         ]
     labels = ["since start"] + [label for label, _span in WINDOWS] + [_ALL_RUNS]
 
-    def cell(label: str, key: str) -> str:
-        """average/peak, right-aligned in _CELL characters: the average blue, the peak purple."""
-        averages, peaks = columns.get(label, ({}, {}))
-        mean, peak = averages.get(key), peaks.get(key)
-        if mean is None and peak is None:
-            return f"{'—':>{_CELL}}"
-        text = f"{_number(mean)}/{_number(peak)}"
-        return " " * max(0, _CELL - len(text)) + paint(_number(mean), "avg") + "/" + paint(_number(peak), "max")
-
     def cells(key: str) -> str:
-        return "".join(cell(label, key) for label in labels)
+        return "".join(_rate_cell(*columns.get(label, ({}, {})), key, paint) for label in labels)
 
     lines = [
         paint("SERVING", "head") + "  tok/s, ITL in ms, average/peak: this run, then every run of the last 24 hours",
@@ -641,8 +1307,36 @@ def _serving_lines(cfg: Config, view: View, paint, run_id: str | None = None) ->
     return lines
 
 
+def _serving_rows(cfg: Config, now: datetime, paint, runs: list[tuple[str, str]]) -> list[str]:
+    """Several runs at once: one row per run (label, run id) over its last 5 minutes, then every run of the last
+    24 hours together. Each run's own windows are in its detail view."""
+    stamp = now.timestamp()
+    series = recent_series(cfg.runs_path(), now=stamp, span_s=WINDOWS[-1][1])
+    max_gap_s = 3 * cfg.telemetry.engine_metrics_interval_s
+    rows = [(label, window([one for one in series if one.run_id == run_id], start=stamp - WINDOWS[0][1], max_gap_s=max_gap_s)) for label, run_id in runs]
+    rows.append((_ALL_RUNS_ROW, window(series, start=stamp - WINDOWS[-1][1], max_gap_s=max_gap_s)))
+    lines = [
+        paint("SERVING", "head") + "  tok/s per stream unless all, ITL in ms, average/peak: each run's last 5 minutes, then all of 24 hours",
+        f"  {'':28}" + "".join(f"{name:>{_CELL}}" for name in ("prefill", "decode", "decode, all", "ITL ms")),
+    ]
+    for label, windows in rows:
+        averages, peaks = (combined_rates(windows), combined_peaks(windows)) if windows else ({}, {})
+        lines.append(f"  {label[:27]:28}" + "".join(_rate_cell(averages, peaks, key, paint) for _name, key in _SERVING_ROWS))
+    return lines
+
+
+def _rate_cell(averages: dict[str, float | None], peaks: dict[str, float], key: str, paint) -> str:
+    """average/peak, right-aligned in _CELL characters: the average blue, the peak purple."""
+    mean, peak = averages.get(key), peaks.get(key)
+    if mean is None and peak is None:
+        return f"{'—':>{_CELL}}"
+    text = f"{_number(mean)}/{_number(peak)}"
+    return " " * max(0, _CELL - len(text)) + paint(_number(mean), "avg") + "/" + paint(_number(peak), "max")
+
+
 # The last column: every run of the last 24 hours, whatever engine served.
 _ALL_RUNS = "24 h, all"
+_ALL_RUNS_ROW = "all runs, last 24 hours"
 # A SERVING cell's width: "average/peak".
 _CELL = 14
 
@@ -667,48 +1361,9 @@ def _label(row: dict[str, Any], current: dict[str, Any] | None) -> str:
     return "done" if statuses else str(row["status"])
 
 
-def _finished_lines(runs, current, paint) -> list[str]:
-    done = [row for row in runs if row is not current and _label(row, current) in ("done", "failed", "stopped")]
-    done.sort(key=lambda row: row["run_id"], reverse=True)
-    lines = [paint("FINISHED", "head") + f"  latest {min(len(done), _FINISHED_SHOWN)} of {len(done)}"]
-    for row in done[:_FINISHED_SHOWN]:
-        summary = _read_json(Path(row["run_dir"]) / "summary.json") or {}
-        parts = []
-        if isinstance(summary.get("perplexity"), (int, float)):
-            parts.append(f"ppl {summary['perplexity']:.2f}")
-        if isinstance(summary.get("kl_mean"), (int, float)):
-            parts.append(f"KL {summary['kl_mean']:.4f}")
-        for suite, item in (summary.get("quality") or {}).items():
-            if isinstance(item, dict) and isinstance(item.get("score"), (int, float)):
-                parts.append(f"{suite} {_percent(item['score'], paint)}")
-        state = _label(row, current)
-        scores = "  " + " · ".join(parts) if parts else ""
-        note = paint(" (stopped, resumable)", "stopped") if state == "stopped" else ""
-        lines.append(f"  {paint(_MARK[state], state)} {row['model_repo']} {row['quant']}{_thinking(row)}{note}{scores}")
-    return lines
-
-
 def _thinking(row: dict[str, Any]) -> str:
     """" thinking on" for a thinking-on run; nothing for the default (off, or a run from before the setting)."""
     return " thinking on" if (row.get("manifest") or {}).get("thinking") == "on" else ""
-
-
-def _clip(line: str, width: int) -> str:
-    """The line cut to width visible characters. Color codes are kept and closed."""
-    visible, out, index, open_color = 0, [], 0, False
-    while index < len(line):
-        code = re.match(r"\033\[[0-9;]*[A-Za-z]", line[index:])
-        if code:
-            out.append(code.group(0))
-            open_color = code.group(0) != "\033[0m"
-            index += len(code.group(0))
-            continue
-        if visible == width:
-            return "".join(out) + ("\033[0m" if open_color else "")
-        out.append(line[index])
-        visible += 1
-        index += 1
-    return line
 
 
 def _elapsed(start: datetime | None, end: datetime | None, now: datetime) -> str:

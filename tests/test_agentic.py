@@ -37,7 +37,7 @@ class FakeKernelBench:
 
     def submit(self, *, level: int, name: str, kernels: list[dict[str, Any]], options: dict[str, Any]) -> str:
         self.submitted.append({"level": level, "name": name, "kernels": kernels, "options": options})
-        return "kb-test"
+        return {"job_id": "kb-test", "position": 0}
 
     def job(self, job_id: str) -> dict[str, Any]:
         self.polls += 1

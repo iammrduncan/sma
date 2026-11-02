@@ -6,6 +6,8 @@ import json
 import os
 import threading
 import uuid
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -29,8 +31,86 @@ def _parse_time(value: str | None) -> datetime | None:
 class JobQueue:
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
-        for name in ("pending", "claimed", "done", "failed", "removed"):
+        for name in ("pending", "claimed", "done", "failed", "removed", "locks"):
             (self.path / name).mkdir(parents=True, exist_ok=True)
+
+    @contextmanager
+    def locked(self, job_id: str) -> Iterator[None]:
+        """One writer per job at a time, across processes: a dispatcher and up to three of its runs (one per leg)
+        update one job file. Every read-modify-write of a job holds this flock around the atomic write."""
+        import fcntl
+
+        fd = os.open(self.path / "locks" / f"{job_id}.lock", os.O_CREAT | os.O_RDWR, 0o644)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            yield
+        finally:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+            finally:
+                os.close(fd)
+
+    def read(self, job_id: str) -> dict[str, Any] | None:
+        """The job as it is now, with its state (pending, claimed, done, failed) under "state"."""
+        found = self._find(job_id)
+        if found is None:
+            return None
+        _path, job, state = found
+        return {**job, "state": state}
+
+    def update(self, job_id: str, change: Callable[[dict[str, Any]], None]) -> dict[str, Any]:
+        """Apply change to the job's current file under its lock, write it back, and return it (with "state")."""
+        with self.locked(job_id):
+            found = self._find(job_id)
+            if found is None:
+                raise SmaError(f"No queue job {job_id}")
+            path, job, state = found
+            change(job)
+            atomic_write_json(path, job)
+            return {**job, "state": state}
+
+    def claim_job(self, job_id: str, worker_id: str, host_alias: str) -> bool:
+        """Claim one pending job by id (the dispatcher, when it starts the job's first leg). False when it is not
+        pending any more: another worker took it, or it was removed."""
+        with self.locked(job_id):
+            path = self.path / "pending" / f"{job_id}.json"
+            dest = self.path / "claimed" / f"{job_id}.json"
+            try:
+                job = _read(path)
+            except FileNotFoundError:
+                return False
+            now = utc_now()
+            job["claim"] = {"worker_id": worker_id, "host_alias": host_alias, "when": now}
+            job["heartbeat"] = now
+            tmp = self.path / "claimed" / f".{path.name}.{uuid.uuid4().hex}.tmp"
+            atomic_write_json(tmp, job)
+            try:
+                os.link(tmp, dest)
+            except FileExistsError:
+                return False
+            finally:
+                tmp.unlink(missing_ok=True)
+            path.unlink(missing_ok=True)
+            return True
+
+    def finish_job(self, job_id: str, *, ok: bool) -> None:
+        """Move a claimed job to done (ok) or failed, under its lock."""
+        with self.locked(job_id):
+            found = self._find(job_id)
+            if found is None:
+                return
+            path, job, state = found
+            if state in ("done", "failed"):
+                return
+            job["finished"] = utc_now()
+            atomic_write_json(self.path / ("done" if ok else "failed") / path.name, job)
+            path.unlink(missing_ok=True)
+
+    def dead_letter(self, job_id: str, index: int, leg: dict[str, Any], reason: str) -> Path:
+        """A leg that failed for good while its job's other legs go on: its own record in failed/, beside the job."""
+        dest = self.path / "failed" / f"{job_id}-leg{index}.json"
+        atomic_write_json(dest, {"job_id": job_id, "leg": index, "dead_lettered": utc_now(), "reason": reason, **leg})
+        return dest
 
     def add(self, legs: list[dict[str, Any]], *, kind: str, tool_parser: str | None = None) -> dict[str, Any]:
         if not legs:
@@ -105,16 +185,18 @@ class JobQueue:
 
     def heartbeat(self, path: Path, job: dict[str, Any]) -> None:
         job["heartbeat"] = utc_now()
-        atomic_write_json(path, job)
+        with self.locked(str(job["job_id"])):
+            atomic_write_json(path, job)
 
     def finish(self, path: Path, job: dict[str, Any], *, ok: bool) -> Path:
         state = "done" if ok else "failed"
         dest = self.path / state / path.name
-        atomic_write_json(dest, job)
-        try:
-            path.unlink()
-        except FileNotFoundError:
-            pass
+        with self.locked(str(job["job_id"])):
+            atomic_write_json(dest, job)
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                pass
         return dest
 
     def release_to_pending(self, path: Path, job: dict[str, Any], *, delay_s: float = 0) -> None:
@@ -130,11 +212,12 @@ class JobQueue:
             when = datetime.now(timezone.utc).timestamp() + delay_s
             job["not_before"] = datetime.fromtimestamp(when, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         dest = self.path / "pending" / path.name
-        atomic_write_json(dest, job)
-        try:
-            path.unlink()
-        except FileNotFoundError:
-            pass
+        with self.locked(str(job["job_id"])):
+            atomic_write_json(dest, job)
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                pass
 
     def reclaim_stale(self, stale_s: float, *, grace_s: float = 30.0) -> list[str]:
         now = datetime.now(timezone.utc)
@@ -182,6 +265,30 @@ class JobQueue:
         atomic_write_json(self.path / "removed" / path.name, job)
         path.unlink(missing_ok=True)
         return job
+
+    def drop(self, job_id: str, *, stale_s: float) -> dict[str, Any]:
+        """Take a job off the queue whatever it has run: pending, failed, or claimed by a worker whose heartbeat is
+        older than stale_s (it is gone). It moves to removed/; its runs stay in runs/ and can be resumed by hand
+        (sma resume RUN_ID). A claimed job with a live heartbeat is refused: stop its worker first."""
+        with self.locked(job_id):
+            found = self._find(job_id)
+            if found is None:
+                raise SmaError(f"No queue job {job_id}")
+            path, job, state = found
+            if state == "done":
+                raise SmaError(f"{job_id} is done. Nothing to drop.")
+            if state == "claimed":
+                beat = _parse_time(job.get("heartbeat"))
+                age = None if beat is None else (datetime.now(timezone.utc) - beat).total_seconds()
+                if age is not None and age < stale_s:
+                    raise SmaError(
+                        f"{job_id} is claimed by a worker that was alive {age:.0f} s ago. Stop that worker, then drop the job."
+                    )
+            job["removed"] = utc_now()
+            job["removed_from"] = state
+            atomic_write_json(self.path / "removed" / path.name, job)
+            path.unlink(missing_ok=True)
+            return job
 
     def unpin(self, job_id: str) -> dict[str, Any]:
         """Drop the host pin and run ids. The next claim starts a fresh run."""
@@ -306,6 +413,13 @@ def _leg(item: dict[str, Any]) -> dict[str, Any]:
         "run_id": None,
         "status": "pending",
         "reference_run_id": item.get("reference_run_id"),
+        # Each leg's own state on a dispatcher (sma worker --slots): the slot and process running it, its
+        # failed tries, and the memory guard's stops (owner decision 2026-11-01).
+        "slot": None,
+        "pid": None,
+        "attempts": 0,
+        "guard_trips": 0,
+        "guard_notes": [],
     }
 
 
@@ -322,6 +436,32 @@ def incomplete_legs(job: dict[str, Any]) -> list[int]:
         if leg.get("status") != "done":
             indexes.append(index)
     return indexes
+
+
+def leg_spec(
+    cfg: Config, job: dict[str, Any], index: int, spec_cls: Any, *, reference_id: str | None, resume: str | None,
+    lock_held: bool, notes: tuple[str, ...] = (),
+) -> Any:
+    """The RunSpec for one leg of a job."""
+    leg = job["legs"][index]
+    single = len(job["legs"]) == 1
+    return spec_cls(
+        repo=leg["repo"],
+        quant_flag=leg["quant"],
+        revision=leg.get("revision"),
+        reference_run_id=reference_id or leg.get("reference_run_id"),
+        pair_job_id=None if single else job["job_id"],
+        resume_run_id=resume,
+        lock_held=lock_held,
+        # A single job lets the format and preflight choose unless --engine was given. A pair's legs share the
+        # job's engine. Jobs queued before engine_requested keep their engine.
+        engine=(leg["engine_requested"] if "engine_requested" in leg and single else (job.get("engine") or cfg.engine.name)),
+        selected_by=None if single or "engine_requested" not in leg else ("flag" if leg["engine_requested"] else "default"),
+        tool_parser=job.get("tool_parser"),
+        gguf=leg.get("gguf"),
+        thinking=leg.get("thinking") or "off",
+        **({"notes": notes} if notes else {}),
+    )
 
 
 def run_worker(
@@ -426,26 +566,7 @@ def _run_job(cfg: Config, services_factory: Any, queue: JobQueue, path: Path, jo
             services = services_factory(cfg)
             try:
                 run_id = execute(
-                    run_spec(
-                        repo=leg["repo"],
-                        quant_flag=leg["quant"],
-                        revision=leg.get("revision"),
-                        reference_run_id=reference_id or leg.get("reference_run_id"),
-                        pair_job_id=job["job_id"] if len(job["legs"]) > 1 else None,
-                        resume_run_id=resume,
-                        lock_held=True,
-                        # A single job lets the format and preflight choose unless --engine was given. A pair's
-                        # legs share the job's engine. Jobs queued before engine_requested keep their engine.
-                        engine=(
-                            leg["engine_requested"]
-                            if "engine_requested" in leg and len(job["legs"]) == 1
-                            else (job.get("engine") or cfg.engine.name)
-                        ),
-                        selected_by=None if len(job["legs"]) == 1 or "engine_requested" not in leg else ("flag" if leg["engine_requested"] else "default"),
-                        tool_parser=job.get("tool_parser"),
-                        gguf=leg.get("gguf"),
-                        thinking=leg.get("thinking") or "off",
-                    ),
+                    leg_spec(cfg, job, index, run_spec, reference_id=reference_id, resume=resume, lock_held=True),
                     cfg,
                     services,
                     on_created=_created,

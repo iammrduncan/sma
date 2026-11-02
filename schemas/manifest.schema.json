@@ -80,6 +80,7 @@
       "type": "object",
       "properties": {
         "hardware": { "type": "string" },
+        "slot": { "type": ["string", "null"], "description": "The dispatcher's GPU slot the server ran on (sma worker --slots), or null." },
         "gpus": { "type": "string" },
         "gpu_names": { "type": "array", "items": { "type": "string" } },
         "gpu_memory": { "type": "array", "items": { "type": "string" } },

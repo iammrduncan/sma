@@ -46,7 +46,9 @@ def remote_runner(cfg: Config) -> SshRunner:
         remote_dir=rc.root,
         label="serving machine",
         port=int(os.environ[rc.port_env]),
-        control_dir=Path("~/.local/share/sma/ssh").expanduser(),
+        # One shared connection per slot: sshd allows 10 sessions on one connection, and each run holds a log
+        # follower and asks nvidia-smi every second. The dispatcher has its own.
+        control_dir=Path("~/.local/share/sma/ssh").expanduser() / (rc.slot or "shared"),
     )
 
 
@@ -63,6 +65,13 @@ def remote_serve_args(serve_argv: list[str], *, model_dir: str, port: int) -> li
         elif value == "--port":
             args[index + 1] = str(port)
     return args
+
+
+def thread_args(cfg: Config) -> list[str]:
+    """llama.cpp's thread flags on the serving machine (remote.threads_per_slot): the pod's 12 CPUs shared by its
+    slots, where llama.cpp would size its threads from the 40 CPUs the pod shows."""
+    count = cfg.remote.threads_per_slot
+    return ["--threads", str(count), "--threads-batch", str(count)] if count else []
 
 
 class RemoteRuntime:
@@ -154,7 +163,12 @@ class RemoteRuntime:
         command = f"sh -c {shlex.quote(f'echo $$ > {folder}/llama.pid; {exec_line}')}"
         self.commands.append(["remote", "start", spec.name, *args])
         log_event("remote_start", name=spec.name, mode=spec.mode, gpus=self.cfg.remote.gpus)
-        self.runner.shell(f"rm -rf {shlex.quote(folder)} && mkdir -p {shlex.quote(folder)}", what="clear the server folder")
+        # The folder names the server's GPUs, so a run on one slot can tell another slot's server from a
+        # leftover on its own GPU (servers_on).
+        self.runner.shell(
+            f"rm -rf {shlex.quote(folder)} && mkdir -p {shlex.quote(folder)} && echo {shlex.quote(self.cfg.remote.gpus)} > {shlex.quote(folder)}/gpus",
+            what="clear the server folder",
+        )
         self.runner.start(folder, "server", command)
         self._forward(spec.name, int(spec.port))
         code, alive = self.runner.status(folder, "server")
@@ -235,6 +249,20 @@ class RemoteRuntime:
         )
         return [line.strip() for line in out.splitlines() if line.strip()] + list(self.local.list_sma())
 
+    def servers_on(self) -> dict[str, str]:
+        """The servers alive on the serving machine, by name, with the GPUs each runs on ("" when not recorded)."""
+        out = self.runner.shell(
+            f"for d in {SERVERS}/*/; do [ -f \"$d/llama.pid\" ] && kill -0 $(cat \"$d/llama.pid\") 2>/dev/null "
+            "&& echo \"$(basename \"$d\") $(cat \"$d/gpus\" 2>/dev/null)\"; done; true",
+            what="list servers and their GPUs on the serving machine", timeout_s=60,
+        )
+        found: dict[str, str] = {}
+        for line in out.splitlines():
+            name, _, gpus = line.strip().partition(" ")
+            if name:
+                found[name] = gpus.strip()
+        return found
+
     def gguf_architectures(self, image: str) -> set[str] | None:
         """Read from this machine's llama.cpp image: the same release as the serving machine's build."""
         return self.local.gguf_architectures(image)
@@ -244,6 +272,7 @@ class RemoteRuntime:
     def perplexity_command(self, args: list[str]) -> list[str]:
         """The argv that runs llama-perplexity on the serving machine with args (paths already remote)."""
         env = f"CUDA_VISIBLE_DEVICES={shlex.quote(self.cfg.remote.gpus)}"
+        args = [*args, *thread_args(self.cfg)]
         return self.runner.command(" ".join([env, shlex.quote(self.bin("llama-perplexity")), *(shlex.quote(a) for a in args)]))
 
     def telemetry_prefix(self) -> list[str]:
@@ -259,6 +288,8 @@ class RemoteRuntime:
         rows = [[part.strip() for part in line.split(",")] for line in out.splitlines() if line.strip()]
         return {
             "hardware": self.cfg.remote.hardware,
+            # The slot (sma worker --slots) is where this run's server ran; runs on any slot are one subject.
+            "slot": self.cfg.remote.slot,
             "gpus": self.cfg.remote.gpus,
             "gpu_names": [row[0] for row in rows],
             "gpu_memory": [row[1] for row in rows if len(row) > 1],

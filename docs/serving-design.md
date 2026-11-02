@@ -95,6 +95,26 @@ of linear-attention state per stream.
 | NVFP4 + FP8 KV | 26.7 GB | 256K | 12.9 GB per stream, 5 streams | 2.75 GB per stream, 24 streams |
 | `UD-Q4_K_XL` + Q8_0 KV | 23.2 GB | 256K | 13.7 GB per stream, 5 streams | 2.92 GB per stream, 24 streams |
 
+## The V100 pod: one model per GPU (decided 2026-11-01)
+
+- The lab's V100 pod serves GGUF models on llama.cpp (services/v100-serving); the harness stays on the
+  Spark. Each of its four V100s (32 GB, PCIe, two per switch) is a slot that runs one model at a time, and
+  `sma worker --slots` keeps all four busy. Runs across two GPUs are not built until a model needs them.
+- The memory plan is per GPU: `memory.budget_gb` 33 (one V100's 32 GiB), the same 8-bit KV cache (Q8_0
+  with flash attention, which works on Volta) and 64K per stream. llama.cpp's overhead is 1 GB there;
+  `engine.llamacpp_cache_ram_mib` is 0, so no host-RAM prompt cache is counted against the GPU.
+- F16 is the 16-bit reference on Volta, not BF16: the same size, and on the V100 its batches and prompts
+  run on the FP16 tensor cores (prefill 3.9 times, 8 streams 1.4 times a BF16 GGUF). The 4-bit is QAD-Q4_0
+  where LiquidAI publishes it, else Q4_0.
+- Every LFM3 GGUF fits one V100 with room to spare (dry runs, 8 slots of 65,536 tokens):
+
+  | Model file | Weights | KV pool | Engine buffers | Planned, of 33 GB |
+  | --- | --- | --- | --- | --- |
+  | LFM3-1.7B, LFM3-VL-2B, LFM3-Audio-2B, LFM3-Omni-2B F16 | 3.47 GB | 3.44 GB | 2.16 GB | 10.06 GB |
+  | Their QAD-Q4_0 or Q4_0 | 1.05 GB | 3.44 GB | 2.16 GB | 7.65 GB |
+
+- The pod's cgroup allows 12 CPUs; each slot's llama.cpp gets 3 threads (`remote.threads_per_slot`).
+
 ## Deployment notes
 
 Every run gets a deployment block. The summary states it as a sentence. For NVIDIA's

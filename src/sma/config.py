@@ -98,6 +98,10 @@ class MemoryConfig:
     # at once, and the running step fails and says why. On a GB10 the GPU's memory is not charged to any
     # process, and earlyoom only sends SIGTERM, so neither stopped the 2026-10-28 crash. 0 turns it off.
     guard_free_gb: float = 12.0
+    # The harness's own cgroup (a systemd slice, for example sma-harness.slice). When set and present, the
+    # guard measures what is left of that slice's memory.max instead of the machine's MemAvailable: on the
+    # harness GB10, KernelBench using its reserved memory is not a shortage for the harness.
+    guard_cgroup: str | None = None
 
 
 @dataclass
@@ -143,6 +147,9 @@ class LogprobConfig:
     # chunks of window_tokens and writes the reference's full-vocabulary logits for KL. That file is
     # about chunks * window_tokens / 2 * vocab * 2 bytes (2.5 GB for 8 chunks of a 152K vocabulary).
     llamacpp_chunks: int = 8
+    # A candidate whose reference run started beside it (the V100 slots) waits this long for the reference's
+    # logprobs step to finish, then records KL as null with the reason.
+    reference_wait_s: float = 6 * 3600.0
 
 
 @dataclass
@@ -240,8 +247,11 @@ class KernelBenchConfig:
     # Evaluation options for the service; empty uses its defaults (KernelBench's own).
     options: dict[str, Any] = field(default_factory=dict)
     poll_s: float = 60.0
-    # How long kernelbench_results waits for the service to finish the job.
+    # How long kernelbench_results waits for the service to finish the job, from when the service started it.
+    # The service runs one job at a time, oldest first, so time queued behind other runs does not count.
     wait_s: float = 6 * 3600.0
+    # How long a job may wait in the service's queue (and a full queue may refuse it) before the step fails.
+    queue_wait_s: float = 48 * 3600.0
 
 
 @dataclass
@@ -399,6 +409,36 @@ class DoctorConfig:
 
 
 @dataclass
+class RemoteSlot:
+    """One GPU on the serving machine with what a run there needs of its own (sma worker --slots)."""
+
+    name: str
+    # CUDA_VISIBLE_DEVICES on the serving machine.
+    gpus: str
+    # The model port inside the serving machine: a number, or the name of a root .env entry that holds it.
+    remote_port: int | None = None
+    remote_port_env: str | None = None
+    # This machine's end of the forward to the server (engine.port for the run).
+    local_port: int = 18001
+    # BrowseComp-Plus's search server port on the runner, and this machine's end of its forward.
+    search_port: int = 8791
+
+
+@dataclass
+class HarnessConfig:
+    """Where this machine's harness work runs (the harness GB10 beside the KernelBench service)."""
+
+    # The systemd slice SMA's containers join (docker --cgroup-parent), for example sma-harness.slice. null: Docker's default.
+    cgroup_parent: str | None = None
+    # CPUs for work nothing times (eval-factory suites, nel's clients), and for work whose time counts (LiveCodeBench's
+    # grading under its 6 s limit, the speed client). null: any CPU.
+    cpus_untimed: str | None = None
+    cpus_timed: str | None = None
+    # Locks shared by the runs on this machine: the speed step, LiveCodeBench's grading.
+    lock_dir: str = "~/.local/share/sma/locks"
+
+
+@dataclass
 class RemoteConfig:
     """Serving on another machine: the V100 pod (services/v100-serving). The harness, every benchmark client,
     grading, and the records stay here; llama-server and llama-perplexity run there as processes started over
@@ -420,6 +460,13 @@ class RemoteConfig:
     llamacpp_build: str = "llama.cpp-b11960"
     # The serving hardware, part of the subject: runs/<slug>/<engine>-<hardware>/... and the manifest.
     hardware: str = "v100"
+    # The serving machine's GPU slots for `sma worker --slots`: one run per slot at a time.
+    slots: list[RemoteSlot] = field(default_factory=list)
+    # llama-server's and llama-perplexity's --threads and --threads-batch on the serving machine. The pod's
+    # cgroup allows 12 CPUs but shows 40, and llama.cpp sizes its threads from what it sees. null: llama.cpp's default.
+    threads_per_slot: int | None = None
+    # Set by slot_config for a dispatcher's child: the slot this run is on. Not set in sma.yaml.
+    slot: str | None = None
 
 
 @dataclass
@@ -445,6 +492,7 @@ class Config:
     queue: QueueConfig = field(default_factory=QueueConfig)
     doctor: DoctorConfig = field(default_factory=DoctorConfig)
     remote: RemoteConfig = field(default_factory=RemoteConfig)
+    harness: HarnessConfig = field(default_factory=HarnessConfig)
 
     def runs_path(self) -> Path:
         return Path(self.runs_dir).expanduser().resolve()
@@ -454,6 +502,9 @@ class Config:
 
     def queue_path(self) -> Path:
         return Path(self.queue.dir).expanduser()
+
+    def lock_dir(self) -> Path:
+        return Path(self.harness.lock_dir).expanduser()
 
     def cache_path(self) -> Path:
         return Path(self.hf.cache_dir).expanduser()
@@ -483,6 +534,7 @@ _NESTED = {
     "queue": QueueConfig,
     "doctor": DoctorConfig,
     "remote": RemoteConfig,
+    "harness": HarnessConfig,
 }
 
 
@@ -515,6 +567,8 @@ def _build(cls: type, raw: dict[str, Any] | None, path: str) -> Any:
         value = raw[item.name]
         if item.name == "suites":
             kwargs[item.name] = _suites(value, f"{path}.suites")
+        elif item.name == "slots":
+            kwargs[item.name] = _slots(value, f"{path}.slots")
         elif item.name in {"prefill", "decode", "sweep"}:
             kwargs[item.name] = _shape(value, f"{path}.{item.name}")
         elif item.name in _NESTED and item.name != path:
@@ -564,6 +618,47 @@ def _suites(value: Any, path: str) -> list[QualitySuite]:
             )
         )
     return suites
+
+
+def _slots(value: Any, path: str) -> list[RemoteSlot]:
+    if not isinstance(value, list):
+        raise SmaError(f"{path} must be a list of slots")
+    slots: list[RemoteSlot] = []
+    known = {item.name for item in fields(RemoteSlot)}
+    for index, item in enumerate(value):
+        if not isinstance(item, dict) or "name" not in item or "gpus" not in item:
+            raise SmaError(f"{path}[{index}] needs a name and gpus")
+        unknown = sorted(set(item) - known)
+        if unknown:
+            raise SmaError(f"{path}[{index}] has unknown keys: {unknown}")
+        try:
+            slots.append(RemoteSlot(**{**item, "name": str(item["name"]), "gpus": str(item["gpus"])}))
+        except TypeError as exc:
+            raise SmaError(f"Invalid slot at {path}[{index}]: {exc}") from exc
+    return slots
+
+
+def slot_config(cfg: Config, name: str) -> Config:
+    """The config a run on one slot uses: the base config with the slot's GPU, ports, and lock file."""
+    slot = next((item for item in cfg.remote.slots if item.name == name), None)
+    if slot is None:
+        raise SmaError(f"No slot {name} in remote.slots. Slots: {', '.join(item.name for item in cfg.remote.slots) or 'none'}.")
+    port = slot.remote_port
+    if slot.remote_port_env:
+        value = os.environ.get(slot.remote_port_env, "")
+        if not value.isdigit():
+            raise SmaError(f"Slot {name} takes its port from {slot.remote_port_env}, which is not a port number in the root .env.")
+        port = int(value)
+    if port is None:
+        raise SmaError(f"Slot {name} needs remote_port or remote_port_env.")
+    lock = Path(cfg.lock_path).expanduser().parent / f"{cfg.remote.hardware}-{name}.lock"
+    return replace(
+        cfg,
+        lock_path=str(lock),
+        engine=replace(cfg.engine, port=int(slot.local_port)),
+        browsecomp=replace(cfg.browsecomp, search_port=int(slot.search_port), local_port=int(slot.search_port)),
+        remote=replace(cfg.remote, gpus=slot.gpus, remote_port=port, slot=name),
+    )
 
 
 def _shape(value: Any, path: str) -> SpeedShape:
@@ -815,6 +910,41 @@ def validate_config(cfg: Config) -> None:
         raise SmaError("timeouts.image_pull_s must be >= 1")
     if cfg.queue.retry_backoff_s < 0:
         raise SmaError("queue.retry_backoff_s must be >= 0")
+    if cfg.logprobs.reference_wait_s < 0:
+        raise SmaError("logprobs.reference_wait_s must be 0 or more seconds")
+    _validate_slots(cfg)
+
+
+def _validate_slots(cfg: Config) -> None:
+    rc = cfg.remote
+    if rc.threads_per_slot is not None and (not isinstance(rc.threads_per_slot, int) or isinstance(rc.threads_per_slot, bool) or rc.threads_per_slot < 1):
+        raise SmaError("remote.threads_per_slot must be a positive number of threads, or null for llama.cpp's default")
+    if not rc.slots:
+        return
+    if not rc.enabled:
+        raise SmaError("remote.slots are GPUs on the serving machine, so they need remote.enabled.")
+    for what, values in (
+        ("names", [slot.name for slot in rc.slots]),
+        ("local_port values", [slot.local_port for slot in rc.slots]),
+        ("search_port values", [slot.search_port for slot in rc.slots]),
+        ("remote ports", [slot.remote_port_env or slot.remote_port for slot in rc.slots]),
+    ):
+        if len(set(values)) != len(values):
+            raise SmaError(f"remote.slots {what} must be unique: two runs at once would share one.")
+    gpus: list[str] = []
+    for slot in rc.slots:
+        if not slot.name or not all(ch.isalnum() or ch in "-_" for ch in slot.name):
+            raise SmaError(f"remote.slots name {slot.name!r} must be letters, digits, - or _ (it names a lock file).")
+        parts = slot.gpus.split(",")
+        if not all(part.strip().isdigit() for part in parts):
+            raise SmaError(f"remote.slots {slot.name}: gpus must be GPU indexes, for example \"0\" or \"0,1\".")
+        if len(parts) > 1:
+            raise SmaError(f"remote.slots {slot.name}: one GPU per slot. Runs across GPUs are not built (owner decision 2026-11-01).")
+        if slot.remote_port is None and not slot.remote_port_env:
+            raise SmaError(f"remote.slots {slot.name} needs remote_port or remote_port_env.")
+        gpus.extend(part.strip() for part in parts)
+    if len(set(gpus)) != len(gpus):
+        raise SmaError("remote.slots must not share a GPU.")
 
 
 # KV cache type, context, and KV pool flags of vLLM, SGLang, and llama-server.

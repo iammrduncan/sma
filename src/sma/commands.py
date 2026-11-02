@@ -469,7 +469,7 @@ LIVECODEBENCH_GRADERS = 5
 
 def livecodebench_regrade_argv(
     *, image: str, attempt_dir: Path, out_dir: Path, hf_home: Path, patch_dir: Path, uid: int, gid: int,
-    release: str, start_date: str | None, end_date: str | None,
+    release: str, start_date: str | None, end_date: str | None, extra: list[str] | None = None,
 ) -> list[str]:
     """Grade a LiveCodeBench attempt's saved code again in its container (patches/livecodebench/regrade.py):
     no network, the attempt read-only, the dataset from the shared cache, the regraded file into out_dir."""
@@ -478,15 +478,48 @@ def livecodebench_regrade_argv(
         "docker", "run", "--rm", "--network", "none", "--user", f"{uid}:{gid}",
         "-e", "HOME=/tmp", "-e", "HF_HOME=/hf-home", "-e", "HF_HUB_OFFLINE=1", "-e", "HF_DATASETS_OFFLINE=1",
         "-v", f"{hf_home}:/hf-home", "-v", f"{attempt_dir}:/results:ro", "-v", f"{out_dir}:/out",
-        "-v", f"{patch_dir}:/sma-patch:ro", "--entrypoint", "python3", image, "/sma-patch/regrade.py",
+        "-v", f"{patch_dir}:/sma-patch:ro", *(extra or []), "--entrypoint", "python3", image, "/sma-patch/regrade.py",
         "--release", release, "--timeout", str(LIVECODEBENCH_TEST_TIMEOUT_S), "--processes", str(LIVECODEBENCH_GRADERS),
         *dates,
     ]  # fmt: skip
 
 
+def cpu_union(*sets: str | None) -> str | None:
+    """CPU lists joined ("0-4", "5-9" -> "0-4,5-9"); None when none is set."""
+    parts = [item for item in sets if item]
+    return ",".join(parts) if parts else None
+
+
+def harness_args(cfg: Config, *, cpus: str | None) -> list[str]:
+    """docker run flags that put one of SMA's containers on this machine where the harness runs: its systemd slice
+    (harness.cgroup_parent) and a CPU set (harness.cpus_*). Nothing when neither is set."""
+    args: list[str] = []
+    if cfg.harness.cgroup_parent:
+        args += ["--cgroup-parent", cfg.harness.cgroup_parent]
+    if cpus:
+        args += ["--cpuset-cpus", cpus]
+    return args
+
+
+# Where SMA mounts its lock folder in a LiveCodeBench container, and the grading lock in it.
+LOCKS_MOUNT = "/sma-locks"
+LIVECODEBENCH_GRADING_LOCK = "livecodebench-grading.lock"
+
+
+def livecodebench_grading_args(cfg: Config) -> list[str]:
+    """The LiveCodeBench patch's grading lock and CPUs: one container grades at a time on this machine, on the
+    timed CPUs (harness.cpus_timed), so four runs grading at once cannot push a test over its 6 s."""
+    lock_dir = cfg.lock_dir()
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    args = ["-v", f"{lock_dir}:{LOCKS_MOUNT}", "-e", f"SMA_GRADING_LOCK={LOCKS_MOUNT}/{LIVECODEBENCH_GRADING_LOCK}"]
+    if cfg.harness.cpus_timed:
+        args += ["-e", f"SMA_GRADING_CPUS={cfg.harness.cpus_timed}"]
+    return args
+
+
 def eval_factory_argv(
     *, name: str, image: str, attempt_dir: Path, config_path: Path, uid: int, gid: int, hf_home: Path,
-    patch_dir: Path | None = None, limit: int | None = None,
+    patch_dir: Path | None = None, limit: int | None = None, extra: list[str] | None = None,
 ) -> list[str]:
     """Run the container's harness against the quality server.
 
@@ -499,6 +532,7 @@ def eval_factory_argv(
     patch = ["-e", "PYTHONPATH=/sma-patch", "-v", f"{patch_dir}:/sma-patch:ro"] if patch_dir else []
     if limit is not None:
         patch += ["-e", f"SMA_QUESTION_LIMIT={limit}"]
+    patch += list(extra or [])
     return [
         "docker",
         "run",

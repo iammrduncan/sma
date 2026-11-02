@@ -746,6 +746,8 @@ class LlamaCppBackend:
         """vLLM's bench client in its own container on the host network, as for vLLM, against llama-server."""
         if mounts is None:
             raise SmaError("The llama.cpp bench runs in the vLLM image and needs its mounts.")
+        from sma.commands import harness_args
+
         bench_container = container.rsplit("-", 1)[0] + "-bench"
         argv = [
             "docker",
@@ -759,6 +761,8 @@ class LlamaCppBackend:
             f"{mounts.uid}:{mounts.gid}",
             "-e",
             "HOME=/tmp",
+            # The speed client's request times are measured here: on the timed CPUs (harness.cpus_timed).
+            *harness_args(cfg, cpus=cfg.harness.cpus_timed),
         ]
         for key, value in BENCH_OFFLINE_ENV.items():
             argv.extend(["-e", f"{key}={value}"])

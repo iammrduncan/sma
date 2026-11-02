@@ -1,0 +1,27 @@
+# SMA's dispatcher on the harness GB10 (README.md, "On the harness GB10"): `sma worker --slots`,
+# which runs the queued jobs against the models on the V100 pod. host-setup.sh fills in the @...@
+# values and installs this as /etc/systemd/system/sma-dispatcher.service. It does not start it.
+#
+# It runs in sma-harness.slice, so it stays on the harness CPUs and inside the harness memory cap.
+# SMA reads the repository's .env from its working directory.
+[Unit]
+Description=SMA dispatcher (sma worker --slots)
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=simple
+User=@SMA_USER@
+WorkingDirectory=@SMA_REPO@
+Environment=PYTHONUNBUFFERED=1
+ExecStart=@SMA_REPO@/.venv/bin/sma worker --slots --config @SMA_DISPATCHER_CONFIG@
+Slice=sma-harness.slice
+Restart=on-failure
+RestartSec=30
+# On stop, SIGTERM goes to the dispatcher alone, so it can stop its jobs and each job can tear down
+# its servers. Whatever still runs after TimeoutStopSec gets SIGKILL.
+KillMode=mixed
+TimeoutStopSec=300
+
+[Install]
+WantedBy=multi-user.target

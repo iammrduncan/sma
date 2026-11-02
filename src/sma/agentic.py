@@ -23,7 +23,7 @@ from sma.atomic import atomic_write_bytes, atomic_write_json, atomic_write_text
 from sma.errors import SmaError
 from sma.httpapi import ApiError, request_json
 from sma.judge import judge_from_env
-from sma.kbservice import finished, service_from_env
+from sma.kbservice import QueueFull, finished, queue_position, service_from_env
 from sma.logsetup import log_event
 from sma.qualityout import wilson_interval
 from sma.records import large_file_hashes
@@ -196,12 +196,17 @@ def kernelbench_step(ctx: Any, *, ensure_server: EnsureServer, warn: Warn) -> No
         if row.get("kernel")
     ]
     environment = service.environment()
-    job_id = service.submit(level=cfg.level, name=ctx.run_id, kernels=kernels, options=cfg.options) if kernels else None
+    reply = _submit(ctx, service, kernels) if kernels else {}
+    job_id = reply.get("job_id")
     atomic_write_json(
         suite_dir / "job.json",
         scrub_obj(
             {
                 "job_id": job_id,
+                # The service evaluates one job at a time, oldest first: when this one joined its queue, and how
+                # many jobs were ahead of it then (the running one included).
+                "submitted_at": reply.get("submitted_at"),
+                "position": reply.get("position"),
                 "level": cfg.level,
                 "kernels": len(kernels),
                 "no_kernel": [row["problem_id"] for row in records if not row.get("kernel")],
@@ -210,6 +215,74 @@ def kernelbench_step(ctx: Any, *, ensure_server: EnsureServer, warn: Warn) -> No
             }
         ),
     )
+
+
+def _submit(ctx: Any, service: Any, kernels: list[dict[str, Any]]) -> dict[str, Any]:
+    """Submit the run's kernels. A full service queue (429) is waited out: the step resubmits every poll_s."""
+    cfg = ctx.cfg.kernelbench
+    deadline = time.monotonic() + cfg.queue_wait_s
+    while True:
+        submitted_at = _utc()
+        try:
+            reply = service.submit(level=cfg.level, name=ctx.run_id, kernels=kernels, options=cfg.options)
+            return {**reply, "submitted_at": submitted_at}
+        except QueueFull as exc:
+            if time.monotonic() > deadline:
+                raise SmaError(f"The KernelBench service's queue stayed full for {cfg.queue_wait_s:.0f} s. Resume the run to try again.") from exc
+            log_event("kernelbench_queue_full", run_id=ctx.run_id)
+            time.sleep(cfg.poll_s)
+
+
+def _utc() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def _epoch(value: Any) -> float | None:
+    import calendar
+
+    try:
+        return float(calendar.timegm(time.strptime(str(value), "%Y-%m-%dT%H:%M:%SZ")))
+    except ValueError:
+        return None
+
+
+def _wait_for_job(ctx: Any, service: Any, job: dict[str, Any], suite_dir: Path) -> dict[str, Any]:
+    """Poll the service until the job ends. Its wait (kernelbench.wait_s) counts from when the service started
+    it; time queued behind other runs counts against kernelbench.queue_wait_s instead. queue.json in the suite
+    folder holds what is known while it waits: the position in the service's queue and the time queued."""
+    cfg = ctx.cfg.kernelbench
+    job_id = str(job["job_id"])
+    queued_until = time.monotonic() + cfg.queue_wait_s
+    queue: dict[str, Any] = {"submitted_at": job.get("submitted_at"), "position_at_submit": job.get("position"),
+                             "max_position": job.get("position"), "started_at": None, "queued_s": None}
+    while True:
+        state = service.job(job_id)
+        status = str(state.get("status"))
+        if status == "queued":
+            jobs = service.jobs() if hasattr(service, "jobs") else []
+            position = queue_position(jobs, job_id)
+            queue["position"] = position
+            if position is not None:
+                queue["max_position"] = max(position, queue.get("max_position") or 0)
+            if time.monotonic() > queued_until:
+                raise SmaError(f"KernelBench job {job_id} was still queued after {cfg.queue_wait_s:.0f} s. Resume the run to keep waiting.")
+        else:
+            queue["position"] = None
+            started = _epoch(state.get("started_at"))
+            created = _epoch(state.get("created_at"))
+            if started is not None:
+                queue["started_at"] = state.get("started_at")
+                queue["queued_s"] = round(started - created) if created is not None else None
+            if finished(state):
+                atomic_write_json(suite_dir / "queue.json", queue)
+                return {**state, "queue": queue}
+            if started is not None and time.time() > started + cfg.wait_s:
+                raise SmaError(
+                    f"KernelBench job {job_id} did not finish within {cfg.wait_s:.0f} s of starting. Resume the run to keep waiting."
+                )
+        atomic_write_json(suite_dir / "queue.json", queue)
+        log_event("kernelbench_wait", job=job_id, status=status, position=queue.get("position"), progress=state.get("progress"), run_id=ctx.run_id)
+        time.sleep(cfg.poll_s)
 
 
 def kernelbench_results_step(ctx: Any, *, warn: Warn) -> None:
@@ -225,17 +298,7 @@ def kernelbench_results_step(ctx: Any, *, warn: Warn) -> None:
         raise SmaError("KERNELBENCH_URL is not set, and this run's KernelBench job is waiting for its results. Set it and resume.")
     state: dict[str, Any] = {"status": "done", "results": [], "options": {}, "environment": job.get("environment") or {}}
     if job.get("job_id"):
-        deadline = time.monotonic() + cfg.wait_s
-        while True:
-            state = service.job(job["job_id"])
-            if finished(state):
-                break
-            if time.monotonic() > deadline:
-                raise SmaError(
-                    f"KernelBench job {job['job_id']} did not finish within {cfg.wait_s:.0f} s. Resume the run to keep waiting."
-                )
-            log_event("kernelbench_wait", job=job["job_id"], progress=state.get("progress"), run_id=ctx.run_id)
-            time.sleep(cfg.poll_s)
+        state = _wait_for_job(ctx, service, job, suite_dir)
         atomic_write_json(suite_dir / "results.json", scrub_obj(state))
     base = {
         "suite": KERNELBENCH_SUITE,
@@ -244,6 +307,8 @@ def kernelbench_results_step(ctx: Any, *, warn: Warn) -> None:
         "job_id": job.get("job_id"),
         "context_per_stream": _context(ctx, "kernelbench"),
         "concurrency": cfg.concurrency,
+        # Its turn in the service's FIFO: submitted, started, seconds queued, and the most jobs ahead of it.
+        "queue": state.get("queue"),
     }
     if state.get("status") != "done":
         message = f"The KernelBench job ended {state.get('status')}: {state.get('error')}. The score is null."

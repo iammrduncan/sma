@@ -97,7 +97,9 @@ These make an SMA number trustworthy. Breaking one silently is worse than a cras
 - **EXT-1. Use the helpers for the outside world.** Subprocesses go through `proc.run_command` or
   `proc.run_command_streaming` (timeout, process-group kill, scrubbed output, a `what` label). HTTP
   goes through `httpapi`. Direct `subprocess` calls exist in two places, all with timeouts:
-  `cleanup.py` (`sync`) and `records.git_identity` (`git`). Do not add more.
+  `cleanup.py` (`sync`) and `records.git_identity` (`git`). Do not add more. Long-lived processes go
+  through `proc.follow_to_file` (output copied and scrubbed) or `proc.start_detached` (the dispatcher's
+  units, which must outlive it).
 - **EXT-2. Every wait and every retry is bounded.** Waits take their limit from `cfg.timeouts`.
   Retries use `retry.call_with_retry` or a named config count (`speed.throttle_retries`,
   `queue.max_attempts`). Retry only transient failures: `httpapi` retries timeouts, 5xx, and 429,
@@ -145,7 +147,10 @@ These adapt the engineering principles to SMA. All are Review.
   sampler (both stopped and joined in `TelemetryRecorder.stop`), the queue heartbeat, the stream readers in `proc`, and the server-log follower (`proc.follow_to_file`,
   stopped and joined in `pipeline._stop_mode`). Queue claims are an atomic `link` on one filesystem,
   and the worker takes the GPU lock before it claims. Keep jobs independent. Do not share mutable
-  state between threads. A new thread needs a stop and a join in teardown.
+  state between threads. A new thread needs a stop and a join in teardown. One exception: `sma watch`'s
+  reader (`tui.Reader`) is a daemon that is not joined at quit. It only reads, and a read can sit in a
+  machine's timeout; joining it would hold the screen open. Concurrent runs are processes, not threads:
+  the dispatcher (`dispatcher.py`) starts one process per slot, and each job file has its own flock.
 - **DES-10. Log every major branch.** Use `log_event("<event>", run_id=..., ...)` for step changes,
   retries, fallbacks, refusals, and skipped work. Include `run_id` when one exists. The run's
   `logs/sma.log` gets every event as JSON. The terminal gets a readable line: an event the person
