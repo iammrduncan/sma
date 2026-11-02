@@ -103,49 +103,62 @@ class View:
     kernelbench: list[dict[str, Any]] | None = None
 
 
-def render(cfg: Config, view: View, *, plan: Path | None = None) -> str:
+def render(cfg: Config, view: View, *, plan: Path | None = None, scoped: bool = True) -> str:
     """One screen of text: the TUI's main screen with every panel in full (`sma watch --once`)."""
-    return plain(board(cfg, view, plan=plan), view.width)
+    return plain(board(cfg, view, plan=plan, scoped=scoped), view.width)
 
 
-def board(cfg: Config, view: View, *, plan: Path | None = None, open_item: tuple[str, str] | None = None) -> Board:
+def board(cfg: Config, view: View, *, plan: Path | None = None, open_item: tuple[str, str] | None = None,
+          scoped: bool = True) -> Board:  # fmt: skip
     """Everything one screen shows, read now: the top line, the alerts, each panel, and the open item's detail
-    (open_item: ("run", run id) or ("job", job id))."""
+    (open_item: ("run", run id) or ("job", job id)). Scoped (`sma watch --config`): what this config serves, the
+    serving machine's slots or this Spark. Not scoped (plain `sma watch`): every serving machine's slots in the queue,
+    this Spark's runs beside them, and every finished run."""
     paint = _painter(view.color)
     now = view.now
     runs = _runs(cfg)
     by_id = {row["run_id"]: row for row in runs}
-    # The runs served where this config serves (the serving machine's GPUs, or this Spark's): FINISHED and the
-    # usual step times. A run on other hardware is another machine's work.
-    here = [row for row in runs if _served_on(row) == (cfg.remote.hardware if cfg.remote.enabled else None)]
+    # FINISHED: the runs served where this config serves (the serving machine's GPUs, or this Spark's), or every run.
+    served = cfg.remote.hardware if cfg.remote.enabled else None
+    here = [row for row in runs if _served_on(row) == served] if scoped else runs
     # A run's own config names its suites; a total added to sma.yaml since then still counts for it.
     totals = {suite.name: suite.questions for suite in cfg.quality.suites if suite.questions}
-    usual = _usual_durations(here)
+    usual = _usual_durations(runs)
     jobs = [job for job in JobQueue(cfg.queue_path()).list_jobs() if isinstance(job.get("legs"), list)]
     # In the order they were queued, which is the order they start (a job's id begins with its creation time).
     queued = sorted((job for job in jobs if job.get("state") in ("pending", "claimed")), key=lambda job: str(job["job_id"]))
     series = recent_series(cfg.runs_path(), now=now.timestamp(), span_s=WINDOWS[0][1])
-    state = _dispatcher_state(cfg)
-    if state is None and cfg.remote.slots:
+    states = _dispatcher_states(cfg, scoped)
+    if not states and scoped and cfg.remote.slots:
         # Slots and no dispatcher state yet: the slots, idle, and a dispatcher that is not running.
-        state = {"slots": [{"name": slot.name, "gpus": slot.gpus, "state": "idle"} for slot in cfg.remote.slots], "alive": False}
+        states = [{"slots": [{"name": slot.name, "gpus": slot.gpus, "state": "idle"} for slot in cfg.remote.slots], "alive": False}]
+    # This Spark's runs at work: a config's own when scoped, else beside the slots. Only runs served on the Spark: a
+    # slot's run has a container here only while a grader runs here (BFCL's), so it would come and go.
+    pool = here if scoped else [row for row in runs if _served_on(row) is None]
+    spark = [] if scoped and states else _running_runs(pool, view.containers, now, lock_held(cfg.lock_file()))
     alerts = _machine_alerts(view) + _queue_alerts(cfg, queued, now)
     current: dict[str, Any] | None = None
     # (label, run) for each run at work: the alerts and the serving rows name them by it.
     active: list[tuple[str, dict[str, Any]]] = []
-    if state is not None:
+    state = None
+    if states:
+        state = states[0] if len(states) == 1 else {"slots": [slot for one in states for slot in one["slots"]],
+                                                    "alive": all(one.get("alive") for one in states)}  # fmt: skip
         # A dispatcher runs one run per slot of the serving machine: each slot's run, compact.
-        active_panel = _slots_panel(cfg, state, by_id, now, paint, totals, usual, series)
+        active_panel = _slots_panel(cfg, state, by_id, now, paint, totals, usual, series, spark)
         for slot in state["slots"]:
             row = by_id.get(str(slot.get("run_id") or "")) if slot.get("state") == "busy" else None
             if row is not None:
                 active.append((f"{slot.get('name')} {_run_name(row)}", row))
-        alerts += _dispatcher_alerts(cfg, state, by_id, queued, now)
+        active += [(f"spark {_run_name(row)}", row) for row in spark]
+        for one in states:
+            alerts += _dispatcher_alerts(cfg, one, by_id, queued, now)
         busy = sum(1 for slot in state["slots"] if slot.get("state") == "busy")
         down = sum(1 for slot in state["slots"] if slot.get("state") == "down")
         activity = f"{busy} of {len(state['slots'])} slots busy" + (f", {down} down" if down else "")
+        activity += f", {_count(len(spark), 'run')} on this Spark" if spark else ""
     else:
-        running = _running_runs(runs, view.containers, now, lock_held(cfg.lock_file()))
+        running = spark
         active = [(_run_name(row), row) for row in running]
         if len(running) > 1:
             active_panel = _running_panel(cfg, running, now, paint, totals, usual, series)
@@ -154,6 +167,11 @@ def board(cfg: Config, view: View, *, plan: Path | None = None, open_item: tuple
             swe = view.swe if current and view.swe and view.swe.get("run_id") == current["run_id"] else None
             active_panel = _current_panel(current, now, paint, totals, usual, swe)
         activity = f"{len(running)} run{'' if len(running) == 1 else 's'}" if running else "no run"
+        # Scoped to this Spark while legs run on a serving machine's slots (the same queue): one line says so.
+        slotted = sum(1 for job in queued for leg in job["legs"] if leg.get("status") == "running" and leg.get("slot"))
+        if slotted and scoped and not cfg.remote.enabled:
+            active_panel.notes.append(f"  {_count(slotted, 'run')} on the serving machine's GPU slots; plain sma watch shows every run")
+            activity += f" on this Spark, {slotted} on the serving machine"
     for label, row in active:
         alerts += [(level, f"{label}: {text}") for level, text in _run_problems(row, now, usual)]
     # What runs, what is next, then the rest.
@@ -174,7 +192,7 @@ def board(cfg: Config, view: View, *, plan: Path | None = None, open_item: tuple
     short = paint("SERVING", "head") + paint(f"  the table needs {len(lines)} rows; a run's detail (Enter) has its own", "pending")
     panels.append(Panel("serving", lines[0], notes=lines[1:], compact=short if len(lines) > 1 else None))
     active_ids = {row["run_id"] for _name, row in active}
-    where = f"served on {cfg.remote.hardware}" if cfg.remote.enabled else "on this Spark"
+    where = None if not scoped else f"served on {cfg.remote.hardware}" if cfg.remote.enabled else "on this Spark"
     panels.append(_finished_panel([row for row in here if row["run_id"] not in active_ids], current, paint, where))
     detail = None
     if open_item is not None:
@@ -253,6 +271,7 @@ def watch(
     swe_progress: Callable[[str], dict[str, Any] | None] | None = None,
     kernelbench: Callable[[], list[dict[str, Any]] | None] | None = None,
     out: TextIO | None = None,
+    scoped: bool = True,
 ) -> None:
     """Print the screen once (--once); on a terminal, run the TUI until q or Ctrl-C; otherwise (piped, or curses
     cannot start) print a screen every interval_s seconds until Ctrl-C. scrape(base_url, path) returns the
@@ -264,14 +283,14 @@ def watch(
         from sma.tui import run
 
         def read(open_item: tuple[str, str] | None) -> Board:
-            return board(cfg, sources.read(color=True, width=None, interval_s=None), plan=plan, open_item=open_item)
+            return board(cfg, sources.read(color=True, width=None, interval_s=None), plan=plan, open_item=open_item, scoped=scoped)
 
         if run(read, interval_s):
             return
     color = out.isatty() and not os.environ.get("NO_COLOR")
     while True:
         width = shutil.get_terminal_size().columns if out.isatty() else None
-        text = render(cfg, sources.read(color=color, width=width, interval_s=None if once else interval_s), plan=plan)
+        text = render(cfg, sources.read(color=color, width=width, interval_s=None if once else interval_s), plan=plan, scoped=scoped)
         if once:
             out.write(text + "\n")
             return
@@ -420,7 +439,7 @@ def _dispatcher_alerts(cfg: Config, state: dict[str, Any], by_id: dict[str, dict
     return alerts
 
 
-def _run_problems(row: dict[str, Any], now: datetime, usual: dict[str, float]) -> list[tuple[str, str]]:
+def _run_problems(row: dict[str, Any], now: datetime, usual: dict[str | None, dict[str, float]]) -> list[tuple[str, str]]:
     """A running run's failed steps, steps far past their usual time, and silence in its folder."""
     problems = []
     quiet = _quiet_for(row, now)
@@ -428,7 +447,7 @@ def _run_problems(row: dict[str, Any], now: datetime, usual: dict[str, float]) -
         if step.get("status") == "failed":
             problems.append(("failed", f"{name} failed: {_one_line(step.get('error') or 'no error recorded')[:120]}"))
         # A silent run's step is late because nothing runs it; the silence is the one warning.
-        late = None if quiet else _overdue(name, step, usual, now)
+        late = None if quiet else _overdue(name, step, usual.get(_served_on(row)) or {}, now)
         if late:
             problems.append(("warn", f"{name} {late}"))
     if quiet:
@@ -436,15 +455,18 @@ def _run_problems(row: dict[str, Any], now: datetime, usual: dict[str, float]) -
     return problems
 
 
-def _usual_durations(runs: list[dict[str, Any]]) -> dict[str, float]:
-    """The median seconds each step took on its first attempt, over this folder's runs, for steps seen 3 times."""
-    took: dict[str, list[float]] = {}
+def _usual_durations(runs: list[dict[str, Any]]) -> dict[str | None, dict[str, float]]:
+    """The median seconds each step took on its first attempt, over this folder's runs, for steps seen 3 times: per
+    hardware the runs were served on (None: a Spark), so a V100 step is not late by a Spark's times."""
+    took: dict[str | None, dict[str, list[float]]] = {}
     for row in runs:
+        mine = took.setdefault(_served_on(row), {})
         for name, step in _ordered_steps(row["manifest"]):
             start, end = _time(step.get("started")), _time(step.get("finished"))
             if step.get("status") == "done" and int(step.get("attempts") or 0) <= 1 and start and end:
-                took.setdefault(name, []).append((end - start).total_seconds())
-    return {name: statistics.median(values) for name, values in took.items() if len(values) >= 3}
+                mine.setdefault(name, []).append((end - start).total_seconds())
+    return {hardware: {name: statistics.median(values) for name, values in steps.items() if len(values) >= 3}
+            for hardware, steps in took.items()}  # fmt: skip
 
 
 def _overdue(name: str, step: dict[str, Any], usual: dict[str, float], now: datetime) -> str | None:
@@ -601,9 +623,15 @@ def _queue_panel(runs, current, plan: Path | None, paint, queued: list[dict[str,
     return Panel("queue", title, items)
 
 
-def _dispatcher_state(cfg: Config) -> dict[str, Any] | None:
-    """The dispatcher's state file (sma worker --slots), with "alive" from its pid. None when there is none."""
-    state = _read_json(state_path(cfg))
+def _dispatcher_states(cfg: Config, scoped: bool) -> list[dict[str, Any]]:
+    """The dispatchers' states (sma worker --slots): this config's, or every one in the queue when not scoped."""
+    paths = [state_path(cfg)] if scoped else sorted(state_path(cfg).parent.glob("*.json"))
+    return [state for state in map(_dispatcher_state, paths) if state is not None]
+
+
+def _dispatcher_state(path: Path) -> dict[str, Any] | None:
+    """One dispatcher's state file, with "alive" from its pid. None when there is none."""
+    state = _read_json(path)
     if not state or not isinstance(state.get("slots"), list):
         return None
     pid = state.get("pid")
@@ -637,7 +665,7 @@ def _decode(cfg: Config, series: list[Series], run_id: str, now: datetime) -> st
     return f"  decode {_number(rates.get('decode_tok_s'))}/{_number(peaks.get('decode_tok_s'))} tok/s per stream, {_number(rates.get('generated_tok_s_all'))} all"
 
 
-def _flags(row: dict[str, Any], now: datetime, usual: dict[str, float], paint) -> str:
+def _flags(row: dict[str, Any], now: datetime, usual: dict[str | None, dict[str, float]], paint) -> str:
     """The run's warnings, in place on its first line."""
     warnings = [text for level, text in _run_problems(row, now, usual) if level == "warn"]
     return "".join(paint(f"  ! {text.split(';')[0]}", "warn") for text in warnings)
@@ -662,7 +690,7 @@ class _Work:
     flags: str = ""
 
 
-def _work(cfg: Config, row: dict[str, Any] | None, now: datetime, paint, totals: dict[str, int], usual: dict[str, float],
+def _work(cfg: Config, row: dict[str, Any] | None, now: datetime, paint, totals: dict[str, int], usual: dict[str | None, dict[str, float]],
           series: list[Series]) -> _Work:  # fmt: skip
     if row is None:
         return _Work(None)
@@ -709,22 +737,25 @@ def _short_name(repo: str, quant: str, thinking: bool) -> str:
 
 
 def _slots_panel(cfg: Config, state: dict[str, Any], by_id: dict[str, dict], now: datetime, paint, totals: dict[str, int],
-                 usual: dict[str, float], series: list[Series]) -> Panel:  # fmt: skip
+                 usual: dict[str | None, dict[str, float]], series: list[Series], spark: list[dict[str, Any]]) -> Panel:  # fmt: skip
     """One line per slot: its GPU, its model, its time so far, what it is on and how far, and its decode rate over
-    the last 5 minutes (from the run's own counters). The selected slot's run shows whole beneath (its window)."""
+    the last 5 minutes (from the run's own counters); then this Spark's runs at work (plain `sma watch`), the same way.
+    The selected run shows whole beneath (its window)."""
     slots = state["slots"]
     busy = sum(1 for slot in slots if slot.get("state") == "busy")
     title = paint("SLOTS", "head") + f"  {busy} of {len(slots)} busy on the serving machine"
+    title += f", {_count(len(spark), 'run')} on this Spark" if spark else ""
     if not state.get("alive"):
         title += paint("  ·  the dispatcher is not running", "failed")
     elif state.get("stopping"):
         title += paint("  ·  the dispatcher is stopping", "warn")
-    items, busy, leads, works = [], [], [], []
+    items, at_work, names, leads, works = [], [], [], [], []
     for slot in slots:
         name, gpus = slot.get("name"), slot.get("gpus")
         if slot.get("state") == "busy":
             short = _short_name(str(slot.get("repo")), str(slot.get("gguf")), slot.get("thinking") == "on")
-            busy.append(len(items))
+            at_work.append(len(items))
+            names.append(str(name))
             leads.append(f"  {paint(_MARK['running'], 'running')} {name:8} GPU {gpus}  {short}")
             works.append(_work(cfg, by_id.get(str(slot.get("run_id") or "")), now, paint, totals, usual, series))
             items.append(Item([], ("run", str(slot["run_id"])) if slot.get("run_id") else None))
@@ -732,16 +763,22 @@ def _slots_panel(cfg: Config, state: dict[str, Any], by_id: dict[str, dict], now
             items.append(Item([f"  {paint(_MARK['failed'], 'failed')} {name:8} GPU {gpus}  {paint('down: ' + str(slot.get('reason') or ''), 'failed')}"]))
         else:
             items.append(Item([f"  {paint(_MARK['pending'], 'pending')} {name:8} GPU {gpus}  {paint('idle', 'pending')}"]))
-    # The busy slots' lines are made together, so their columns line up.
-    for index, line, work in zip(busy, _work_lines(leads, works), works):
-        items[index].lines, items[index].window = [line], _window(work.row, work, paint, str(slots[index].get("name")))
+    for row in spark:
+        at_work.append(len(items))
+        names.append("spark")
+        leads.append(f"  {paint(_MARK['running'], 'running')} {'spark':8} GPU 0  {_short_name(row['model_repo'], row['quant'], bool(_thinking(row)))}")
+        works.append(_work(cfg, row, now, paint, totals, usual, series))
+        items.append(Item([], ("run", row["run_id"])))
+    # The runs' lines are made together, so their columns line up.
+    for index, name, line, work in zip(at_work, names, _work_lines(leads, works), works):
+        items[index].lines, items[index].window = [line], _window(work.row, work, paint, name)
     guard = state.get("memory_guard") or {}
     notes = [paint(f"  memory guard: stopped {guard.get('run_id')} on {guard.get('slot')} at {guard.get('at')} ({guard.get('source')})", "stopped")] if guard else []
     return Panel("active", title, items, notes)
 
 
 def _running_panel(cfg: Config, running: list[dict[str, Any]], now: datetime, paint, totals: dict[str, int],
-                   usual: dict[str, float], series: list[Series]) -> Panel:  # fmt: skip
+                   usual: dict[str | None, dict[str, float]], series: list[Series]) -> Panel:  # fmt: skip
     """Several runs at once with no dispatcher state: one line per run, the selected one whole beneath."""
     works = [_work(cfg, row, now, paint, totals, usual, series) for row in running]
     leads = [f"  {paint(_MARK['running'], 'running')} {_run_name(row)} on {row['engine']}" for row in running]
@@ -749,7 +786,7 @@ def _running_panel(cfg: Config, running: list[dict[str, Any]], now: datetime, pa
     return Panel("active", paint("RUNNING", "head") + f"  {len(running)} runs", items)
 
 
-def _current_panel(current: dict[str, Any] | None, now: datetime, paint, totals: dict[str, int], usual: dict[str, float],
+def _current_panel(current: dict[str, Any] | None, now: datetime, paint, totals: dict[str, int], usual: dict[str | None, dict[str, float]],
                    swe: dict[str, Any] | None) -> Panel:  # fmt: skip
     """The one current run: its title, then one line per benchmark (as before the slots)."""
     if current is None:
@@ -782,8 +819,9 @@ def _kernelbench_panel(jobs: list[dict[str, Any]], by_id: dict[str, dict], now: 
     return Panel("kernelbench", title, items)
 
 
-def _finished_panel(runs: list[dict[str, Any]], current: dict[str, Any] | None, paint, where: str) -> Panel:
-    """Every run here that is not running, newest first, with its scores. `--once` shows the latest few."""
+def _finished_panel(runs: list[dict[str, Any]], current: dict[str, Any] | None, paint, where: str | None) -> Panel:
+    """Every run here that is not running, newest first, with its scores. `--once` shows the latest few. where names
+    the machine for the title; None (every machine) marks each run served off this Spark with its hardware instead."""
     done = [row for row in runs if row is not current and _label(row, current) in ("done", "failed", "stopped")]
     done.sort(key=lambda row: row["run_id"], reverse=True)
     items = []
@@ -800,8 +838,11 @@ def _finished_panel(runs: list[dict[str, Any]], current: dict[str, Any] | None, 
         state = _label(row, current)
         scores = "  " + " · ".join(parts) if parts else ""
         note = paint(" (stopped, resumable)", "stopped") if state == "stopped" else ""
-        items.append(Item([f"  {paint(_MARK[state], state)} {_run_name(row)}{note}{scores}"], ("run", row["run_id"])))
-    title = paint("FINISHED", "head") + (f"  {_count(len(done), 'run')} {where}, newest first" if done else f"  none {where} yet")
+        hardware = _served_on(row) if where is None else None
+        served = paint(f" on {hardware}", "pending") if hardware else ""
+        items.append(Item([f"  {paint(_MARK[state], state)} {_run_name(row)}{served}{note}{scores}"], ("run", row["run_id"])))
+    scope = f" {where}" if where else ""
+    title = paint("FINISHED", "head") + (f"  {_count(len(done), 'run')}{scope}, newest first" if done else f"  none{scope} yet")
     return Panel("finished", title, items, once_items=_FINISHED_SHOWN)
 
 
@@ -809,7 +850,7 @@ def _finished_panel(runs: list[dict[str, Any]], current: dict[str, Any] | None, 
 
 
 def _detail(cfg: Config, view: View, open_item: tuple[str, str], by_id: dict[str, dict], jobs: list[dict[str, Any]],
-            state: dict[str, Any] | None, active_ids: set[str], usual: dict[str, float], totals: dict[str, int], paint) -> list[str] | None:  # fmt: skip
+            state: dict[str, Any] | None, active_ids: set[str], usual: dict[str | None, dict[str, float]], totals: dict[str, int], paint) -> list[str] | None:  # fmt: skip
     kind, key = open_item
     if kind == "job":
         job = next((job for job in jobs if job.get("job_id") == key), None)
@@ -822,7 +863,7 @@ def _detail(cfg: Config, view: View, open_item: tuple[str, str], by_id: dict[str
     return _run_detail(cfg, view, row, slot, key in active_ids, usual, totals, swe, paint)
 
 
-def _run_detail(cfg: Config, view: View, row: dict[str, Any], slot: dict[str, Any] | None, running: bool, usual: dict[str, float],
+def _run_detail(cfg: Config, view: View, row: dict[str, Any], slot: dict[str, Any] | None, running: bool, usual: dict[str | None, dict[str, float]],
                 totals: dict[str, int], swe: dict[str, Any] | None, paint) -> list[str]:  # fmt: skip
     """Everything about one run: where it runs, its list as the main screen shows it (with whole errors), its
     serving rates, and its recent events."""

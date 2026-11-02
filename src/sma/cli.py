@@ -653,6 +653,8 @@ def _cmd_watch(args: argparse.Namespace) -> int:
         started_at=started_at,
         swe_progress=swe_progress,
         kernelbench=kernelbench_jobs,
+        # Plain `sma watch` shows every run and every serving machine's slots; --config shows only that config's.
+        scoped=args.config is not None,
     )
     return 0
 

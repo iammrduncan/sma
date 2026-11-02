@@ -98,7 +98,8 @@ soon as one ends, the next unit starts on that slot.
   the CPUs. With models served here, no SMA container on the Spark may use its GPU.
 - **`sma watch`** shows a SLOTS section (one line per slot: its model, what it is on and how far, its decode rate
   over 5 minutes; under it, the selected slot's run whole, one line per benchmark), each queued leg with its slot,
-  and KernelBench's queue.
+  and KernelBench's queue. Plain `sma watch` shows these slots beside this Spark's own runs; `--config sma-v100.yaml`
+  shows only the slots and the runs served on the V100s.
 - **The systemd unit.** On the harness GB10 the dispatcher runs as `sma-dispatcher.service` in
   `sma-harness.slice` ([`services/kernelbench/host-setup.sh`](../kernelbench/README.md)).
 

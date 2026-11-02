@@ -340,6 +340,85 @@ def test_several_running_runs_without_a_dispatcher_get_a_running_panel(tmp_path:
     assert "◼ Org/Dead F16 (stopped, resumable)" in screen.split("FINISHED")[1]
 
 
+def _took(run_dir: Path, step: str, start: str, end: str) -> None:
+    _set_manifest(run_dir, lambda manifest: manifest["steps"][step].update(status="done", started=start, finished=end, attempts=1))
+
+
+def test_plain_watch_shows_every_slot_this_sparks_runs_and_every_finished_run(tmp_path: Path) -> None:
+    # Owner, 2026-11-02: plain `sma watch` shows all runs, across every config; --config narrows it to one. It had shown
+    # two of four V100 runs (the two whose BFCL grader container ran here), each "quality has run 4h49m, usually 19s".
+    cfg = make_config(tmp_path)
+    for n in range(3):
+        _took(_run(cfg, f"20261028T0{n}0000Z-old{n}", "Org/Spark", "F16", steps={"quality": "done"}, finished=True),
+              "quality", "2026-10-28T01:00:00Z", "2026-10-28T01:00:19Z")  # fmt: skip
+    old = _run(cfg, "20261028T040000Z-v1d0", "Org/Volta", "F16", steps={"quality": "done"}, finished=True)
+    _set_manifest(old, lambda manifest: manifest.update(serving={"hardware": "v100", "slot": "v100-0"}))
+    slotted = []
+    for n in range(2):
+        run = _run(cfg, f"20261029T02000{n}Z-v10{n}", "Org/Volta", f"Q{n}", steps={"quality": "running"})
+        _set_manifest(run, lambda manifest, n=n: manifest.update(serving={"hardware": "v100", "slot": f"v100-{n}"}))
+        slotted.append(run.name)
+    spark = _run(cfg, "20261029T020100Z-sprk", "Org/Spark", "BF16", steps={"quality": "running"})
+    _dispatcher(cfg, [{"name": f"v100-{n}", "gpus": str(n), "state": "busy", "run_id": run_id, "repo": "Org/Volta", "gguf": f"Q{n}"}
+                      for n, run_id in enumerate(slotted)])  # fmt: skip
+    Catalog(cfg.runs_path()).rebuild()
+    # A V100 run's grader container is up on this Spark: it does not make that run this Spark's.
+    up = [f"sma-{slotted[0]}-bfcl"]
+
+    screen = ANSI.sub("", render(cfg, View(up, None, NOW), scoped=False))
+
+    assert "· 2 of 2 slots busy, 1 run on this Spark ·" in screen.splitlines()[0]
+    slots = screen.split("SLOTS")[1].split("QUEUE")[0]
+    assert slots.startswith("  2 of 2 busy on the serving machine, 1 run on this Spark")
+    assert "▶ v100-0   GPU 0  Volta Q0" in slots and "▶ v100-1   GPU 1  Volta Q1" in slots and "▶ spark    GPU 0  Spark BF16" in slots
+    # Each step's usual time is its own hardware's: the Spark's run is late by the Spark's 19 s, the V100 runs are not.
+    assert "! spark Org/Spark BF16: quality has run 50m00s, usually 19s" in screen
+    assert "Org/Volta Q0: quality" not in screen and "Org/Volta Q1: quality" not in screen
+    finished = screen.split("FINISHED")[1]
+    assert finished.startswith("  4 runs, newest first") and "Org/Volta F16 on v100" in finished and "Org/Spark F16 on" not in finished
+
+    # --config narrows it: a Spark's config shows this Spark's run alone and says where the rest run.
+    queue = JobQueue(cfg.queue_path())
+    job = queue.add([{"repo": "Org/Volta", "quant": "gguf", "gguf": f"Q{n}", "engine": "llamacpp"} for n in range(2)], kind="pair")
+    queue.claim_job(job["job_id"], "dispatcher-v100-pod", "v100-pod")
+    queue.update(job["job_id"], lambda current: [leg.update(status="running", slot=f"v100-{n}") for n, leg in enumerate(current["legs"])])
+    (cfg.queue_path() / "dispatcher" / f"{cfg.host_alias}.json").rename(cfg.queue_path() / "dispatcher" / "v100-pod.json")
+    screen = ANSI.sub("", render(cfg, View(up, None, NOW)))
+    assert "CURRENT RUN  20261029T020100Z-sprk" in screen and "SLOTS" not in screen
+    assert "  2 runs on the serving machine's GPU slots; plain sma watch shows every run" in screen
+    assert "· 1 run on this Spark, 2 on the serving machine ·" in screen.splitlines()[0]
+    assert screen.split("FINISHED")[1].startswith("  3 runs on this Spark, newest first")
+
+
+def test_the_spark_view_counts_only_this_sparks_runs_and_says_where_the_rest_run(tmp_path: Path) -> None:
+    # Owner, 2026-11-02: with four runs on the V100 slots, `sma watch` showed two of them as this Spark's runs
+    # (the two whose BFCL grader container ran here), each flagged "quality has run 4h49m, usually 19s".
+    cfg = make_config(tmp_path)
+    queue = JobQueue(cfg.queue_path())
+    job = queue.add([{"repo": "Org/Model-GGUF", "quant": "gguf", "gguf": g, "engine": "llamacpp"} for g in ("F16", "Q4_0")], kind="pair")
+    queue.claim_job(job["job_id"], "dispatcher-v100-pod", "v100-pod")
+    runs = []
+    for slot, (quant, run_id) in enumerate((("F16", "20261029T020534Z-aaaa"), ("Q4_0", "20261029T020600Z-bbbb"))):
+        run = _run(cfg, run_id, "Org/Model-GGUF", quant, steps={"quality": "running"})
+        _set_manifest(run, lambda manifest, slot=slot: manifest.update(serving={"hardware": "v100", "slot": f"v100-{slot}"}))
+        runs.append(run)
+
+    def start_legs(current: dict) -> None:
+        for slot, leg in enumerate(current["legs"]):
+            leg.update(status="running", slot=f"v100-{slot}")
+
+    queue.update(job["job_id"], start_legs)
+    Catalog(cfg.runs_path()).rebuild()
+
+    # The F16 run's grader container is up on this Spark; the Q4_0 run has none here.
+    screen = ANSI.sub("", render(cfg, View([f"sma-{runs[0].name}-bfcl"], None, NOW)))
+
+    assert "CURRENT RUN  none" in screen and "RUNNING" not in screen
+    assert "  2 runs on the serving machine's GPU slots; plain sma watch shows every run" in screen
+    assert "· no run on this Spark, 2 on the serving machine ·" in screen.splitlines()[0]
+    assert "Org/Model-GGUF F16 on llamacpp" not in screen.split("QUEUE")[0]
+
+
 def test_once_prints_the_main_screen_with_three_finished_runs_and_counts_the_rest(tmp_path: Path) -> None:
     cfg = make_config(tmp_path)
     for n in range(5):
