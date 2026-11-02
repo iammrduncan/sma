@@ -346,3 +346,26 @@ def test_the_thinking_mode_is_set_by_the_run_not_the_config() -> None:
         validate_config(config_from_mapping({"quality": {"chat_template_kwargs": {"enable_thinking": False}}}))
     with pytest.raises(SmaError, match="Thinking mode must be one of off, on"):
         for_thinking(default_config(), "maybe")
+
+
+def test_a_changed_run_record_does_not_make_sma_dirty(tmp_path: Path) -> None:
+    # sma rescore writes the run's files before it records SMA's commit: every rescore said sma_dirty.
+    from sma.proc import require_ok, run_command
+    from sma.records import git_identity
+
+    def git(*argv: str) -> None:
+        cmd = ["git", "-C", str(tmp_path), "-c", "user.name=t", "-c", "user.email=t@example.com", *argv]
+        require_ok(run_command(cmd, timeout_s=30, what="git"), what="git")
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "runs" / "run-1").mkdir(parents=True)
+    (tmp_path / "src" / "sma.py").write_text("A = 1\n")
+    (tmp_path / "runs" / "run-1" / "summary.json").write_text("{}\n")
+    git("init", "-q")
+    git("add", ".")
+    git("commit", "-q", "-m", "x")
+    (tmp_path / "runs" / "run-1" / "summary.json").write_text('{"rescored": true}\n')
+    commit, dirty = git_identity(tmp_path)
+    assert commit and not dirty
+    (tmp_path / "src" / "sma.py").write_text("A = 2\n")
+    assert git_identity(tmp_path)[1]

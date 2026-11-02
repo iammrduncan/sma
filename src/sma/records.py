@@ -71,8 +71,10 @@ def model_slug(repo: str) -> str:
     return slug
 
 
-def git_identity() -> tuple[str | None, bool]:
-    root = Path(__file__).resolve().parents[2]
+def git_identity(root: Path | None = None) -> tuple[str | None, bool]:
+    """SMA's commit, and whether its tracked files differ from it. Run records under runs/ do not count: a
+    rescore or a scrub changes a committed run's files, not SMA."""
+    root = root or Path(__file__).resolve().parents[2]
     try:
         sha = subprocess.check_output(
             ["git", "-C", str(root), "rev-parse", "HEAD"],
@@ -85,7 +87,7 @@ def git_identity() -> tuple[str | None, bool]:
     dirty = False
     try:
         probe = subprocess.run(
-            ["git", "-C", str(root), "diff", "--quiet"],
+            ["git", "-C", str(root), "diff", "--quiet", "--", ".", ":(exclude)runs"],
             timeout=5,
             check=False,
         )
