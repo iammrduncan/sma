@@ -4,6 +4,24 @@ Recorded on 2026-10-27; baselines re-recorded at 2000 MHz on 2026-10-29, when th
 
 SMA generates kernels on `${SMA_HOST}`. A separate DGX Spark, `${KERNELBENCH_HOST}`, compiles each one, checks it against KernelBench's PyTorch reference and times both on its GB10, so evaluation never competes with SMA's own model serving. The service is reached at `${KERNELBENCH_URL}`, from `${SMA_HOST}` only, and needs no key.
 
+## Since 2026-11-01: the service on the harness GB10
+
+The models are served on a separate V100 machine now, so the service runs on the GB10 that runs SMA's harness, isolated
+from it by [`services/kernelbench/host-setup.sh`](../../../../services/kernelbench/README.md): its own slice on
+CPUs 10-19 (the worker times on 15-19) with 80 GiB reserved, the harness capped on CPUs 0-9, no movable IRQ on
+10-19, the GPU in `EXCLUSIVE_PROCESS` mode and its clock locked at 2200 MHz. SMA reaches it on the GB10's internal
+Docker network (`KERNELBENCH_URL` in the root `.env`).
+
+| Level | Timed | Failed | Mean time: min / median / max | Peak GPU memory | Run |
+|---|---|---|---|---|---|
+| 1 | **99 of 100** | 1 (95, as below) | 0.608 ms (12) / 44.6 ms / 859.0 ms (68) | 24.0 GiB (39) | `kb-20261101-230006-6f770173` |
+
+Fingerprint `ea4d42500074fa44` (2026-11-01; GPU clock 2177 MHz under load, driver 580.178.04, timing CPUs
+15-19): `level1-fp32-cuda_event-100.ea4d42500074fa44.json` and `environment.ea4d42500074fa44.json`. Against
+the 2000 MHz baseline below (99 problems timed at both), times are 2.9% shorter (geometric mean; median 0.9%),
+from 0.903 (problem 70) to 1.01 (problem 46). Only Level 1 was recorded: SMA runs Level 1 only. The files below
+are the other Spark's and stay for reference (another fingerprint).
+
 ## Files here
 
 | File | What |
