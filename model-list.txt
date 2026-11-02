@@ -376,6 +376,30 @@ sma queue add unsloth/Qwen3.8-Flash-Next-GGUF --gguf UD-Q2_K_XL
 #BLOCKED sma queue add nvidia/Qwen3.6-35B-A3B-NVFP4 --mixed --tool-parser qwen3_coder
 
 
+# ==== Mellum2.1 (JetBrains) =========================================================================
+# Added 2026-11-01 at the owner's request. The -MTP repo (published 2026-10-30) holds Mellum2.1 Thinking's
+# weights unchanged plus a one-layer MTP head (model-mtp.safetensors) for speculative decoding.
+# MellumForCausalLM: MoE, 12B total, 2.5B active, 64 experts with 8 active; 7 of 28 layers attend fully,
+# 21 use a 1,024-token sliding window. Thinking on by default. The card serves it with --tool-call-parser
+# hermes (JSON inside <tool_call>) and --reasoning-parser qwen3, at 131,072 context. Apache-2.0.
+# Blocked twice (checked 2026-11-01 with `sma run --dry-run` and each pinned image's own files):
+#   - Engine (F9). vLLM 0.21 and SGLang v0.5.10.post1 lack MellumForCausalLM. The card says the -MTP repo
+#     needs vLLM 0.33 or newer, and that vLLM up to 0.32 refuses its MTP tensors. llama.cpp b11913 and
+#     b11960 both have the mellum architecture.
+#   - Context (F18). config.json reaches 131,072 with YaRN (factor 16 from 8,192), so SMA plans 8,192 tokens
+#     per stream. The safetensors dry-run is refused: BrowseComp-Plus needs 32,768 tokens per stream. Every
+#     GGUF file is refused too: the determinism probe's 64 streams need 2 GB of KV cache, and a pool of 8
+#     streams at 8,192 holds 0.69 GB.
+# GGUF: JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF has BF16, Q8_0, Q6_K, Q4_K_M, and MXFP4_MOE. Each is also
+#   in mtp/ with the head included (llama.cpp --spec-type draft-mtp). A bare quant name matches both files, so
+#   the selector needs the "Thinking-" prefix for the plain file or "MTP-" for the mtp/ one. The header has
+#   the same YaRN as config.json. SMA does not run speculative decoding (G9), so the head goes unused.
+# Gaps: G1, G2 (the card scores thinking on, greedy), G6 (the card reports SWE-bench Verified, SWE-bench
+#   Pro, and Terminal-Bench 2.1), G7 (BFCL v4, WorkBench, ToolHop), G9 (MTP head).
+#BLOCKED sma queue add JetBrains/Mellum2.1-12B-A2.5B-Thinking-MTP --bf16 --tool-parser hermes
+#BLOCKED sma queue add-pair --gguf JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF Thinking-BF16 Thinking-Q4_K_M
+
+
 # ==== Later: Nemotron retriever (NVIDIA, blog 2026-10-21) ==========================================
 # From https://huggingface.co/blog/nvidia/nemotron-retriever-world-class-agentic-retrieval (added
 # 2026-10-29 so they are not forgotten; nothing run or dry-run). Repos, types, and sizes are from the
@@ -478,6 +502,8 @@ sma queue add unsloth/Qwen3.8-Flash-Next-GGUF --gguf UD-Q2_K_XL
 #     override, and sma.yaml still pins b11913. Moving the pin for every GGUF run is still open: GGUF
 #     runs on b11913 and b11960 differ in engine build. vLLM 0.21 lacks Gemma4Unified (Gemma-4-12B),
 #     FlintForCausalLM, and Qwen4Exp, which vLLM main has. No vLLM or SGLang release has Lfm3 or Spark2_5.
+#     Neither pinned vLLM 0.21 nor SGLang v0.5.10.post1 has MellumForCausalLM (checked 2026-11-01); JetBrains
+#     names vLLM 0.33 or newer for Mellum2.1's -MTP repo.
 
 # F10 llama.cpp memory plan (found 2026-10-28, when it took the Spark down; fixed in the working tree,
 #     not yet committed). The KV pool was "the rest of the budget" for llama.cpp too, passed as -c. LFM3
@@ -546,6 +572,13 @@ sma queue add unsloth/Qwen3.8-Flash-Next-GGUF --gguf UD-Q2_K_XL
 #     9.1 GB; SMA's memory guard killed the server (run 20261030T044436Z-4112d062). SMA now plans SGLang with
 #     sliding layers in full and sets --mem-fraction-static from the plan (in use + weights + pool, over the
 #     total), so SGLang's pool is the plan's bytes. tests/test_serving_design.py.
+# F18 A config that ships RoPE stretching on is planned at its original length (found 2026-11-01; an owner
+#     decision, still listed under "Open for the owner" in docs/serving-design.md). Mellum2.1 ships YaRN
+#     from 8,192 to 131,072, in config.json and in its GGUF headers, so SMA plans it at 8,192 tokens per
+#     stream. At that length BrowseComp-Plus (32,768 per stream) cannot run on any engine, and on llama.cpp
+#     the pool of 8 streams at 8,192 cannot hold the determinism probe's 64 streams at 1,024 (F4 would not
+#     be enough on its own). Planning a release config's own stretching as native would plan it at 131,072.
+#     SMA would still never add stretching itself.
 
 # ==== Benchmark gaps =================================================================================
 # What SMA does not measure for these models, most models affected first. SMA today: IFEval 50,
