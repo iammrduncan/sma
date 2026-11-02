@@ -730,12 +730,17 @@ def _cmd_publish_check(args: argparse.Namespace) -> int:
     from sma.proc import require_ok, run_command
     from sma.scrub import find_leaks, scrub_text
 
-    if args.paths:
-        files = [f for path in args.paths for f in ([path] if path.is_file() else sorted(path.rglob("*"))) if f.is_file()]
-    else:
-        argv = ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"]
+    # In the repository, only what git tracks or would add: the files too big for git (a 2 GB kld-base.bin) are
+    # never published, and their sha256 is in the manifest, so they are neither read nor rewritten. A folder
+    # outside it (the pre-push hook's copy of what a push sends) is checked whole.
+    root = Path.cwd().resolve()
+    inside = [path for path in args.paths if path.resolve().is_relative_to(root)]
+    outside = [path for path in args.paths if path not in inside]
+    files = [f for path in outside for f in ([path] if path.is_file() else sorted(path.rglob("*"))) if f.is_file()]
+    if inside or not args.paths:
+        argv = ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", *map(str, inside)]
         listed = require_ok(run_command(argv, timeout_s=120, what="list the files git publishes"), what="git ls-files")
-        files = [Path(name) for name in listed.stdout.split("\0") if name and Path(name).is_file()]
+        files += [Path(name) for name in listed.stdout.split("\0") if name and Path(name).is_file()]
     leaking = 0
     for path in files:
         data = path.read_bytes()

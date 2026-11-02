@@ -55,6 +55,24 @@ def test_fix_scrubs_run_files_again_but_leaves_documents_and_binaries(tmp_path: 
     assert "Nothing to hide in 1 files." in capsys.readouterr().out
 
 
+def test_in_the_repository_only_what_git_publishes_is_read(tmp_path: Path, monkeypatch, capsys) -> None:
+    # A V100 run keeps a 2 GB kld-base.bin that git ignores and the manifest hashes: the check once read it whole.
+    from sma.proc import require_ok, run_command
+
+    _private(monkeypatch)
+    require_ok(run_command(["git", "init", "-q", str(tmp_path)], timeout_s=30, what="git init"), what="git init")
+    (tmp_path / ".gitignore").write_text("kld-base.bin\n", encoding="utf-8")
+    run = tmp_path / "runs" / "run-1"
+    run.mkdir(parents=True)
+    (run / "kld-base.bin").write_text("sma@203.0.113.7\n", encoding="utf-8")
+    (run / "manifest.json").write_text('{"host_alias": "gpu-host-1"}\n', encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert cli.main(["publish-check", "--fix", "runs/run-1"]) == 0
+    assert "Nothing to hide in 1 files." in capsys.readouterr().out
+    assert (run / "kld-base.bin").read_text(encoding="utf-8") == "sma@203.0.113.7\n"
+
+
 def test_key_shapes_are_found_whatever_their_source() -> None:
     # Built here, so this file does not trip the check it tests.
     assert scrub.find_leaks("-----BEGIN " + "OPENSSH PRIVATE KEY-----") == ["a private key"]
