@@ -1,0 +1,15 @@
+{
+  "idle_until_cool": {
+    "elapsed_s": 0.301,
+    "end_c": 45.0,
+    "reached": true,
+    "start_c": 45.0,
+    "target_c": 55
+  },
+  "page_cache": {
+    "attempted": false,
+    "error": "not applicable: the model is served on another machine",
+    "ok": null,
+    "permitted": null
+  }
+}

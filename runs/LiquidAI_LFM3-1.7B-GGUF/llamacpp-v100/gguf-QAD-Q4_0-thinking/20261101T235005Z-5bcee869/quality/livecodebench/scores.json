@@ -1,0 +1,31 @@
+{
+  "categories": {
+    "easy": {
+      "correct": 25,
+      "total": 25
+    },
+    "hard": {
+      "correct": 13,
+      "total": 49
+    },
+    "medium": {
+      "correct": 19,
+      "total": 31
+    }
+  },
+  "ci_lower": 0.4477444248000774,
+  "ci_upper": 0.6349446542742442,
+  "concurrency": 8,
+  "context_per_stream": 65536,
+  "harness_metrics": {
+    "codegeneration/pass@1": 0.5428571428571428
+  },
+  "image": "nvcr.io/nvidia/eval-factory/livecodebench:26.03@sha256:ccfeb5fd91c1c6ec5045c8372bdb4b667d5b6cc6b4d5d203ff4ba3be69e3a87b",
+  "limit": null,
+  "n": 105,
+  "primary_metric": "pass@1",
+  "primary_score": 0.5428571428571428,
+  "scorer": "eval-factory codegeneration_release_v6",
+  "suite": "livecodebench",
+  "task": "codegeneration_release_v6"
+}

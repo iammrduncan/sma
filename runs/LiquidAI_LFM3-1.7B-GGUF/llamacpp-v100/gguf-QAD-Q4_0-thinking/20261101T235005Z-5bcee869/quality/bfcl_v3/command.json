@@ -1,0 +1,53 @@
+{
+  "argv": [
+    "docker",
+    "run",
+    "--rm",
+    "--name",
+    "sma-20261101T235005Z-5bcee869-quality-bfcl_v3",
+    "--network",
+    "host",
+    "--user",
+    "1000:1000",
+    "-e",
+    "HOME=/tmp",
+    "-e",
+    "NEMO_EVALUATOR_TELEMETRY_LEVEL=0",
+    "-e",
+    "HF_HOME=/hf-home",
+    "-v",
+    "/home/<host>/github/sma/runs/LiquidAI_LFM3-1.7B-GGUF/llamacpp-v100/gguf-QAD-Q4_0-thinking/20261101T235005Z-5bcee869/quality/bfcl_v3/attempt-1:/results",
+    "-v",
+    "/home/<host>/github/sma/runs/LiquidAI_LFM3-1.7B-GGUF/llamacpp-v100/gguf-QAD-Q4_0-thinking/20261101T235005Z-5bcee869/quality/bfcl_v3/run_config.yaml:/config/run_config.yaml:ro",
+    "-v",
+    "/data/models/sma/hf/eval-factory:/hf-home",
+    "-e",
+    "PYTHONPATH=/sma-patch",
+    "-v",
+    "/home/<host>/github/sma/src/sma/patches/bfcl:/sma-patch:ro",
+    "-e",
+    "SMA_QUESTION_LIMIT=2000",
+    "--cgroup-parent",
+    "sma-harness.slice",
+    "--cpuset-cpus",
+    "0-4",
+    "nvcr.io/nvidia/eval-factory/bfcl:26.03@sha256:fc6b5f22698b75b759dc29715663d3006b7180847330e06b15ee080346462c03",
+    "sh",
+    "-c",
+    "exec $(command -v nemo-evaluator >/dev/null 2>&1 && echo nemo-evaluator || echo eval-factory) run_eval --run_config /config/run_config.yaml"
+  ],
+  "concurrency": 8,
+  "cpus": "0-4",
+  "grading_cpus": null,
+  "grading_lock": null,
+  "image": "nvcr.io/nvidia/eval-factory/bfcl:26.03@sha256:fc6b5f22698b75b759dc29715663d3006b7180847330e06b15ee080346462c03",
+  "limit": 2000,
+  "patch": {
+    "files": {
+      "sitecustomize.py": "5469792c305ba5ea1e9aeecaa4f504a06facd3cc7132071bf3fbe78201c6b4ac",
+      "sma_subset.py": "1b37b17811761d260e88466ebf118c516b1a17518b94434acac6d433b290dfc9"
+    },
+    "name": "bfcl"
+  },
+  "sampling": null
+}

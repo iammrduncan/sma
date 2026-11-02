@@ -1,0 +1,44 @@
+{
+  "windows": [
+    {
+      "end_unix": 1793645506.1710854,
+      "energy_j": null,
+      "name": "prefill_c1_r1",
+      "repeats_in_window": 1,
+      "start_unix": 1793645474.7829497,
+      "valid": true
+    },
+    {
+      "end_unix": 1793645699.213328,
+      "energy_j": null,
+      "name": "decode_c1_r1",
+      "repeats_in_window": 1,
+      "start_unix": 1793645605.8568797,
+      "valid": false
+    },
+    {
+      "end_unix": 1793645756.2417054,
+      "energy_j": null,
+      "name": "sweep_c1_r1",
+      "repeats_in_window": 1,
+      "start_unix": 1793645699.5497065,
+      "valid": true
+    },
+    {
+      "end_unix": 1793645830.6338472,
+      "energy_j": null,
+      "name": "sweep_c4_r1",
+      "repeats_in_window": 1,
+      "start_unix": 1793645794.0151215,
+      "valid": true
+    },
+    {
+      "end_unix": 1793645899.3654456,
+      "energy_j": null,
+      "name": "sweep_c8_r1",
+      "repeats_in_window": 1,
+      "start_unix": 1793645866.0762553,
+      "valid": false
+    }
+  ]
+}

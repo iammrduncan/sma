@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Example Request-Response Pairs</title>
+    <style>
+        /* Container and general styles */
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            font-style: italic;
+            margin-bottom: 20px;
+            font-size: 1.1em;
+        }
+        .note {
+            color: #546E7A;
+            font-weight: bold;
+            font-style: normal;
+        }
+        .cache-info-header {
+            background-color: #E8F5E9;
+            color: #2E7D32;
+            padding: 12px 16px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 0.95em;
+            border: 1px solid #C8E6C9;
+        }
+        .cache-info-header .note {
+            color: #546E7A;
+            font-weight: bold;
+            font-style: normal;
+            display: block;
+            margin-top: 8px;
+        }
+
+        /* Entry styles */
+        .entry {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .cache-info {
+            padding: 8px 16px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            background-color: #E3F2FD;
+            color: #0D47A1;
+            font-size: 0.9em;
+        }
+        .cache-explanation {
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 4px;
+            font-style: italic;
+        }
+        .request, .response, .curl-command {
+            padding: 8px 16px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .request {
+            background-color: #B2DFDB;
+            color: #00695C;
+        }
+        .response {
+            background-color: #B39DDB;
+            color: #4527A0;
+        }
+        .curl-command {
+            background-color: #EEEEEE;
+            color: #212121;
+            white-space: pre-wrap;
+            display: none;
+        }
+        pre {
+            white-space: pre-wrap;
+            margin: 0;
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .button {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            background-color: #4CAF50;
+            color: white;
+        }
+        .button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+            <h1>Example Request-Response Pairs</h1>
+            <p class="subtitle">Final request (sent directly to the endpoint) and response pairs with curl commands for reproducibility. <span class="note">*Note: Responses may vary due to generation parameters, randomness, and other factors.</span></p>
+            <div class="cache-info-header">
+                <strong>About Cache Keys:</strong> Each request-response pair is identified by a unique cache key generated from the request payload hash. <span class="note">Note: Cache keys may differ across different models because the model field in the request payload will be different.</span>
+            </div>
+            
+                <div class="entry">
+                    <div class="cache-info">
+                        <strong>Cache Key:</strong> 17051f216874fdf70faf9a57e02e6cd893f4cef2d26ba700d7389a367437329e
+                    </div>
+                    <div class="request">
+                        <strong>Request:</strong>
+                        <pre>{
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B-GGUF&quot;,
+  &quot;messages&quot;: [
+    {
+      &quot;role&quot;: &quot;user&quot;,
+      &quot;content&quot;: &quot;Solve the quadratic equation with coefficients a = 1, b = 2, and c = 3.&quot;
+    }
+  ],
+  &quot;temperature&quot;: 0.001,
+  &quot;tools&quot;: [
+    {
+      &quot;type&quot;: &quot;function&quot;,
+      &quot;function&quot;: {
+        &quot;name&quot;: &quot;math_sum&quot;,
+        &quot;description&quot;: &quot;Compute the sum of all numbers in a list. Note that the provided function is in Python 3 syntax.&quot;,
+        &quot;parameters&quot;: {
+          &quot;type&quot;: &quot;object&quot;,
+          &quot;properties&quot;: {
+            &quot;numbers&quot;: {
+              &quot;type&quot;: &quot;array&quot;,
+              &quot;items&quot;: {
+                &quot;type&quot;: &quot;number&quot;
+              },
+              &quot;description&quot;: &quot;The list of numbers to be added up.&quot;
+            },
+            &quot;decimal_places&quot;: {
+              &quot;type&quot;: &quot;integer&quot;,
+              &quot;description&quot;: &quot;The number of decimal places to round to. Default is 2.&quot;
+            }
+          },
+          &quot;required&quot;: [
+            &quot;numbers&quot;
+          ]
+        }
+      }
+    }
+  ]
+}</pre>
+                    </div>
+
+                    <div class="response">
+                        <strong>Response:</strong>
+                        <pre>{
+  &quot;choices&quot;: [
+    {
+      &quot;finish_reason&quot;: &quot;stop&quot;,
+      &quot;index&quot;: 0,
+      &quot;message&quot;: {
+        &quot;role&quot;: &quot;assistant&quot;,
+        &quot;content&quot;: &quot;The quadratic equation is \\(x^2 + 2x + 3 = 0\\) (with \\(a=1\\), \\(b=2\\), \\(c=3\\)).  \n\nUsing the quadratic formula:\n\\[\nx = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}\n\\]\n\nCompute the discriminant:\n\\[\n\\Delta = b^2 - 4ac = 2^2 - 4 \\cdot 1 \\cdot 3 = 4 - 12 = -8\n\\]\n\nSince \\(\\Delta &lt; 0\\), the roots are complex.  \n\\[\n\\sqrt{\\Delta} = \\sqrt{-8} = i\\sqrt{8} = i \\cdot 2\\sqrt{2}\n\\]\n\nThus:\n\\[\nx = \\frac{-2 \\pm i \\cdot 2\\sqrt{2}}{2} = -1 \\pm i\\sqrt{2}\n\\]\n\n**Solutions:**\n\\[\nx_1 = -1 + i\\sqrt{2}, \\quad x_2 = -1 - i\\sqrt{2}\n\\]&quot;,
+        &quot;reasoning_content&quot;: &quot;We need to solve the quadratic equation ax^2 + bx + c = 0 with a=1, b=2, c=3. The user asks: \&quot;Solve the quadratic equation with coefficients a = 1, b = 2, and c = 3.\&quot;\n\nThe available tool is `math_sum`, which computes sum of numbers in a list. That&#x27;s not relevant for solving a quadratic equation. There&#x27;s no tool provided for solving quadratic equations or general math operations like that. So I cannot use any tool to solve this directly.\n\nI need to provide the solution manually. The quadratic formula: x = [-b ± sqrt(b^2 - 4ac)] / (2a). For a=1, b=2, c=3:\n\nDiscriminant D = b^2 - 4ac = 2^2 - 4*1*3 = 4 - 12 = -8.\n\nSince D is negative, the roots are complex: x = [-2 ± sqrt(-8)] / (2) = [-2 ± i*sqrt(8)]/2 = [-2 ± i*2√2]/2 = -1 ± i√2.\n\nSo the solutions are x = -1 + i√2 and x = -1 - i√2.\n\nI should present that. Since no tool is needed, I can just answer directly.&quot;
+      }
+    }
+  ],
+  &quot;created&quot;: 1793602178,
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B-GGUF&quot;,
+  &quot;system_fingerprint&quot;: &quot;b1-8642541&quot;,
+  &quot;object&quot;: &quot;chat.completion&quot;,
+  &quot;usage&quot;: {
+    &quot;completion_tokens&quot;: 493,
+    &quot;prompt_tokens&quot;: 152,
+    &quot;total_tokens&quot;: 645,
+    &quot;prompt_tokens_details&quot;: {
+      &quot;cached_tokens&quot;: 1
+    }
+  },
+  &quot;id&quot;: &quot;chatcmpl-FjrnofJAn5nG2pNZPWOheJU2l4JoTotb&quot;,
+  &quot;timings&quot;: {
+    &quot;cache_n&quot;: 1,
+    &quot;prompt_n&quot;: 151,
+    &quot;prompt_ms&quot;: 416.977,
+    &quot;prompt_per_token_ms&quot;: 2.761437086092715,
+    &quot;prompt_per_second&quot;: 362.1302853634613,
+    &quot;predicted_n&quot;: 493,
+    &quot;predicted_ms&quot;: 13722.691,
+    &quot;predicted_per_token_ms&quot;: 27.89164837398374,
+    &quot;predicted_per_second&quot;: 35.85302620309675
+  }
+}</pre>
+                    </div>
+
+                    <div class="buttons">
+                        <button class="button" onclick="toggleRaw('curl-17051f216874fdf70faf9a57e02e6cd893f4cef2d26ba700d7389a367437329e')">Show Curl Command</button>
+                    </div>
+
+                    <div id="curl-17051f216874fdf70faf9a57e02e6cd893f4cef2d26ba700d7389a367437329e" class="curl-command">
+                        # Save payload to file first:
+                        echo '{"messages": [{"content": "Solve the quadratic equation with coefficients a = 1, b = 2, and c = 3.", "role": "user"}], "model": "LiquidAI/LFM3-1.7B-GGUF", "temperature": 0.001, "tools": [{"function": {"description": "Compute the sum of all numbers in a list. Note that the provided function is in Python 3 syntax.", "name": "math_sum", "parameters": {"properties": {"decimal_places": {"description": "The number of decimal places to round to. Default is 2.", "type": "integer"}, "numbers": {"description": "The list of numbers to be added up.", "items": {"type": "number"}, "type": "array"}}, "required": ["numbers"], "type": "object"}}, "type": "function"}]}' > request.json
+
+                        curl "http://127.0.0.1:18003/v1/chat/completions"                         -H "Content-Type: application/json"                         -H "Authorization: Bearer $API_KEY"                         -H "Accept: application/json"                         -d @request.json
+                    </div>
+                </div>
+            
+                <div class="entry">
+                    <div class="cache-info">
+                        <strong>Cache Key:</strong> 8d8e072125effaa07661bec4b1b1590e1d80e87c34b8b0a12b9a28dd4be5e382
+                    </div>
+                    <div class="request">
+                        <strong>Request:</strong>
+                        <pre>{
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B-GGUF&quot;,
+  &quot;messages&quot;: [
+    {
+      &quot;role&quot;: &quot;user&quot;,
+      &quot;content&quot;: &quot;Find the fastest route from New York to Boston.&quot;
+    }
+  ],
+  &quot;temperature&quot;: 0.001,
+  &quot;tools&quot;: [
+    {
+      &quot;type&quot;: &quot;function&quot;,
+      &quot;function&quot;: {
+        &quot;name&quot;: &quot;prime_numbers_in_range&quot;,
+        &quot;description&quot;: &quot;Find all the prime numbers within a certain numeric range. Note that the provided function is in Python 3 syntax.&quot;,
+        &quot;parameters&quot;: {
+          &quot;type&quot;: &quot;object&quot;,
+          &quot;properties&quot;: {
+            &quot;start&quot;: {
+              &quot;type&quot;: &quot;integer&quot;,
+              &quot;description&quot;: &quot;The start of the numeric range.&quot;
+            },
+            &quot;end&quot;: {
+              &quot;type&quot;: &quot;integer&quot;,
+              &quot;description&quot;: &quot;The end of the numeric range.&quot;
+            },
+            &quot;return_format&quot;: {
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;enum&quot;: [
+                &quot;array&quot;,
+                &quot;string&quot;
+              ],
+              &quot;description&quot;: &quot;The format in which the prime numbers should be returned.&quot;,
+              &quot;default&quot;: &quot;string&quot;
+            }
+          },
+          &quot;required&quot;: [
+            &quot;start&quot;,
+            &quot;end&quot;
+          ]
+        }
+      }
+    }
+  ]
+}</pre>
+                    </div>
+
+                    <div class="response">
+                        <strong>Response:</strong>
+                        <pre>{
+  &quot;choices&quot;: [
+    {
+      &quot;finish_reason&quot;: &quot;stop&quot;,
+      &quot;index&quot;: 0,
+      &quot;message&quot;: {
+        &quot;role&quot;: &quot;assistant&quot;,
+        &quot;content&quot;: &quot;I&#x27;m unable to help with finding the fastest route between New York and Boston. My current capabilities are limited to mathematical operations, specifically finding prime numbers within a given numeric range.\n\nIf you&#x27;d like me to find prime numbers in a certain range, I can assist with that instead!&quot;,
+        &quot;reasoning_content&quot;: &quot;We need to find the fastest route from New York to Boston. However, looking at the available tools, there is only one function: `prime_numbers_in_range`. This function is for finding prime numbers within a numeric range. It has nothing to do with routing or travel directions.\n\nThe user&#x27;s query is about finding the fastest route between two cities, which requires a mapping/routing service or API. But none of the available tools can handle that. I should inform the user that I don&#x27;t have the capability to find routes and explain what I can do instead (i.e., find prime numbers in a range).&quot;
+      }
+    }
+  ],
+  &quot;created&quot;: 1793602170,
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B-GGUF&quot;,
+  &quot;system_fingerprint&quot;: &quot;b1-8642541&quot;,
+  &quot;object&quot;: &quot;chat.completion&quot;,
+  &quot;usage&quot;: {
+    &quot;completion_tokens&quot;: 182,
+    &quot;prompt_tokens&quot;: 166,
+    &quot;total_tokens&quot;: 348,
+    &quot;prompt_tokens_details&quot;: {
+      &quot;cached_tokens&quot;: 1
+    }
+  },
+  &quot;id&quot;: &quot;chatcmpl-7BHxzoEWLYXRN5LzoamzVGGhUUrQPCDu&quot;,
+  &quot;timings&quot;: {
+    &quot;cache_n&quot;: 1,
+    &quot;prompt_n&quot;: 165,
+    &quot;prompt_ms&quot;: 412.338,
+    &quot;prompt_per_token_ms&quot;: 2.499018181818182,
+    &quot;prompt_per_second&quot;: 400.1571526272136,
+    &quot;predicted_n&quot;: 182,
+    &quot;predicted_ms&quot;: 4929.229,
+    &quot;predicted_per_token_ms&quot;: 27.233309392265195,
+    &quot;predicted_per_second&quot;: 36.71973852300228
+  }
+}</pre>
+                    </div>
+
+                    <div class="buttons">
+                        <button class="button" onclick="toggleRaw('curl-8d8e072125effaa07661bec4b1b1590e1d80e87c34b8b0a12b9a28dd4be5e382')">Show Curl Command</button>
+                    </div>
+
+                    <div id="curl-8d8e072125effaa07661bec4b1b1590e1d80e87c34b8b0a12b9a28dd4be5e382" class="curl-command">
+                        # Save payload to file first:
+                        echo '{"messages": [{"content": "Find the fastest route from New York to Boston.", "role": "user"}], "model": "LiquidAI/LFM3-1.7B-GGUF", "temperature": 0.001, "tools": [{"function": {"description": "Find all the prime numbers within a certain numeric range. Note that the provided function is in Python 3 syntax.", "name": "prime_numbers_in_range", "parameters": {"properties": {"end": {"description": "The end of the numeric range.", "type": "integer"}, "return_format": {"default": "string", "description": "The format in which the prime numbers should be returned.", "enum": ["array", "string"], "type": "string"}, "start": {"description": "The start of the numeric range.", "type": "integer"}}, "required": ["start", "end"], "type": "object"}}, "type": "function"}]}' > request.json
+
+                        curl "http://127.0.0.1:18003/v1/chat/completions"                         -H "Content-Type: application/json"                         -H "Authorization: Bearer $API_KEY"                         -H "Accept: application/json"                         -d @request.json
+                    </div>
+                </div>
+            
+                <div class="entry">
+                    <div class="cache-info">
+                        <strong>Cache Key:</strong> 9e666c84feec289d843b061efa495d5f22615884b3484cf429d40b5c2bfc9244
+                    </div>
+                    <div class="request">
+                        <strong>Request:</strong>
+                        <pre>{
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B-GGUF&quot;,
+  &quot;messages&quot;: [
+    {
+      &quot;role&quot;: &quot;user&quot;,
+      &quot;content&quot;: &quot;What is the area under the curve of the function f(x) = 3x^2 from x = 1 to x = 5?&quot;
+    }
+  ],
+  &quot;temperature&quot;: 0.001,
+  &quot;tools&quot;: [
+    {
+      &quot;type&quot;: &quot;function&quot;,
+      &quot;function&quot;: {
+        &quot;name&quot;: &quot;math_integral_calculator&quot;,
+        &quot;description&quot;: &quot;Calculate the definite integral of a mathematical function over a specific interval. Note that the provided function is in Python 3 syntax.&quot;,
+        &quot;parameters&quot;: {
+          &quot;type&quot;: &quot;object&quot;,
+          &quot;properties&quot;: {
+            &quot;function&quot;: {
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;description&quot;: &quot;The mathematical function whose integral needs to be calculated.&quot;
+            },
+            &quot;lower_bound&quot;: {
+              &quot;type&quot;: &quot;number&quot;,
+              &quot;description&quot;: &quot;The lower limit of the definite integral. This is a float type value.&quot;,
+              &quot;format&quot;: &quot;float&quot;
+            },
+            &quot;upper_bound&quot;: {
+              &quot;type&quot;: &quot;number&quot;,
+              &quot;description&quot;: &quot;The upper limit of the definite integral. This is a float type value.&quot;,
+              &quot;format&quot;: &quot;float&quot;
+            }
+          },
+          &quot;required&quot;: [
+            &quot;function&quot;,
+            &quot;lower_bound&quot;,
+            &quot;upper_bound&quot;
+          ]
+        }
+      }
+    }
+  ]
+}</pre>
+                    </div>
+
+                    <div class="response">
+                        <strong>Response:</strong>
+                        <pre>{
+  &quot;choices&quot;: [
+    {
+      &quot;finish_reason&quot;: &quot;tool_calls&quot;,
+      &quot;index&quot;: 0,
+      &quot;message&quot;: {
+        &quot;role&quot;: &quot;assistant&quot;,
+        &quot;content&quot;: &quot;&quot;,
+        &quot;reasoning_content&quot;: &quot;We need to find the definite integral of f(x) = 3x^2 from x=1 to x=5. That&#x27;s the area under the curve, which is exactly what the math_integral_calculator tool can compute.\n\nThe function parameter should be \&quot;3*x**2\&quot; or \&quot;3x^2\&quot;? The description says it takes a mathematical function as a string in Python 3 syntax. So I&#x27;ll use \&quot;3*x**2\&quot;. Lower bound = 1, upper bound = 5.\n\nLet&#x27;s call the tool.&quot;,
+        &quot;tool_calls&quot;: [
+          {
+            &quot;type&quot;: &quot;function&quot;,
+            &quot;function&quot;: {
+              &quot;name&quot;: &quot;math_integral_calculator&quot;,
+              &quot;arguments&quot;: &quot;{\&quot;function\&quot;:\&quot;3*x**2\&quot;,\&quot;lower_bound\&quot;:1,\&quot;upper_bound\&quot;:5}&quot;
+            },
+            &quot;id&quot;: &quot;ubRB7EQk4d4XI05slcT6MM8M30z20JxC&quot;
+          }
+        ]
+      }
+    }
+  ],
+  &quot;created&quot;: 1793602169,
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B-GGUF&quot;,
+  &quot;system_fingerprint&quot;: &quot;b1-8642541&quot;,
+  &quot;object&quot;: &quot;chat.completion&quot;,
+  &quot;usage&quot;: {
+    &quot;completion_tokens&quot;: 155,
+    &quot;prompt_tokens&quot;: 209,
+    &quot;total_tokens&quot;: 364,
+    &quot;prompt_tokens_details&quot;: {
+      &quot;cached_tokens&quot;: 1
+    }
+  },
+  &quot;id&quot;: &quot;chatcmpl-vGjjRoi1Ik4Ihr924F09Ak4s8bIonJUA&quot;,
+  &quot;timings&quot;: {
+    &quot;cache_n&quot;: 1,
+    &quot;prompt_n&quot;: 208,
+    &quot;prompt_ms&quot;: 498.731,
+    &quot;prompt_per_token_ms&quot;: 2.3977451923076925,
+    &quot;prompt_per_second&quot;: 417.05849445893676,
+    &quot;predicted_n&quot;: 155,
+    &quot;predicted_ms&quot;: 4182.204,
+    &quot;predicted_per_token_ms&quot;: 27.15716883116883,
+    &quot;predicted_per_second&quot;: 36.82268966315369
+  }
+}</pre>
+                    </div>
+
+                    <div class="buttons">
+                        <button class="button" onclick="toggleRaw('curl-9e666c84feec289d843b061efa495d5f22615884b3484cf429d40b5c2bfc9244')">Show Curl Command</button>
+                    </div>
+
+                    <div id="curl-9e666c84feec289d843b061efa495d5f22615884b3484cf429d40b5c2bfc9244" class="curl-command">
+                        # Save payload to file first:
+                        echo '{"messages": [{"content": "What is the area under the curve of the function f(x) = 3x^2 from x = 1 to x = 5?", "role": "user"}], "model": "LiquidAI/LFM3-1.7B-GGUF", "temperature": 0.001, "tools": [{"function": {"description": "Calculate the definite integral of a mathematical function over a specific interval. Note that the provided function is in Python 3 syntax.", "name": "math_integral_calculator", "parameters": {"properties": {"function": {"description": "The mathematical function whose integral needs to be calculated.", "type": "string"}, "lower_bound": {"description": "The lower limit of the definite integral. This is a float type value.", "format": "float", "type": "number"}, "upper_bound": {"description": "The upper limit of the definite integral. This is a float type value.", "format": "float", "type": "number"}}, "required": ["function", "lower_bound", "upper_bound"], "type": "object"}}, "type": "function"}]}' > request.json
+
+                        curl "http://127.0.0.1:18003/v1/chat/completions"                         -H "Content-Type: application/json"                         -H "Authorization: Bearer $API_KEY"                         -H "Accept: application/json"                         -d @request.json
+                    </div>
+                </div>
+            
+                <div class="entry">
+                    <div class="cache-info">
+                        <strong>Cache Key:</strong> a249df60d030c629e6b38cfcaf098865d420c7ec2e6a810242ac4e2176e090a0
+                    </div>
+                    <div class="request">
+                        <strong>Request:</strong>
+                        <pre>{
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B-GGUF&quot;,
+  &quot;messages&quot;: [
+    {
+      &quot;role&quot;: &quot;user&quot;,
+      &quot;content&quot;: &quot;What is the perimeter of a rectangle with length 5 meters and width 4 meters?&quot;
+    }
+  ],
+  &quot;temperature&quot;: 0.001,
+  &quot;tools&quot;: [
+    {
+      &quot;type&quot;: &quot;function&quot;,
+      &quot;function&quot;: {
+        &quot;name&quot;: &quot;solve_quadratic_equation&quot;,
+        &quot;description&quot;: &quot;Solves a quadratic equation and returns the possible solutions. Note that the provided function is in Python 3 syntax.&quot;,
+        &quot;parameters&quot;: {
+          &quot;type&quot;: &quot;object&quot;,
+          &quot;properties&quot;: {
+            &quot;a&quot;: {
+              &quot;type&quot;: &quot;number&quot;,
+              &quot;description&quot;: &quot;Coefficient of the x-squared term in the quadratic equation. This is a float type value.&quot;,
+              &quot;format&quot;: &quot;float&quot;
+            },
+            &quot;b&quot;: {
+              &quot;type&quot;: &quot;number&quot;,
+              &quot;description&quot;: &quot;Coefficient of the x term in the quadratic equation. This is a float type value.&quot;,
+              &quot;format&quot;: &quot;float&quot;
+            },
+            &quot;c&quot;: {
+              &quot;type&quot;: &quot;number&quot;,
+              &quot;description&quot;: &quot;Constant term in the quadratic equation. This is a float type value.&quot;,
+              &quot;format&quot;: &quot;float&quot;
+            }
+          },
+          &quot;required&quot;: [
+            &quot;a&quot;,
+            &quot;b&quot;,
+            &quot;c&quot;
+          ]
+        }
+      }
+    }
+  ]
+}</pre>
+                    </div>
+
+                    <div class="response">
+                        <strong>Response:</strong>
+                        <pre>{
+  &quot;choices&quot;: [
+    {
+      &quot;finish_reason&quot;: &quot;stop&quot;,
+      &quot;index&quot;: 0,
+      &quot;message&quot;: {
+        &quot;role&quot;: &quot;assistant&quot;,
+        &quot;content&quot;: &quot;The perimeter of a rectangle is calculated using the formula:  \n**Perimeter = 2 × (length + width)**  \n\nGiven:  \n- Length = 5 meters  \n- Width = 4 meters  \n\nCalculation:  \n2 × (5 m + 4 m) = 2 × 9 m = **18 meters**\n\nThus, the perimeter is **18 meters**.&quot;,
+        &quot;reasoning_content&quot;: &quot;We need to find the perimeter of a rectangle given length = 5 meters and width = 4 meters. The formula for perimeter of a rectangle is P = 2*(length + width). So, plug in: 2*(5 + 4) = 2*9 = 18 meters.\n\nThe user asked about solving a quadratic equation? No, this is a simple geometry question. The available tool is `solve_quadratic_equation`, which is not relevant here. I should just answer directly without using any tool. So I&#x27;ll compute and provide the answer.&quot;
+      }
+    }
+  ],
+  &quot;created&quot;: 1793602170,
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B-GGUF&quot;,
+  &quot;system_fingerprint&quot;: &quot;b1-8642541&quot;,
+  &quot;object&quot;: &quot;chat.completion&quot;,
+  &quot;usage&quot;: {
+    &quot;completion_tokens&quot;: 195,
+    &quot;prompt_tokens&quot;: 205,
+    &quot;total_tokens&quot;: 400,
+    &quot;prompt_tokens_details&quot;: {
+      &quot;cached_tokens&quot;: 1
+    }
+  },
+  &quot;id&quot;: &quot;chatcmpl-WBJm5ZlJVINiOcWBud77cdn7vcvNiMGN&quot;,
+  &quot;timings&quot;: {
+    &quot;cache_n&quot;: 1,
+    &quot;prompt_n&quot;: 204,
+    &quot;prompt_ms&quot;: 459.611,
+    &quot;prompt_per_token_ms&quot;: 2.2529950980392157,
+    &quot;prompt_per_second&quot;: 443.8536066369169,
+    &quot;predicted_n&quot;: 195,
+    &quot;predicted_ms&quot;: 5344.004,
+    &quot;predicted_per_token_ms&quot;: 27.54641237113402,
+    &quot;predicted_per_second&quot;: 36.30236803714968
+  }
+}</pre>
+                    </div>
+
+                    <div class="buttons">
+                        <button class="button" onclick="toggleRaw('curl-a249df60d030c629e6b38cfcaf098865d420c7ec2e6a810242ac4e2176e090a0')">Show Curl Command</button>
+                    </div>
+
+                    <div id="curl-a249df60d030c629e6b38cfcaf098865d420c7ec2e6a810242ac4e2176e090a0" class="curl-command">
+                        # Save payload to file first:
+                        echo '{"messages": [{"content": "What is the perimeter of a rectangle with length 5 meters and width 4 meters?", "role": "user"}], "model": "LiquidAI/LFM3-1.7B-GGUF", "temperature": 0.001, "tools": [{"function": {"description": "Solves a quadratic equation and returns the possible solutions. Note that the provided function is in Python 3 syntax.", "name": "solve_quadratic_equation", "parameters": {"properties": {"a": {"description": "Coefficient of the x-squared term in the quadratic equation. This is a float type value.", "format": "float", "type": "number"}, "b": {"description": "Coefficient of the x term in the quadratic equation. This is a float type value.", "format": "float", "type": "number"}, "c": {"description": "Constant term in the quadratic equation. This is a float type value.", "format": "float", "type": "number"}}, "required": ["a", "b", "c"], "type": "object"}}, "type": "function"}]}' > request.json
+
+                        curl "http://127.0.0.1:18003/v1/chat/completions"                         -H "Content-Type: application/json"                         -H "Authorization: Bearer $API_KEY"                         -H "Accept: application/json"                         -d @request.json
+                    </div>
+                </div>
+            
+                <div class="entry">
+                    <div class="cache-info">
+                        <strong>Cache Key:</strong> eaa4b035f95c81daf087ce4c6ee177bbe983a93c7f1399601c17cf58cba055a9
+                    </div>
+                    <div class="request">
+                        <strong>Request:</strong>
+                        <pre>{
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B-GGUF&quot;,
+  &quot;messages&quot;: [
+    {
+      &quot;role&quot;: &quot;user&quot;,
+      &quot;content&quot;: &quot;What is the slope of the line which is perpendicular to the line with the equation y = 3x + 2?&quot;
+    }
+  ],
+  &quot;temperature&quot;: 0.001,
+  &quot;tools&quot;: [
+    {
+      &quot;type&quot;: &quot;function&quot;,
+      &quot;function&quot;: {
+        &quot;name&quot;: &quot;find_critical_points&quot;,
+        &quot;description&quot;: &quot;Finds the critical points of the function. Note that the provided function is in Python 3 syntax.&quot;,
+        &quot;parameters&quot;: {
+          &quot;type&quot;: &quot;object&quot;,
+          &quot;properties&quot;: {
+            &quot;function&quot;: {
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;description&quot;: &quot;The function to find the critical points for.&quot;
+            },
+            &quot;variable&quot;: {
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;description&quot;: &quot;The variable in the function.&quot;
+            },
+            &quot;range&quot;: {
+              &quot;type&quot;: &quot;array&quot;,
+              &quot;items&quot;: {
+                &quot;type&quot;: &quot;number&quot;
+              },
+              &quot;description&quot;: &quot;The range to consider for finding critical points. Optional. Default is [0.0, 3.4].&quot;
+            }
+          },
+          &quot;required&quot;: [
+            &quot;function&quot;,
+            &quot;variable&quot;
+          ]
+        }
+      }
+    }
+  ]
+}</pre>
+                    </div>
+
+                    <div class="response">
+                        <strong>Response:</strong>
+                        <pre>{
+  &quot;choices&quot;: [
+    {
+      &quot;finish_reason&quot;: &quot;stop&quot;,
+      &quot;index&quot;: 0,
+      &quot;message&quot;: {
+        &quot;role&quot;: &quot;assistant&quot;,
+        &quot;content&quot;: &quot;The given line is \\(y = 3x + 2\\), which has slope \\(m_1 = 3\\). For two lines to be perpendicular, the product of their slopes must equal \\(-1\\):\n\n\\[\nm_1 \\cdot m_2 = -1\n\\]\n\nSolving for \\(m_2\\):\n\n\\[\nm_2 = -\\frac{1}{m_1} = -\\frac{1}{3}\n\\]\n\nTherefore, the slope of the line perpendicular to \\(y = 3x + 2\\) is \\(\\boxed{-\\dfrac{1}{3}}\\).&quot;,
+        &quot;reasoning_content&quot;: &quot;We need to find the slope of a line that is perpendicular to the given line y = 3x + 2. The given line has slope m1 = 3 (from y = mx + b). For two lines to be perpendicular, the product of their slopes should be -1. So if one slope is m1, the other slope m2 satisfies m1 * m2 = -1 =&gt; m2 = -1/m1. Thus m2 = -1/3.\n\nTherefore, the slope of the perpendicular line is -1/3.\n\nThe user asked: \&quot;What is the slope of the line which is perpendicular to the line with the equation y = 3x + 2?\&quot; This is a straightforward algebra question. No need for tools; we can just compute and answer.\n\nThus final answer: -1/3 or approximately -0.333... but exact fraction is fine.\n\nI&#x27;ll provide the answer.&quot;
+      }
+    }
+  ],
+  &quot;created&quot;: 1793602173,
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B-GGUF&quot;,
+  &quot;system_fingerprint&quot;: &quot;b1-8642541&quot;,
+  &quot;object&quot;: &quot;chat.completion&quot;,
+  &quot;usage&quot;: {
+    &quot;completion_tokens&quot;: 309,
+    &quot;prompt_tokens&quot;: 186,
+    &quot;total_tokens&quot;: 495,
+    &quot;prompt_tokens_details&quot;: {
+      &quot;cached_tokens&quot;: 1
+    }
+  },
+  &quot;id&quot;: &quot;chatcmpl-xhunqTqFgGoFrB5Xypfpd2jKZR925N3b&quot;,
+  &quot;timings&quot;: {
+    &quot;cache_n&quot;: 1,
+    &quot;prompt_n&quot;: 185,
+    &quot;prompt_ms&quot;: 434.744,
+    &quot;prompt_per_token_ms&quot;: 2.3499675675675675,
+    &quot;prompt_per_second&quot;: 425.53778775555264,
+    &quot;predicted_n&quot;: 309,
+    &quot;predicted_ms&quot;: 8557.911,
+    &quot;predicted_per_token_ms&quot;: 27.785425324675323,
+    &quot;predicted_per_second&quot;: 35.990091507144676
+  }
+}</pre>
+                    </div>
+
+                    <div class="buttons">
+                        <button class="button" onclick="toggleRaw('curl-eaa4b035f95c81daf087ce4c6ee177bbe983a93c7f1399601c17cf58cba055a9')">Show Curl Command</button>
+                    </div>
+
+                    <div id="curl-eaa4b035f95c81daf087ce4c6ee177bbe983a93c7f1399601c17cf58cba055a9" class="curl-command">
+                        # Save payload to file first:
+                        echo '{"messages": [{"content": "What is the slope of the line which is perpendicular to the line with the equation y = 3x + 2?", "role": "user"}], "model": "LiquidAI/LFM3-1.7B-GGUF", "temperature": 0.001, "tools": [{"function": {"description": "Finds the critical points of the function. Note that the provided function is in Python 3 syntax.", "name": "find_critical_points", "parameters": {"properties": {"function": {"description": "The function to find the critical points for.", "type": "string"}, "range": {"description": "The range to consider for finding critical points. Optional. Default is [0.0, 3.4].", "items": {"type": "number"}, "type": "array"}, "variable": {"description": "The variable in the function.", "type": "string"}}, "required": ["function", "variable"], "type": "object"}}, "type": "function"}]}' > request.json
+
+                        curl "http://127.0.0.1:18003/v1/chat/completions"                         -H "Content-Type: application/json"                         -H "Authorization: Bearer $API_KEY"                         -H "Accept: application/json"                         -d @request.json
+                    </div>
+                </div>
+            
+        
+    </div>
+
+    <script>
+        function toggleRaw(elementId) {
+            const element = document.getElementById(elementId);
+            if (element.style.display === 'none' || element.style.display === '') {
+                element.style.display = 'block';
+            } else {
+                element.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>

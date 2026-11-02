@@ -1,0 +1,217 @@
+{
+  "run_id": "eval-20261102T044432Z-mmlu_pro",
+  "config_hash": "sha256:db41504dfa23ca05d43c68b2db2e5e5133a6da8e1a5ebbb9d77a007877145093",
+  "sdk_version": "0.3.0",
+  "timestamp": "2026-11-02T04:44:32.094893+00:00",
+  "config": {
+    "benchmark": "mmlu_pro",
+    "model": "LiquidAI/LFM3-1.7B-GGUF",
+    "base_url": "http://127.0.0.1:47545",
+    "repeats": 1,
+    "max_problems": 700,
+    "scorers": null,
+    "_sandbox_config": "capture_cmd=None verify_timeout=600.0 stateful=False type='none'",
+    "shuffle_seed": 0,
+    "shuffle": {
+      "seed": 0,
+      "applied": true,
+      "ds_full_size": 12032,
+      "ds_effective_size": 700
+    }
+  },
+  "benchmark": {
+    "name": "mmlu_pro",
+    "samples": 700,
+    "repeats": 1,
+    "scores": {
+      "pass@1": {
+        "value": 0.6571,
+        "bootstrap_ci_lower": 0.6228,
+        "bootstrap_ci_upper": 0.6929
+      },
+      "summary": {
+        "mean": 0.6571428571428571,
+        "std": 0.47500363030656356,
+        "min": 0.0,
+        "max": 1.0,
+        "median": 1.0,
+        "n": 700
+      },
+      "breakdowns": {
+        "correct": [
+          {
+            "group": "False",
+            "n": 240,
+            "mean_reward": 0.0,
+            "ci_lower": 0.0,
+            "ci_upper": 0.0
+          },
+          {
+            "group": "True",
+            "n": 460,
+            "mean_reward": 1.0,
+            "ci_lower": 1.0,
+            "ci_upper": 1.0
+          }
+        ],
+        "extracted": [
+          {
+            "group": "A",
+            "n": 79,
+            "mean_reward": 0.6962,
+            "ci_lower": 0.5949,
+            "ci_upper": 0.7975
+          },
+          {
+            "group": "B",
+            "n": 75,
+            "mean_reward": 0.6267,
+            "ci_lower": 0.52,
+            "ci_upper": 0.7333
+          },
+          {
+            "group": "C",
+            "n": 92,
+            "mean_reward": 0.5761,
+            "ci_lower": 0.4783,
+            "ci_upper": 0.6739
+          },
+          {
+            "group": "D",
+            "n": 83,
+            "mean_reward": 0.6627,
+            "ci_lower": 0.5542,
+            "ci_upper": 0.759
+          },
+          {
+            "group": "E",
+            "n": 57,
+            "mean_reward": 0.6842,
+            "ci_lower": 0.5614,
+            "ci_upper": 0.807
+          },
+          {
+            "group": "F",
+            "n": 70,
+            "mean_reward": 0.7,
+            "ci_lower": 0.5857,
+            "ci_upper": 0.8
+          },
+          {
+            "group": "G",
+            "n": 70,
+            "mean_reward": 0.7,
+            "ci_lower": 0.5857,
+            "ci_upper": 0.8
+          },
+          {
+            "group": "H",
+            "n": 67,
+            "mean_reward": 0.6119,
+            "ci_lower": 0.4925,
+            "ci_upper": 0.7313
+          },
+          {
+            "group": "I",
+            "n": 55,
+            "mean_reward": 0.5455,
+            "ci_lower": 0.4182,
+            "ci_upper": 0.6727
+          },
+          {
+            "group": "J",
+            "n": 52,
+            "mean_reward": 0.8077,
+            "ci_lower": 0.6923,
+            "ci_upper": 0.9038
+          }
+        ]
+      },
+      "runtime": {
+        "total_steps": 700,
+        "total_tokens": 2966437,
+        "total_prompt_tokens": 159705,
+        "total_completion_tokens": 2806732,
+        "total_reasoning_tokens": 0,
+        "elapsed_seconds": 9605.69,
+        "latency_percentiles_ms": {
+          "p50": 62545.34,
+          "p90": 266022.1,
+          "p99": 636871.89
+        },
+        "tokens_per_second": 308.82,
+        "steps_per_second": 0.07,
+        "model_errors": 0,
+        "total_retries": 0,
+        "finish_reason_counts": {
+          "stop": 700
+        }
+      },
+      "failures": {
+        "total_steps": 700,
+        "total_failures": 0,
+        "failure_rate": 0.0,
+        "categories": {}
+      }
+    },
+    "categories": {
+      "biology": {
+        "mean_reward": 0.8108,
+        "n": 37
+      },
+      "business": {
+        "mean_reward": 0.68,
+        "n": 50
+      },
+      "chemistry": {
+        "mean_reward": 0.8,
+        "n": 70
+      },
+      "computer science": {
+        "mean_reward": 0.6,
+        "n": 20
+      },
+      "economics": {
+        "mean_reward": 0.7143,
+        "n": 63
+      },
+      "engineering": {
+        "mean_reward": 0.6667,
+        "n": 48
+      },
+      "health": {
+        "mean_reward": 0.38,
+        "n": 50
+      },
+      "history": {
+        "mean_reward": 0.4545,
+        "n": 22
+      },
+      "law": {
+        "mean_reward": 0.2414,
+        "n": 58
+      },
+      "math": {
+        "mean_reward": 0.8961,
+        "n": 77
+      },
+      "other": {
+        "mean_reward": 0.5306,
+        "n": 49
+      },
+      "philosophy": {
+        "mean_reward": 0.4211,
+        "n": 38
+      },
+      "physics": {
+        "mean_reward": 0.8947,
+        "n": 76
+      },
+      "psychology": {
+        "mean_reward": 0.6905,
+        "n": 42
+      }
+    }
+  },
+  "n_results": 700
+}

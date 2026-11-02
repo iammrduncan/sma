@@ -1,0 +1,8 @@
+{
+  "completed_benchmarks": {
+    "gpqa": {
+      "bundle_path": "attempt-1/gpqa"
+    }
+  },
+  "failed_benchmarks": {}
+}

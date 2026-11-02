@@ -1,0 +1,10 @@
+{
+  "run_id": "20261102_020421_50045156",
+  "executor": "local",
+  "output_dir": "/home/<host>/github/sma/runs/LiquidAI_LFM3-1.7B-GGUF/llamacpp-v100/gguf-QAD-Q4_0-thinking/20261101T235005Z-5bcee869/quality/mmlu_pro/attempt-1",
+  "started_at": "2026-11-02T02:04:21.389632+00:00",
+  "config_summary": "mmlu_pro",
+  "details": {
+    "pid": 4099662
+  }
+}
