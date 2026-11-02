@@ -1,0 +1,28 @@
+#!/bin/sh
+# Refuse a push whose new files would publish a hostname, a lab name, a key, or a name from SMA_PUBLISH_DENY.
+# Turn it on once per clone: git config core.hooksPath .githooks
+set -eu
+zero=0000000000000000000000000000000000000000
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp" "$tmp.out"' EXIT
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue  # deleting a branch publishes nothing
+  if [ "$remote_sha" = "$zero" ] || ! git cat-file -e "$remote_sha" 2>/dev/null; then
+    not="--remotes"
+  else
+    not="$remote_sha"
+  fi
+  # Every blob the remote does not have yet, at the path it first appears under.
+  git rev-list --objects "$local_sha" --not $not | while read -r sha path; do
+    [ -n "$path" ] && [ "$(git cat-file -t "$sha")" = blob ] || continue
+    mkdir -p "$tmp/$(dirname "$path")"
+    git cat-file blob "$sha" > "$tmp/$path"
+  done
+done
+[ -n "$(ls -A "$tmp")" ] || exit 0
+if [ -x .venv/bin/sma ]; then set -- .venv/bin/sma; else set -- uv run --offline sma; fi
+# From the repository root, where sma reads .env; paths print as the push would publish them.
+status=0
+"$@" publish-check "$tmp" > "$tmp.out" 2>&1 || status=$?
+sed "s|$tmp/||" "$tmp.out"
+exit "$status"

@@ -37,6 +37,9 @@ These are owner decisions. Do not change them without an explicit owner decision
 - No hostname and no Hugging Face token in a run record, log, or stored error. The token comes from
   the environment or the git-ignored root `.env`, never `sma.yaml`. Lab machines' names from `.env`
   appear in records only as `${NAME}` (`scrub.LAB_ENV`).
+- Public files never describe the lab: no private repo or project names, no hypervisor, cluster, proxy,
+  storage, or network design, no server models (audit of 2026-11-02). Benchmark conditions stay. Private
+  names go in `SMA_PUBLISH_DENY` in `.env`, never in a tracked file.
 - Do not claim hardware results. The test environment has no GPU. See the README section "What this
   environment did not verify".
 
@@ -79,7 +82,7 @@ uv run sma run Qwen/Qwen3-8B --bf16 --dry-run         # prints the plan; no GPU,
   quality suite): GSM8K's grader and MuSiQue. They import `nemo_evaluator`, so SMA's own code never imports them.
 - `services/` holds what runs on other machines: the KernelBench evaluation service, the SWE-bench
   runner's setup, and BrowseComp-Plus's search server and its setup (services/README.md). The judge is
-  described in `judge-info.md`. They are not part of the `sma` package.
+  described in `docs/judge.md`. They are not part of the `sma` package.
   `tests/test_services.py` tests them offline.
 - `tests/` uses in-process fakes: `fakes.py` (Docker, Hugging Face, NeMo Evaluator, llama-perplexity,
   bench, a GGUF repo), `fake_vllm.py` (an HTTP server), `gguf_writer.py` (small GGUF files), and
@@ -88,7 +91,8 @@ uv run sma run Qwen/Qwen3-8B --bf16 --dry-run         # prints the plan; no GPU,
 - `runs/` holds the run records, and they are committed: they are the data SMA submits (owner
   decision 2026-10-27). Git ignores the catalog SMA rebuilds and the
   files too big for git (`records.LARGE_FILES`; the manifest keeps their sha256 and size). Before a
-  run folder is committed, check it for hostnames, lab names, and keys.
+  run folder is committed, run `sma publish-check --fix <run folders>` (hostnames, lab names, keys,
+  private names); `.githooks/pre-push` runs the same check on every push.
 - `runs/gb10/baseline/kernelbench/` and `runs/cpu/baseline/sweverified/` hold the KernelBench and
   SWE-bench Verified-mini baselines and how to call each service. Machine names there are `${NAME}`
   placeholders whose values are in the root `.env`.

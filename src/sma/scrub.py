@@ -50,21 +50,33 @@ def host_names() -> list[str]:
     return sorted(set(found), key=len, reverse=True)
 
 
+_TOKEN_ENV = ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN", "HUGGINGFACE_TOKEN", "SMA_JUDGE_API_KEY")
+
+# Keys by their shape, wherever they came from. sma publish-check refuses them; scrub_text cannot know them.
+_KEY_SHAPES = (
+    ("a Hugging Face token", re.compile(r"hf_[A-Za-z0-9]{30,}")),
+    ("a GitHub token", re.compile(r"gh[pousr]_[A-Za-z0-9]{30,}")),
+    ("a private key", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY")),
+)
+
+
+def _host_patterns() -> list[re.Pattern[str]]:
+    # A period after the name ends a sentence ("/home/name."). Only a period followed by a
+    # letter or digit continues a longer domain name, which belongs to another machine.
+    return [
+        re.compile(rf"(?<![A-Za-z0-9._-]){re.escape(name)}(?![A-Za-z0-9_-])(?!\.[A-Za-z0-9])", re.IGNORECASE)
+        for name in host_names()
+        if len(name) >= 3
+    ]
+
+
 def scrub_text(text: str) -> str:
     if not text:
         return text
     redacted = text
-    for name in host_names():
-        if len(name) < 3:
-            continue
-        # A period after the name ends a sentence ("/home/name."). Only a period followed by a
-        # letter or digit continues a longer domain name, which belongs to another machine.
-        pattern = re.compile(
-            rf"(?<![A-Za-z0-9._-]){re.escape(name)}(?![A-Za-z0-9_-])(?!\.[A-Za-z0-9])",
-            re.IGNORECASE,
-        )
+    for pattern in _host_patterns():
         redacted = pattern.sub("<host>", redacted)
-    for key in ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN", "HUGGINGFACE_TOKEN", "SMA_JUDGE_API_KEY"):
+    for key in _TOKEN_ENV:
         value = os.environ.get(key)
         if value and len(value) >= 4:
             redacted = redacted.replace(value, "<redacted>")
@@ -75,6 +87,29 @@ def scrub_text(text: str) -> str:
         if len(value) >= 4:
             redacted = redacted.replace(value.rstrip("/"), "${" + key + "}")
     return redacted
+
+
+def publish_deny() -> list[str]:
+    """Private names (repos, machines, projects) that are never published: SMA_PUBLISH_DENY in the root .env,
+    comma-separated. The list stays in .env, so publishing it cannot leak it."""
+    return [term.strip() for term in (os.environ.get("SMA_PUBLISH_DENY") or "").split(",") if len(term.strip()) >= 3]
+
+
+def find_leaks(text: str) -> list[str]:
+    """What text would publish, named and never quoted: this machine's hostname, a token, a lab name from .env,
+    a name from SMA_PUBLISH_DENY, or something shaped like a key."""
+    found = []
+    if any(pattern.search(text) for pattern in _host_patterns()):
+        found.append("this machine's hostname")
+    for key in _TOKEN_ENV + LAB_ENV:
+        value = (os.environ.get(key) or "").rstrip("/")
+        if len(value) >= 4 and value in text:
+            found.append(key)
+    lowered = text.lower()
+    if any(term.lower() in lowered for term in publish_deny()):
+        found.append("a name in SMA_PUBLISH_DENY")
+    found += [label for label, shape in _KEY_SHAPES if shape.search(text)]
+    return found
 
 
 def assert_text_clean(text: str, what: str) -> str:

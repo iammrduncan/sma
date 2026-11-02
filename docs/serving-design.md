@@ -229,7 +229,7 @@ The SWE-bench notes below describe it when `swebench.enabled` is turned back on.
   step that fits 4 of them.
 - The judge is Qwen 3.8 Flash (FP4) behind an OpenAI-compatible endpoint since 2026-11-01 (Ornith 1.5 122B
   before), with thinking off at temperature 0, one request at a time
-  ([judge-info.md](../judge-info.md)).
+  ([judge.md](judge.md)).
 - MuSiQue-Ans is a quality suite (100 seeded questions, graded by rule), in the run's thinking mode.
 
 ## Thinking mode and answer length (decided 2026-10-29)

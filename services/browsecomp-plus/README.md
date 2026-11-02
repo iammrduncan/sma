@@ -60,5 +60,5 @@ The server listens on 127.0.0.1 only and handles one request at a time. It logs 
 See the README's run steps and `sma run <model> --dry-run`. In short:
 
 1. On the quality server, SMA asks 100 of the 830 questions, the same seeded 100 for every model, 4 at a time, as BrowseComp-Plus's chat client does.
-2. After the speed benchmark, the judge grades each final answer with BrowseComp-Plus's grader prompt. The judge is [`judge-info.md`](../../judge-info.md).
+2. After the speed benchmark, the judge grades each final answer with BrowseComp-Plus's grader prompt. The judge is described in [`docs/judge.md`](../../docs/judge.md).
 3. The headline is accuracy over the 100. Evidence recall and search calls need no judge.

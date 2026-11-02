@@ -319,14 +319,14 @@ class BrowseCompConfig:
     # Starting the search server loads its 2.2 GB index.
     search_start_s: float = 600.0
     # The judge model's name on SMA_JUDGE_URL. Scores are compared only within one judge. Owner decision
-    # 2026-11-01: Qwen 3.8 Flash (FP4) on an OpenAI-compatible endpoint, which takes SMA's thinking-off and
-    # no-prompt-cache settings. Before (2026-10-28): Ornith 1.5 122B, which read 98 of 99 published
-    # BrowseComp-Plus answers correctly with thinking off (judge-info.md). BrowseComp-Plus's own judge also
+    # 2026-11-01: Qwen 3.8 Flash (FP4) behind an OpenAI-compatible endpoint, which takes SMA's thinking-off
+    # setting. Before (2026-10-28): Ornith 1.5 122B, which read 98 of 99 published
+    # BrowseComp-Plus answers correctly with thinking off (docs/judge.md). BrowseComp-Plus's own judge also
     # runs with thinking off. The grader's token limit is the repo's (4096).
     judge_model: str = "qwen3.8-flash-fp4"
     judge_max_tokens: int = 4096
     judge_temperature: float | None = 0.0
-    # Merged into every judge request. llama.cpp is not batch-invariant, so judge-info.md asks for no prompt
+    # Merged into every judge request. llama.cpp is not batch-invariant, so docs/judge.md asks for no prompt
     # cache and one request at a time; on 2026-10-28 three identical requests then gave identical replies.
     judge_extra_body: dict[str, Any] = field(
         default_factory=lambda: {"chat_template_kwargs": {"enable_thinking": False}, "cache_prompt": False}

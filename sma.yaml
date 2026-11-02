@@ -300,9 +300,9 @@ browsecomp:
   local_port: 8790
   search_start_s: 600
   # Qwen 3.8 Flash (FP4) behind an OpenAI-compatible endpoint (owner decision 2026-11-01; Ornith 1.5 122B
-  # before, judge-info.md), with thinking off at temperature 0, as BrowseComp-Plus runs its own judge. Scores
+  # before, docs/judge.md), with thinking off at temperature 0, as BrowseComp-Plus runs its own judge. Scores
   # are compared only within one judge: runs judged by Ornith are not compared with runs judged by this one.
-  # One request at a time and no prompt cache, as for Ornith (judge-info.md section 6).
+  # One request at a time and no prompt cache, as for Ornith (docs/judge.md).
   judge_model: qwen3.8-flash-fp4
   judge_max_tokens: 4096
   judge_temperature: 0.0

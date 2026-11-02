@@ -139,6 +139,18 @@ def _parser() -> argparse.ArgumentParser:
     _add_common(cleanup)
     cleanup.set_defaults(func=_cmd_cleanup)
 
+    publish = sub.add_parser(
+        "publish-check",
+        help="Refuse files that would publish a hostname, a lab name, a key, or a name from SMA_PUBLISH_DENY",
+    )
+    publish.add_argument("paths", nargs="*", type=Path, help="Files or folders. Default: what git tracks or would add")
+    publish.add_argument(
+        "--fix",
+        action="store_true",
+        help="First scrub the run files again, as SMA scrubs what it writes (hostnames, tokens, lab names)",
+    )
+    publish.set_defaults(func=_cmd_publish_check)
+
     queue = sub.add_parser("queue", help="Queue whole jobs for Spark workers")
     qsub = queue.add_subparsers(dest="qcmd", required=True)
     qadd = qsub.add_parser("add", help="Queue one checkpoint")
@@ -710,6 +722,40 @@ def _cmd_cleanup(args: argparse.Namespace) -> int:
         for name in names:
             runtime.stop(name)
             print(f"removed {name}")
+    return 0
+
+
+def _cmd_publish_check(args: argparse.Namespace) -> int:
+    from sma.atomic import atomic_write_text
+    from sma.proc import require_ok, run_command
+    from sma.scrub import find_leaks, scrub_text
+
+    if args.paths:
+        files = [f for path in args.paths for f in ([path] if path.is_file() else sorted(path.rglob("*"))) if f.is_file()]
+    else:
+        argv = ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"]
+        listed = require_ok(run_command(argv, timeout_s=120, what="list the files git publishes"), what="git ls-files")
+        files = [Path(name) for name in listed.stdout.split("\0") if name and Path(name).is_file()]
+    leaking = 0
+    for path in files:
+        data = path.read_bytes()
+        text = data.decode("utf-8", errors="replace")
+        # Only run files are scrubbed in place, and only text: a document that names the lab needs rewording,
+        # not a placeholder, and a binary file would be broken by a rewrite.
+        if args.fix and "runs" in path.parts and text.encode("utf-8") == data:
+            clean = scrub_text(text)
+            if clean != text:
+                atomic_write_text(path, clean)
+                print(f"scrubbed {path}")
+                text = clean
+        found = find_leaks(text)
+        if found:
+            leaking += 1
+            print(f"{path}: {', '.join(found)}")
+    if leaking:
+        print(f"{leaking} of {len(files)} files would publish what is named above. Fix them before you push.")
+        return 1
+    print(f"Nothing to hide in {len(files)} files.")
     return 0
 
 

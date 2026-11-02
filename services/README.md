@@ -13,4 +13,4 @@ The baselines measured on the lab's copies are in [`runs/gb10/baseline/kernelben
 
 `tests/test_services.py` checks the KernelBench server's request handling and results, and both services' pins, without a GPU or Docker. `tests/test_browsecomp.py` runs a whole BrowseComp-Plus run against a stand-in search server.
 
-The judge that grades BrowseComp-Plus is not in this folder: since 2026-11-01 it is Qwen 3.8 Flash (FP4) behind an OpenAI-compatible endpoint (`browsecomp.judge_model`); before, Ornith 1.5 122B, described in [`judge-info.md`](../judge-info.md).
+The judge that grades BrowseComp-Plus is not in this folder: since 2026-11-01 it is Qwen 3.8 Flash (FP4) behind an OpenAI-compatible endpoint (`browsecomp.judge_model`); before, Ornith 1.5 122B. [`docs/judge.md`](../docs/judge.md) describes both.

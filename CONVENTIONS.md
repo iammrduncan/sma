@@ -91,6 +91,11 @@ These make an SMA number trustworthy. Breaking one silently is worse than a cras
 - **SEC-6. A new runtime dependency is an owner decision.** There are five. Each is code SMA did not
   write, running in the process that holds the token. Try the standard library first: the package
   already uses `argparse` and `sqlite3`, and the test fakes use `http.server`.
+- **SEC-7. Nothing private is published.** The repository is public. `sma publish-check` refuses a
+  hostname, a token or key, a lab name from `.env`, or a name from `SMA_PUBLISH_DENY`, and
+  `.githooks/pre-push` runs it on every push. A new lab setting that names a machine joins
+  `scrub.LAB_ENV` in the same change (`V100_HOST` did not, and the V100 runs named the pod). Documents
+  describe benchmark conditions, never the lab's infrastructure.
 
 ## External calls and limits
 
