@@ -429,6 +429,7 @@ small suite limits (5 questions per nel suite, 34 BFCL, 2 BrowseComp-Plus, no Ke
 | LFM3-VL-2B on llama.cpp | Perplexity 136.1 (F16), 138.4 (QAD-Q4_0), KL 0.138. High on plain text, like its SGLang BF16 run (173.9) |
 | Judge qwen3.8-flash-fp4 | 94 of 95 verdicts right on BrowseComp-Plus's published answers; 1 too strict ([`docs/judge.md`](docs/judge.md)) |
 | LiveCodeBench grading by core type (LFM3-1.7B BF16's 105 answers, 6 s per test, twice each) | Cortex-X925 (CPUs 5-9): 29.8 s, 56 pass. Cortex-A725 (0-4): 41.9 s, 54 pass; the same 2 problems fail there each time. So grading runs on the timed CPUs under its lock, and the speed steps hold that lock too |
+| KernelBench on the harness GB10, isolated (`host-setup.sh`), with four slots in their quality suites | KernelBench's 100 Level 1 reference modules timed as one job on the idle machine and again with the four slots busy: the same 36 problems timed idle came out 1.0009 busy/idle (geometric mean), every one within 1%, the spread of one module timed twice back to back in one process (0.8%). Every busy time within 2.5% of the stored baseline. The harness slice peaked at 12.8 GiB of its 32 GiB meanwhile |
 
 Found and fixed on the pod: four runs on one SSH connection would pass sshd's 10 sessions, so each slot has its
 own; the memory guard in each run would have stopped every run at once on one shortage, so the dispatcher guards
