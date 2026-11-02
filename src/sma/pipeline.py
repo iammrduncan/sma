@@ -1418,6 +1418,8 @@ def rescore(cfg: Config, run_id: str, *, run_regrade: Callable[[list[str]], None
         redone.append(str(suite["name"]))
     if _null_browsecomp_server_failures(found):
         redone.append("browsecomp_plus")
+    if _redo_concurrent_load(cfg, found, manifest):
+        redone.append("concurrent_load")
     commit, dirty = git_identity()
     manifest.setdefault("rescored", []).append(
         {"at": utc_now(), "sma_commit": commit, "sma_dirty": dirty, "suites": redone}
@@ -1425,6 +1427,25 @@ def rescore(cfg: Config, run_id: str, *, run_regrade: Callable[[list[str]], None
     publish(cfg, found, manifest)
     log_event("rescored", run_id=run_id, suites=redone)
     return redone
+
+
+def _redo_concurrent_load(cfg: Config, run_dir: Path, manifest: dict[str, Any]) -> bool:
+    """A slot's speed summary names the other runs on the serving machine during the speed step. Before
+    2026-11-02 it missed any run whose manifest was not written during the step: list them again from the
+    records they saved. True when the list changed."""
+    path = run_dir / "speed" / "summary.json"
+    summary = _optional(path)
+    step = (manifest.get("steps") or {}).get("speed") or {}
+    start, end = _parse_utc(step.get("started")), _parse_utc(step.get("finished"))
+    if not isinstance(summary, dict) or "concurrent_load" not in summary or start is None or end is None:
+        return False
+    hardware = (manifest.get("serving") or {}).get("hardware")
+    load = _concurrent_load(cfg, str(manifest.get("run_id") or run_dir.name), hardware, start, end)
+    if load == summary["concurrent_load"]:
+        return False
+    summary["concurrent_load"] = load
+    atomic_write_json(path, summary)
+    return True
 
 
 def _null_browsecomp_server_failures(run_dir: Path) -> bool:
@@ -1647,7 +1668,7 @@ def _step_speed(ctx: Ctx) -> None:
         # The other slots keep running while this one measures speed (owner decision 2026-11-01): what they did.
         window_start = _parse_utc(ctx.manifest["steps"]["speed"].get("started")) or time.time()
         summary["speed_turn"] = ctx.speed_turn
-        summary["concurrent_load"] = _concurrent_load(ctx, window_start, time.time())
+        summary["concurrent_load"] = _concurrent_load(ctx.cfg, ctx.run_id, ctx.cfg.remote.hardware, window_start, time.time())
     atomic_write_json(ctx.run_dir / "speed" / "summary.json", summary)
     atomic_write_json(ctx.run_dir / "speed" / "windows.json", {"windows": windows})
     cells = summary.get("cells") or []
@@ -1721,27 +1742,31 @@ def _parse_utc(value: Any) -> float | None:
         return None
 
 
-def _concurrent_load(ctx: Ctx, start: float, end: float) -> list[dict[str, Any]]:
+def _concurrent_load(cfg: Config, run_id: str, hardware: str | None, start: float, end: float) -> list[dict[str, Any]]:
     """The other runs on this serving machine during [start, end]: each one's slot, the steps it ran, its GPU's
-    mean power (its telemetry), and its tokens generated per second (its engine counters)."""
+    mean power (its telemetry), and its tokens generated per second (its engine counters).
+
+    A run's manifest is written only when a step starts or ends, so a run hours into one step is found by its
+    start and finish times, never by when its manifest was written. It counts only with telemetry or engine
+    samples in the window: a run a crash left unfinished, or one stopped and resumed later, did not run in it."""
     from sma.serving import Series, _read_samples, combined_rates, window
     from sma.telemetry import read_samples
 
     rows: list[dict[str, Any]] = []
-    for path in sorted(ctx.cfg.runs_path().glob("*/*/*/*/manifest.json")):
+    for path in sorted(cfg.runs_path().glob("*/*/*/*/manifest.json")):
         run_dir = path.parent
+        if run_dir.name == run_id:
+            continue
         try:
-            if run_dir.name == ctx.run_id or path.stat().st_mtime < start:
-                continue
             manifest = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
         serving = manifest.get("serving") or {}
-        if serving.get("hardware") != ctx.cfg.remote.hardware:
+        if serving.get("hardware") != hardware:
             continue
         stamps = manifest.get("timestamps") or {}
-        began, ended = _parse_utc(stamps.get("started")), _parse_utc(stamps.get("finished")) or end
-        if began is None or began > end or ended < start:
+        began, finished = _parse_utc(stamps.get("started")), _parse_utc(stamps.get("finished"))
+        if began is None or began > end or (finished or end) < start:
             continue
         steps = []
         for name, step in (manifest.get("steps") or {}).items():
@@ -1753,7 +1778,10 @@ def _concurrent_load(ctx: Ctx, start: float, end: float) -> list[dict[str, Any]]
         power = [sample.power_w for sample in read_samples(run_dir / "telemetry.csv") if start <= sample.ts_unix <= end and sample.power_w is not None]
         engine = (manifest.get("engine") or {}).get("name") or ""
         samples = _read_samples(run_dir / "engine_metrics.jsonl") if (run_dir / "engine_metrics.jsonl").is_file() else []
-        windows = window([Series(engine, samples, run_dir.name)], start=start, max_gap_s=3 * ctx.cfg.telemetry.engine_metrics_interval_s)
+        samples = [sample for sample in samples if sample[0] <= end]  # A rescore reads records that went on after the window.
+        windows = window([Series(engine, samples, run_dir.name)], start=start, max_gap_s=3 * cfg.telemetry.engine_metrics_interval_s)
+        if not power and not windows:
+            continue
         rates = combined_rates(windows) if windows else {}
         rows.append({
             "run_id": run_dir.name, "slot": serving.get("slot"), "gpus": serving.get("gpus"), "steps": steps,

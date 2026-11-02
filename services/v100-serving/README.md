@@ -87,7 +87,8 @@ soon as one ends, the next unit starts on that slot.
 - **Shared work, one at a time.** The speed steps (`serve_speed` and `speed`) of the pod's slots take turns in
   arrival order (`<lock_dir>/speed-v100.lock`); the other slots keep running their own steps, and the speed
   summary records it: `speed_turn` (how long the run waited) and `concurrent_load` (each other run's slot, the
-  steps it ran in the speed window, its GPU's mean power, and its tokens per second). LiveCodeBench's grading
+  steps it ran in the speed window, its GPU's mean power, and its tokens per second; a run counts when its telemetry
+  or engine counters have samples in the window). LiveCodeBench's grading
   takes a machine-wide lock inside its container, so one container grades at a time, and the speed steps hold
   that lock too while they measure: both are timed on the same CPUs, and on the GB10's slower cores 2 of 105
   problems failed the 6 s limit that pass on its faster ones. KernelBench's service already times one job at a

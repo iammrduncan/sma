@@ -689,6 +689,65 @@ def test_two_runs_reaching_speed_together_take_turns(tmp_path: Path) -> None:
     assert [row[0] for row in spans] == ["a", "b"] and spans[0][2] <= spans[1][1]
 
 
+def test_the_speed_summary_names_every_run_on_the_serving_machine_during_its_window(tmp_path: Path) -> None:
+    # A run hours into one step writes its manifest only when the step ends: the batch's first speed records
+    # named no other run although all four slots were busy. A rescore lists them again from their records.
+    from sma.pipeline import _concurrent_load, _redo_concurrent_load
+
+    cfg = slot_config(_cfg(tmp_path), "v100-0")
+    start = float(int(time.time()) - 3600)
+    end = start + 600
+
+    def stamp(t: float | None) -> str | None:
+        return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(t)) if t is not None else None
+
+    def run(name: str, began: float, finished: float | None = None, *, slot: str = "v100-1", hardware: str | None = None,
+            power_at: tuple[float, ...] = (), tokens: bool = False, speed: bool = False) -> Path:  # fmt: skip
+        run_dir = cfg.runs_path() / "Org_M" / "llamacpp-v100" / name / f"run-{name}"
+        (run_dir / "speed").mkdir(parents=True)
+        steps = {"quality": {"started": stamp(began), "finished": stamp(finished)}}
+        if speed:
+            steps["speed"] = {"started": stamp(start), "finished": stamp(end)}
+            (run_dir / "speed" / "summary.json").write_text(json.dumps({"concurrent_load": []}))
+        manifest = {
+            "run_id": run_dir.name, "engine": {"name": "llamacpp"}, "steps": steps,
+            "serving": {"hardware": hardware or cfg.remote.hardware, "slot": slot, "gpus": slot[-1]},
+            "timestamps": {"started": stamp(began), "finished": stamp(finished)},
+        }  # fmt: skip
+        (run_dir / "manifest.json").write_text(json.dumps(manifest))
+        os.utime(run_dir / "manifest.json", (began, began))  # Last written when its step started.
+        if power_at:
+            (run_dir / "telemetry.csv").write_text("ts_unix,power_w\n" + "".join(f"{t},{w}\n" for t, w in power_at))
+        if tokens:  # 30 tokens a second in the window, 300 after it.
+            rows = [(start + 10 * i, 300.0 * i) for i in range(61)] + [(end + 10 * i, 18000.0 + 3000 * i) for i in range(1, 30)]
+            (run_dir / "engine_metrics.jsonl").write_text("".join(
+                json.dumps({"ts": t, "values": {"llamacpp:tokens_predicted_total": n, "llamacpp:tokens_predicted_seconds_total": n / 40}}) + "\n"
+                for t, n in rows
+            ))  # fmt: skip
+        return run_dir
+
+    own = run("own", start - 7200, end + 60, slot="v100-0", speed=True)
+    run("busy", start - 5400, power_at=((start - 30, 50.0), (start + 100, 200.0), (start + 400, 220.0), (end + 100, 50.0)))
+    run("busy-tokens", start - 3600, slot="v100-2", tokens=True)
+    run("ended-in-window", start - 9000, start + 200, slot="v100-3", power_at=((start + 100, 120.0),))
+    run("resumed-after", start - 9000, end + 3600, power_at=((start - 60, 90.0), (end + 3000, 90.0)))  # Stopped meanwhile.
+    run("crashed", start - 90000, power_at=((start - 80000, 90.0),))  # Left "running" by a crash long ago.
+    run("done-before", start - 9000, start - 60)
+    run("other-machine", start - 3600, hardware="gb10", power_at=((start + 100, 90.0),))
+
+    rows = {row["run_id"]: row for row in _concurrent_load(cfg, "run-own", cfg.remote.hardware, start, end)}
+    assert sorted(rows) == ["run-busy", "run-busy-tokens", "run-ended-in-window"]
+    assert rows["run-busy"]["gpu_power_w_mean"] == 210.0 and rows["run-busy"]["steps"] == ["quality"]
+    assert rows["run-busy-tokens"]["generated_tok_s"] == pytest.approx(30.0) and rows["run-busy-tokens"]["slot"] == "v100-2"
+    assert rows["run-ended-in-window"]["gpu_power_w_mean"] == 120.0
+
+    manifest = json.loads((own / "manifest.json").read_text())
+    assert _redo_concurrent_load(cfg, own, manifest)
+    redone = json.loads((own / "speed" / "summary.json").read_text())["concurrent_load"]
+    assert [row["run_id"] for row in redone] == sorted(rows)
+    assert not _redo_concurrent_load(cfg, own, manifest)  # Nothing new: the record is left as it is.
+
+
 def test_a_run_on_a_slot_refuses_a_server_another_run_left_on_its_gpu(tmp_path: Path) -> None:
     from sma.pipeline import Ctx, _guard_containers
 
