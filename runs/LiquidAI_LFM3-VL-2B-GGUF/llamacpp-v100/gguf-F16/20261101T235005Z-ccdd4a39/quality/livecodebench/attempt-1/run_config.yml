@@ -1,0 +1,86 @@
+command: "{% if target.api_endpoint.api_key_name is not none %}\n  export API_KEY=${{target.api_endpoint.api_key_name}}\
+  \ && \n{% endif %} livecodebench --model {{target.api_endpoint.model_id}} \\\n \
+  \           --scenario {{config.params.task}} \\\n            --release_version\
+  \ {{config.params.extra.release_version}} \\\n            --url {{target.api_endpoint.url}}\
+  \ \\\n            --temperature {{config.params.temperature}} \\\n            --top_p\
+  \ {{config.params.top_p}} \\\n            --evaluate \\\n            --codegen_n\
+  \ {{config.params.extra.n_samples}} \\\n            --use_cache \\\n           \
+  \ --cache_batch_size {{config.params.extra.cache_batch_size}} \\\n            --num_process_evaluate\
+  \ {{config.params.extra.num_process_evaluate}} \\\n            --n {{config.params.extra.n_samples}}\
+  \ \\\n            --max_tokens {{config.params.max_new_tokens}} \\\n           \
+  \ --out_dir {{config.output_dir}} \\\n            --multiprocess {{config.params.parallelism}}\
+  \ \\\n            --max_retries {{config.params.max_retries}} \\\n            --timeout\
+  \ {{config.params.request_timeout}}{% if config.params.extra.start_date is not none\
+  \ %} --start_date {{config.params.extra.start_date}} {% endif %} {% if config.params.extra.end_date\
+  \ is not none %} --end_date {{config.params.extra.end_date}} {% endif %} {% if config.params.extra.support_system_role\
+  \ %} --support_system_role {% endif %} {% if config.params.limit_samples is not\
+  \ none %} --first_n {{config.params.limit_samples}}{% endif %}{% if config.params.extra.cot_code_execution\
+  \ == true %} --cot_code_execution {% endif %}{% if config.params.extra.args is defined\
+  \ %} {{ config.params.extra.args }} {% endif %}\n"
+config:
+  output_dir: /results
+  params:
+    extra:
+      cache_batch_size: 105
+      cot_code_execution: false
+      end_date: '2025-05-01'
+      n_samples: 1
+      num_process_evaluate: 5
+      release_version: release_v6
+      start_date: '2025-02-15'
+      support_system_role: false
+    limit_samples: null
+    max_new_tokens: 61440
+    max_retries: 5
+    parallelism: 8
+    request_timeout: 14400
+    task: codegeneration
+    temperature: 0.0
+    top_p: 1.0
+  required_capabilities: null
+  supported_endpoint_types:
+  - chat
+  type: codegeneration_release_v6
+framework_name: livecodebench
+pkg_name: livecodebench
+target:
+  api_endpoint:
+    adapter_config:
+      discovery:
+        dirs: []
+        modules: []
+      endpoint_type: chat
+      interceptors:
+      - config:
+          cache_dir: /results/cache
+          max_saved_requests: 5
+          max_saved_responses: 5
+          reuse_cached_responses: true
+          save_requests: true
+          save_responses: true
+        enabled: true
+        name: caching
+      - config: {}
+        enabled: true
+        name: endpoint
+      - config:
+          cache_dir: /results/response_stats_cache
+          logging_aggregated_stats_interval: 100
+        enabled: true
+        name: response_stats
+      log_failed_requests: false
+      mode: server
+      post_eval_hooks:
+      - config:
+          html_report_size: 5
+          report_types:
+          - html
+          - json
+        enabled: true
+        name: post_eval_report
+    api_key: null
+    api_key_name: null
+    model_id: LiquidAI/LFM3-VL-2B-GGUF
+    stream: null
+    type: chat
+    url: http://127.0.0.1:18004/v1/chat/completions

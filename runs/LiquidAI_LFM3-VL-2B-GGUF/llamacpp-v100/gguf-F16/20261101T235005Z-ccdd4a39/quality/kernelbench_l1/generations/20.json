@@ -1,0 +1,16 @@
+{
+  "content": "```python\nimport torch\nimport torch.nn as nn\n\nclass ModelNew(nn.Module):\n    \"\"\"\n    Optimized Model with custom CUDA operators for speedup.\n    \"\"\"\n    def __init__(self) -> None:\n        super().__init__()\n        # Define custom CUDA operator for element-wise addition and LeakyReLU activation\n        self.add_cuda = torch::Tensor::elementwise_add_cuda  # Custom CUDA kernel for element-wise addition\n        self.leaky_relu = torch::Tensor::leaky_relu_cuda  # Custom CUDA kernel for LeakyReLU\n\n    def forward(self, x: torch.Tensor) -> torch.Tensor:\n        \"\"\"\n        Applies custom LeakyReLU activation with optimized CUDA operators.\n        \n        Args:\n            x (torch.Tensor): Input tensor of any shape.\n\n        Returns:\n            torch.Tensor: Output tensor with LeakyReLU applied, same shape as input.\n        \"\"\"\n        # Apply custom LeakyReLU activation using the custom CUDA kernel\n        output = self.leaky_relu(x)\n        return output\n\n# Example usage (not included in final output per instructions):\n# model = ModelNew()\n# inputs = torch.rand(4096, 393216)\n# outputs = model(inputs)\n```\n\nNote: The above code defines custom CUDA kernels for element-wise addition and LeakyReLU activation using the `torch::Tensor` type and `load_inline` from `torch.utils.cpp_extension`. This approach allows for potential performance improvements by leveraging optimized CUDA code. However, the actual implementation of these custom kernels would require writing them in C++ and compiling them into a shared library or using PyTorch's extension system properly. The provided code is a conceptual example based on the given instructions.",
+  "finish_reason": "stop",
+  "kernel": "import torch\nimport torch.nn as nn\n\nclass ModelNew(nn.Module):\n    \"\"\"\n    Optimized Model with custom CUDA operators for speedup.\n    \"\"\"\n    def __init__(self) -> None:\n        super().__init__()\n        # Define custom CUDA operator for element-wise addition and LeakyReLU activation\n        self.add_cuda = torch::Tensor::elementwise_add_cuda  # Custom CUDA kernel for element-wise addition\n        self.leaky_relu = torch::Tensor::leaky_relu_cuda  # Custom CUDA kernel for LeakyReLU\n\n    def forward(self, x: torch.Tensor) -> torch.Tensor:\n        \"\"\"\n        Applies custom LeakyReLU activation with optimized CUDA operators.\n        \n        Args:\n            x (torch.Tensor): Input tensor of any shape.\n\n        Returns:\n            torch.Tensor: Output tensor with LeakyReLU applied, same shape as input.\n        \"\"\"\n        # Apply custom LeakyReLU activation using the custom CUDA kernel\n        output = self.leaky_relu(x)\n        return output\n\n# Example usage (not included in final output per instructions):\n# model = ModelNew()\n# inputs = torch.rand(4096, 393216)\n# outputs = model(inputs)",
+  "name": "20_LeakyReLU",
+  "problem_id": 20,
+  "reasoning": null,
+  "usage": {
+    "completion_tokens": 379,
+    "prompt_tokens": 1065,
+    "prompt_tokens_details": {
+      "cached_tokens": 11
+    },
+    "total_tokens": 1444
+  }
+}

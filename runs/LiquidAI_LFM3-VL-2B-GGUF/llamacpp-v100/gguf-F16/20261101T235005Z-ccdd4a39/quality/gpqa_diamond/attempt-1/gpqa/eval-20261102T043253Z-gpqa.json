@@ -1,0 +1,124 @@
+{
+  "run_id": "eval-20261102T043253Z-gpqa",
+  "config_hash": "sha256:953cf8230460f20b787c053a6a60ac90dec49388f0a4bdf9ccc31a87043dc1f2",
+  "sdk_version": "0.3.0",
+  "timestamp": "2026-11-02T04:32:53.638232+00:00",
+  "config": {
+    "benchmark": "gpqa",
+    "model": "LiquidAI/LFM3-VL-2B-GGUF",
+    "base_url": "http://127.0.0.1:40531",
+    "repeats": 1,
+    "max_problems": null,
+    "scorers": null,
+    "_sandbox_config": "capture_cmd=None verify_timeout=600.0 stateful=False type='none'",
+    "shuffle_seed": 0,
+    "shuffle": {
+      "seed": 0,
+      "applied": true,
+      "ds_full_size": 198,
+      "ds_effective_size": 198
+    }
+  },
+  "benchmark": {
+    "name": "gpqa",
+    "samples": 198,
+    "repeats": 1,
+    "scores": {
+      "pass@1": {
+        "value": 0.298,
+        "bootstrap_ci_lower": 0.2374,
+        "bootstrap_ci_upper": 0.3636
+      },
+      "summary": {
+        "mean": 0.29797979797979796,
+        "std": 0.4585299392335936,
+        "min": 0.0,
+        "max": 1.0,
+        "median": 0.0,
+        "n": 198
+      },
+      "breakdowns": {
+        "correct": [
+          {
+            "group": "False",
+            "n": 139,
+            "mean_reward": 0.0,
+            "ci_lower": 0.0,
+            "ci_upper": 0.0
+          },
+          {
+            "group": "True",
+            "n": 59,
+            "mean_reward": 1.0,
+            "ci_lower": 1.0,
+            "ci_upper": 1.0
+          }
+        ]
+      },
+      "runtime": {
+        "total_steps": 198,
+        "total_tokens": 1171764,
+        "total_prompt_tokens": 50431,
+        "total_completion_tokens": 1121333,
+        "total_reasoning_tokens": 0,
+        "elapsed_seconds": 4512.31,
+        "latency_percentiles_ms": {
+          "p50": 124068.16,
+          "p90": 353941.81,
+          "p99": 775246.28
+        },
+        "tokens_per_second": 259.68,
+        "steps_per_second": 0.04,
+        "model_errors": 0,
+        "total_retries": 0,
+        "finish_reason_counts": {
+          "stop": 196,
+          "length": 2
+        }
+      },
+      "failures": {
+        "total_steps": 198,
+        "total_failures": 45,
+        "failure_rate": 0.2273,
+        "categories": {
+          "format_error": {
+            "count": 45,
+            "percentage": 0.2273,
+            "exemplars": [
+              {
+                "problem_idx": 172,
+                "repeat": 0,
+                "error": "format_error"
+              },
+              {
+                "problem_idx": 138,
+                "repeat": 0,
+                "error": "format_error"
+              },
+              {
+                "problem_idx": 99,
+                "repeat": 0,
+                "error": "format_error"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "categories": {
+      "Biology": {
+        "mean_reward": 0.5789,
+        "n": 19
+      },
+      "Chemistry": {
+        "mean_reward": 0.1828,
+        "n": 93
+      },
+      "Physics": {
+        "mean_reward": 0.3605,
+        "n": 86
+      }
+    }
+  },
+  "n_results": 198
+}

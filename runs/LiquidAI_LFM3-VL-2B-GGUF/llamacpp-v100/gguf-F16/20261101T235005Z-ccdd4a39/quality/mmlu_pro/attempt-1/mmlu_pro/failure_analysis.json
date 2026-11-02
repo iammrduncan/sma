@@ -1,0 +1,49 @@
+{
+  "total_steps": 700,
+  "total_failures": 146,
+  "failure_rate": 0.2086,
+  "categories": {
+    "format_error": {
+      "count": 142,
+      "percentage": 0.2029,
+      "exemplars": [
+        {
+          "problem_idx": 7058,
+          "repeat": 0,
+          "error": "format_error"
+        },
+        {
+          "problem_idx": 9074,
+          "repeat": 0,
+          "error": "format_error"
+        },
+        {
+          "problem_idx": 8845,
+          "repeat": 0,
+          "error": "format_error"
+        }
+      ]
+    },
+    "refusal": {
+      "count": 4,
+      "percentage": 0.0057,
+      "exemplars": [
+        {
+          "problem_idx": 410,
+          "repeat": 0,
+          "error": "refusal"
+        },
+        {
+          "problem_idx": 11916,
+          "repeat": 0,
+          "error": "refusal"
+        },
+        {
+          "problem_idx": 10415,
+          "repeat": 0,
+          "error": "refusal"
+        }
+      ]
+    }
+  }
+}

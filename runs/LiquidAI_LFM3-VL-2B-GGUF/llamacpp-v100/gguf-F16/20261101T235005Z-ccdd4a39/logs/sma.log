@@ -1,0 +1,81 @@
+{"event": "run_created", "level": "INFO", "logger": "sma", "message": "run_created run_id=20261101T235005Z-ccdd4a39 repo=LiquidAI/LFM3-VL-2B-GGUF quant=gguf", "ts": "2026-11-01T23:50:05Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=fetch run_id=20261101T235005Z-ccdd4a39 attempt=1", "ts": "2026-11-01T23:50:05Z"}
+{"event": "fetched", "level": "INFO", "logger": "sma", "message": "fetched repo=LiquidAI/LFM3-VL-2B-GGUF revision_sha=b36554cfd35854b06429900131730cd80f092cdb", "ts": "2026-11-01T23:50:09Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=KV cache: q8_0, 6,528 bytes per token in the full-attention layers", "ts": "2026-11-01T23:51:11Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=context per stream: 65,536 tokens (65,536 tokens fits)", "ts": "2026-11-01T23:51:11Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=memory: 3.47 GB weights + 1.0 GB engine overhead + 3.44 GB KV pool + 2.16 GB engine buffers sized by it = 10.06 GB of the 33.0 GB budget", "ts": "2026-11-01T23:51:11Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=KV pool: 8 slots at 65,536 tokens, the most the server runs at once", "ts": "2026-11-01T23:51:11Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=streams that fit: 8 at 65,536 tokens, 15 at 32,768", "ts": "2026-11-01T23:51:11Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=per benchmark: browsecomp 65,536, determinism 4,096, kernelbench 65,536, logprobs 65,536, quality 65,536, speed 65,536", "ts": "2026-11-01T23:51:11Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=fetch run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-01T23:51:11Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=serve_quality run_id=20261101T235005Z-ccdd4a39 attempt=1", "ts": "2026-11-01T23:51:11Z"}
+{"event": "remote_model", "level": "INFO", "logger": "sma", "message": "remote_model file=LFM3-VL-2B-F16.gguf repo=LiquidAI/LFM3-VL-2B-GGUF", "ts": "2026-11-01T23:51:11Z"}
+{"event": "remote_model_ready", "level": "INFO", "logger": "sma", "message": "remote_model_ready file=LFM3-VL-2B-F16.gguf state=present", "ts": "2026-11-01T23:51:11Z"}
+{"event": "remote_start", "level": "INFO", "logger": "sma", "message": "remote_start name=sma-20261101T235005Z-ccdd4a39-quality mode=quality gpus=3", "ts": "2026-11-01T23:51:11Z"}
+{"event": "server_log", "level": "INFO", "logger": "sma", "message": "server_log mode=quality path=/home/<host>/github/sma/runs/LiquidAI_LFM3-VL-2B-GGUF/llamacpp-v100/gguf-F16/20261101T235005Z-ccdd4a39/logs/server-quality.log", "ts": "2026-11-01T23:51:11Z"}
+{"event": "server_ready", "level": "INFO", "logger": "sma", "message": "server_ready mode=quality elapsed_s=2", "ts": "2026-11-01T23:51:13Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=serve_quality run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-01T23:51:13Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=determinism run_id=20261101T235005Z-ccdd4a39 attempt=1", "ts": "2026-11-01T23:51:13Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=determinism run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-01T23:51:36Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=logprobs run_id=20261101T235005Z-ccdd4a39 attempt=1", "ts": "2026-11-01T23:51:36Z"}
+{"event": "remote_model", "level": "INFO", "logger": "sma", "message": "remote_model file=LFM3-VL-2B-F16.gguf repo=LiquidAI/LFM3-VL-2B-GGUF", "ts": "2026-11-01T23:51:48Z"}
+{"event": "remote_model_ready", "level": "INFO", "logger": "sma", "message": "remote_model_ready file=LFM3-VL-2B-F16.gguf state=present", "ts": "2026-11-01T23:51:48Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=logprobs run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-01T23:52:52Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=quality run_id=20261101T235005Z-ccdd4a39 attempt=1", "ts": "2026-11-01T23:52:52Z"}
+{"event": "remote_model", "level": "INFO", "logger": "sma", "message": "remote_model file=LFM3-VL-2B-F16.gguf repo=LiquidAI/LFM3-VL-2B-GGUF", "ts": "2026-11-01T23:52:52Z"}
+{"event": "remote_model_ready", "level": "INFO", "logger": "sma", "message": "remote_model_ready file=LFM3-VL-2B-F16.gguf state=present", "ts": "2026-11-01T23:52:52Z"}
+{"event": "remote_start", "level": "INFO", "logger": "sma", "message": "remote_start name=sma-20261101T235005Z-ccdd4a39-quality mode=quality gpus=3", "ts": "2026-11-01T23:52:52Z"}
+{"event": "server_log", "level": "INFO", "logger": "sma", "message": "server_log mode=quality path=/home/<host>/github/sma/runs/LiquidAI_LFM3-VL-2B-GGUF/llamacpp-v100/gguf-F16/20261101T235005Z-ccdd4a39/logs/server-quality.log", "ts": "2026-11-01T23:52:52Z"}
+{"event": "server_ready", "level": "INFO", "logger": "sma", "message": "server_ready mode=quality elapsed_s=4", "ts": "2026-11-01T23:52:56Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=quality run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-02T06:56:09Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=kernelbench run_id=20261101T235005Z-ccdd4a39 attempt=1", "ts": "2026-11-02T06:56:09Z"}
+{"event": "kernelbench_generate", "level": "INFO", "logger": "sma", "message": "kernelbench_generate problems=100 run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-02T06:56:10Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=kernelbench run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-02T07:37:06Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=swebench run_id=20261101T235005Z-ccdd4a39 attempt=1", "ts": "2026-11-02T07:37:07Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=swebench run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-02T07:37:07Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=browsecomp_plus run_id=20261101T235005Z-ccdd4a39 attempt=1", "ts": "2026-11-02T07:37:07Z"}
+{"event": "browsecomp_search_ready", "level": "INFO", "logger": "sma", "message": "browsecomp_search_ready docs=100195 run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-02T07:37:24Z"}
+{"event": "browsecomp_start", "level": "INFO", "logger": "sma", "message": "browsecomp_start questions=100 run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-02T07:37:24Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=browsecomp_plus run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-02T09:43:51Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=browsecomp_plus_results run_id=20261101T235005Z-ccdd4a39 attempt=1", "ts": "2026-11-02T09:43:51Z"}
+{"event": "browsecomp_judge", "level": "INFO", "logger": "sma", "message": "browsecomp_judge questions=100 judge=qwen3.8-flash-fp4 run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-02T09:43:52Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=browsecomp_plus_results run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-02T09:44:00Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=kernelbench_results run_id=20261101T235005Z-ccdd4a39 attempt=1", "ts": "2026-11-02T09:44:01Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=kernelbench_results run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-02T09:44:01Z"}
+{"event": "speed_turn_wait", "level": "INFO", "logger": "sma", "message": "speed_turn_wait run_id=20261101T235005Z-ccdd4a39 lock=speed-v100.lock", "ts": "2026-11-02T09:44:01Z"}
+{"event": "speed_turn", "level": "INFO", "logger": "sma", "message": "speed_turn run_id=20261101T235005Z-ccdd4a39 waited_s=0.0", "ts": "2026-11-02T09:44:01Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=serve_speed run_id=20261101T235005Z-ccdd4a39 attempt=1", "ts": "2026-11-02T09:44:02Z"}
+{"event": "remote_model", "level": "INFO", "logger": "sma", "message": "remote_model file=LFM3-VL-2B-F16.gguf repo=LiquidAI/LFM3-VL-2B-GGUF", "ts": "2026-11-02T09:44:13Z"}
+{"event": "remote_model_ready", "level": "INFO", "logger": "sma", "message": "remote_model_ready file=LFM3-VL-2B-F16.gguf state=present", "ts": "2026-11-02T09:44:13Z"}
+{"event": "remote_start", "level": "INFO", "logger": "sma", "message": "remote_start name=sma-20261101T235005Z-ccdd4a39-speed mode=speed gpus=3", "ts": "2026-11-02T09:44:13Z"}
+{"event": "server_log", "level": "INFO", "logger": "sma", "message": "server_log mode=speed path=/home/<host>/github/sma/runs/LiquidAI_LFM3-VL-2B-GGUF/llamacpp-v100/gguf-F16/20261101T235005Z-ccdd4a39/logs/server-speed.log", "ts": "2026-11-02T09:44:13Z"}
+{"event": "server_ready", "level": "INFO", "logger": "sma", "message": "server_ready mode=speed elapsed_s=4", "ts": "2026-11-02T09:44:17Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=serve_speed run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-02T09:44:18Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=speed run_id=20261101T235005Z-ccdd4a39 attempt=1", "ts": "2026-11-02T09:44:18Z"}
+{"event": "fetched", "level": "INFO", "logger": "sma", "message": "fetched repo=LiquidAI/LFM3-1.7B-Base revision_sha=545fc8f4c7b5fa9f405105274cd29c4f8f44b526", "ts": "2026-11-02T09:44:55Z"}
+{"event": "step_failed", "level": "INFO", "logger": "sma", "message": "step_failed step=speed run_id=20261101T235005Z-ccdd4a39 error=Speed cannot run: the bench image's transformers cannot read GGUF architecture lfm3, and LiquidAI/LFM3-1.7B-Base's tokenizer does not match the GGUF's: 2 token ids differ, first 125031 ('<|audio|>', the GGUF has '[PAD125031]').", "ts": "2026-11-02T09:45:01Z"}
+{"event": "warning", "level": "INFO", "logger": "sma", "message": "warning message=Step speed failed, and the run goes on: Speed cannot run: the bench image's transformers cannot read GGUF architecture lfm3, and LiquidAI/LFM3-1.7B-Base's tokenizer does not match the GGUF's: 2 token ids differ, first 125031 ('<|audio|>', the GGUF has '[PAD125031]').", "ts": "2026-11-02T09:45:01Z"}
+{"event": "run_resume", "level": "INFO", "logger": "sma", "message": "run_resume run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-02T11:01:07Z"}
+{"event": "config_changed", "level": "INFO", "logger": "sma", "message": "config_changed run_id=20261101T235005Z-ccdd4a39 sections=browsecomp,engine,lock_path,remote", "ts": "2026-11-02T11:01:07Z"}
+{"event": "step_skip", "level": "INFO", "logger": "sma", "message": "step_skip step=fetch run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-02T11:01:08Z"}
+{"event": "step_skip", "level": "INFO", "logger": "sma", "message": "step_skip step=serve_quality run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-02T11:01:08Z"}
+{"event": "step_skip", "level": "INFO", "logger": "sma", "message": "step_skip step=determinism run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-02T11:01:09Z"}
+{"event": "step_skip", "level": "INFO", "logger": "sma", "message": "step_skip step=logprobs run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-02T11:01:09Z"}
+{"event": "step_skip", "level": "INFO", "logger": "sma", "message": "step_skip step=quality run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-02T11:01:09Z"}
+{"event": "step_skip", "level": "INFO", "logger": "sma", "message": "step_skip step=kernelbench run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-02T11:01:10Z"}
+{"event": "step_skip", "level": "INFO", "logger": "sma", "message": "step_skip step=swebench run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-02T11:01:10Z"}
+{"event": "step_skip", "level": "INFO", "logger": "sma", "message": "step_skip step=browsecomp_plus run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-02T11:01:10Z"}
+{"event": "step_skip", "level": "INFO", "logger": "sma", "message": "step_skip step=browsecomp_plus_results run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-02T11:01:11Z"}
+{"event": "step_skip", "level": "INFO", "logger": "sma", "message": "step_skip step=kernelbench_results run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-02T11:01:11Z"}
+{"event": "speed_turn_wait", "level": "INFO", "logger": "sma", "message": "speed_turn_wait run_id=20261101T235005Z-ccdd4a39 lock=speed-v100.lock", "ts": "2026-11-02T11:01:11Z"}
+{"event": "speed_turn", "level": "INFO", "logger": "sma", "message": "speed_turn run_id=20261101T235005Z-ccdd4a39 waited_s=0.0", "ts": "2026-11-02T11:01:11Z"}
+{"event": "step_skip", "level": "INFO", "logger": "sma", "message": "step_skip step=serve_speed run_id=20261101T235005Z-ccdd4a39", "ts": "2026-11-02T11:01:11Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=speed run_id=20261101T235005Z-ccdd4a39 attempt=2", "ts": "2026-11-02T11:01:12Z"}
+{"event": "remote_model", "level": "INFO", "logger": "sma", "message": "remote_model file=LFM3-VL-2B-F16.gguf repo=LiquidAI/LFM3-VL-2B-GGUF", "ts": "2026-11-02T11:01:12Z"}
+{"event": "remote_model_ready", "level": "INFO", "logger": "sma", "message": "remote_model_ready file=LFM3-VL-2B-F16.gguf state=present", "ts": "2026-11-02T11:01:12Z"}
+{"event": "remote_start", "level": "INFO", "logger": "sma", "message": "remote_start name=sma-20261101T235005Z-ccdd4a39-speed mode=speed gpus=1", "ts": "2026-11-02T11:01:12Z"}
+{"event": "server_log", "level": "INFO", "logger": "sma", "message": "server_log mode=speed path=/home/<host>/github/sma/runs/LiquidAI_LFM3-VL-2B-GGUF/llamacpp-v100/gguf-F16/20261101T235005Z-ccdd4a39/logs/server-speed.log", "ts": "2026-11-02T11:01:12Z"}
+{"event": "server_ready", "level": "INFO", "logger": "sma", "message": "server_ready mode=speed elapsed_s=2", "ts": "2026-11-02T11:01:14Z"}
+{"event": "fetched", "level": "INFO", "logger": "sma", "message": "fetched repo=LiquidAI/LFM3-1.7B-Base revision_sha=545fc8f4c7b5fa9f405105274cd29c4f8f44b526", "ts": "2026-11-02T11:01:47Z"}
+{"event": "step_failed", "level": "INFO", "logger": "sma", "message": "step_failed step=speed run_id=20261101T235005Z-ccdd4a39 error=Speed cannot run: the bench image's transformers cannot read GGUF architecture lfm3, and LiquidAI/LFM3-1.7B-Base's tokenizer does not match the GGUF's: 2 token ids differ, first 125031 ('<|audio|>', the GGUF has '[PAD125031]').", "ts": "2026-11-02T11:01:54Z"}
+{"event": "warning", "level": "INFO", "logger": "sma", "message": "warning message=Step speed failed, and the run goes on: Speed cannot run: the bench image's transformers cannot read GGUF architecture lfm3, and LiquidAI/LFM3-1.7B-Base's tokenizer does not match the GGUF's: 2 token ids differ, first 125031 ('<|audio|>', the GGUF has '[PAD125031]').", "ts": "2026-11-02T11:01:54Z"}

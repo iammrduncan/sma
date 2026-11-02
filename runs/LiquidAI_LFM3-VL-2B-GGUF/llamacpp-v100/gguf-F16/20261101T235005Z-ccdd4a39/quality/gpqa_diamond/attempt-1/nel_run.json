@@ -1,0 +1,10 @@
+{
+  "run_id": "20261102_031738_11d37f4e",
+  "executor": "local",
+  "output_dir": "/home/<host>/github/sma/runs/LiquidAI_LFM3-VL-2B-GGUF/llamacpp-v100/gguf-F16/20261101T235005Z-ccdd4a39/quality/gpqa_diamond/attempt-1",
+  "started_at": "2026-11-02T03:17:38.916010+00:00",
+  "config_summary": "gpqa",
+  "details": {
+    "pid": 4184821
+  }
+}

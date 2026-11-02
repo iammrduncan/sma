@@ -1,0 +1,62 @@
+{
+  "argv": [
+    "docker",
+    "run",
+    "--rm",
+    "--name",
+    "sma-20261101T235005Z-ccdd4a39-quality-livecodebench",
+    "--network",
+    "host",
+    "--user",
+    "1000:1000",
+    "-e",
+    "HOME=/tmp",
+    "-e",
+    "NEMO_EVALUATOR_TELEMETRY_LEVEL=0",
+    "-e",
+    "HF_HOME=/hf-home",
+    "-v",
+    "/home/<host>/github/sma/runs/LiquidAI_LFM3-VL-2B-GGUF/llamacpp-v100/gguf-F16/20261101T235005Z-ccdd4a39/quality/livecodebench/attempt-1:/results",
+    "-v",
+    "/home/<host>/github/sma/runs/LiquidAI_LFM3-VL-2B-GGUF/llamacpp-v100/gguf-F16/20261101T235005Z-ccdd4a39/quality/livecodebench/run_config.yaml:/config/run_config.yaml:ro",
+    "-v",
+    "/data/models/sma/hf/eval-factory:/hf-home",
+    "-e",
+    "PYTHONPATH=/sma-patch",
+    "-v",
+    "/home/<host>/github/sma/src/sma/patches/livecodebench:/sma-patch:ro",
+    "--cgroup-parent",
+    "sma-harness.slice",
+    "--cpuset-cpus",
+    "0-4,5-9",
+    "-v",
+    "/home/<host>/.local/share/sma/locks:/sma-locks",
+    "-e",
+    "SMA_GRADING_LOCK=/sma-locks/livecodebench-grading.lock",
+    "-e",
+    "SMA_GRADING_CPUS=5-9",
+    "nvcr.io/nvidia/eval-factory/livecodebench:26.03@sha256:ccfeb5fd91c1c6ec5045c8372bdb4b667d5b6cc6b4d5d203ff4ba3be69e3a87b",
+    "sh",
+    "-c",
+    "exec $(command -v nemo-evaluator >/dev/null 2>&1 && echo nemo-evaluator || echo eval-factory) run_eval --run_config /config/run_config.yaml"
+  ],
+  "concurrency": 8,
+  "cpus": "0-4,5-9",
+  "grading_cpus": "5-9",
+  "grading_lock": "livecodebench-grading.lock",
+  "image": "nvcr.io/nvidia/eval-factory/livecodebench:26.03@sha256:ccfeb5fd91c1c6ec5045c8372bdb4b667d5b6cc6b4d5d203ff4ba3be69e3a87b",
+  "limit": null,
+  "patch": {
+    "files": {
+      "regrade.py": "bd3961ed3826894426ba58f502fdd75a2ec9356037b08fc9f0bf7ea03728cd31",
+      "sitecustomize.py": "b4dfcc838b9228d70b0075120548170da968af3d86608ae02888066c365e24c5",
+      "sma_grading.py": "358a08f6e25494ba2843cde4d23c40c85edc5a8d58e1822749555bc25cecaef6"
+    },
+    "name": "livecodebench"
+  },
+  "sampling": {
+    "source": "thinking off: greedy",
+    "temperature": 0.0,
+    "top_p": 1.0
+  }
+}

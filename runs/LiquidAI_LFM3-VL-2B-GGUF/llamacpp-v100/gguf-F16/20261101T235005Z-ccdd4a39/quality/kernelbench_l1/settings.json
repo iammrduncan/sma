@@ -1,0 +1,22 @@
+{
+  "concurrency": 8,
+  "extraction": "KernelBench's extract_first_code after the reasoning block",
+  "level": 1,
+  "max_tokens": 61440,
+  "prompt": "KernelBench 423217d9 one-shot CUDA fp32, as a chat with KernelBench's system prompt",
+  "sampling": {
+    "repetition_penalty": 1.1,
+    "source": "the GGUF's general.sampling metadata; requests set no sampling field, so llama-server applies it",
+    "temperature": 0.1,
+    "top_k": 50.0
+  },
+  "system_prompt": "You are a helpful assistant",
+  "thinking": {
+    "enable_thinking": false,
+    "how": "the run's thinking mode (--thinking off)",
+    "template_default": {
+      "enable_thinking": true,
+      "how": "the chat template thinks unless told not to"
+    }
+  }
+}

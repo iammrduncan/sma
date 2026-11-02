@@ -1,0 +1,39 @@
+{
+  "answers_cut_off": 2,
+  "bench": "gpqa",
+  "bundle": "attempt-1/gpqa/eval-20261102T043253Z-gpqa.json",
+  "categories": {
+    "Biology": {
+      "mean_reward": 0.5789,
+      "n": 19
+    },
+    "Chemistry": {
+      "mean_reward": 0.1828,
+      "n": 93
+    },
+    "Physics": {
+      "mean_reward": 0.3605,
+      "n": 86
+    }
+  },
+  "ci_lower": 0.2374,
+  "ci_upper": 0.3636,
+  "concurrency": 8,
+  "context_per_stream": 65536,
+  "dataset_size": 198,
+  "error": null,
+  "failures": 45,
+  "limit": null,
+  "measures": null,
+  "n": 198,
+  "pass_at_1_failures_as_wrong": null,
+  "primary_metric": "pass@1",
+  "primary_score": 0.298,
+  "repeats": 1,
+  "scorer": "nemo-evaluator 0.3.0",
+  "scorer_shares": {
+    "correct": 0.29797979797979796
+  },
+  "shuffle_seed": 0,
+  "suite": "gpqa_diamond"
+}
