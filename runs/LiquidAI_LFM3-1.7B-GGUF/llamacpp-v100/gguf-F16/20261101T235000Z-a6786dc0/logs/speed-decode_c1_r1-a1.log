@@ -1,0 +1,112 @@
+
+==========
+== vLLM ==
+==========
+
+NVIDIA Release 26.05.post1 (build 329071538)
+vLLM Version 0.21.0+2325b6f0
+Container image Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+Various files include modifications (c) NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+
+GOVERNING TERMS: The software and materials are governed by the NVIDIA Software License Agreement
+(found at https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/)
+and the Product-Specific Terms for NVIDIA AI Products
+(found at https://www.nvidia.com/en-us/agreements/enterprise-software/product-specific-terms-for-ai-products/).
+
+WARNING: The NVIDIA Driver was not detected.  GPU functionality will not be available.
+   Use the NVIDIA Container Toolkit to start this container with GPU support; see
+   https://docs.nvidia.com/datacenter/cloud-native/ .
+
+NOTE: The SHMEM allocation limit is set to the default of 64MB.  This may be
+   insufficient for vLLM.  NVIDIA recommends the use of the following flags:
+   docker run --gpus all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864 ...
+
+INFO 11-02 12:07:55 [main.py:66] Unspecified platform detected, switching to CPU Platform instead.
+INFO 11-02 12:07:55 [importing.py:45] Triton is installed but 0 active driver(s) found (expected 1). Disabling Triton to prevent runtime errors.
+INFO 11-02 12:07:55 [importing.py:69] Triton not installed or not compatible; certain GPU-related functions will not be available.
+WARNING 11-02 12:07:55 [cpu.py:420] Failed to import from vllm._C: ImportError('libcuda.so.1: cannot open shared object file: No such file or directory')
+Namespace(subparser='bench', bench_type='serve', dispatch_function=<function BenchmarkServingSubcommand.cmd at 0xf5491d064cc0>, trust_remote_code=False, seed=0, num_prompts=32, dataset_name='random', no_stream=False, dataset_path=None, no_oversample=False, skip_chat_template=False, enable_multimodal_chat=False, disable_shuffle=False, custom_output_len=256, spec_bench_output_len=256, spec_bench_category=None, sonnet_input_len=550, sonnet_output_len=150, sonnet_prefix_len=200, sharegpt_output_len=None, blazedit_min_distance=0.0, blazedit_max_distance=1.0, asr_max_audio_len_sec=inf, asr_min_audio_len_sec=0.0, random_input_len=128, random_output_len=512, random_range_ratio='0.0', random_prefix_len=0, random_batch_size=1, no_reranker=False, random_mm_base_items_per_request=1, random_mm_num_mm_items_range_ratio=0.0, random_mm_limit_mm_per_prompt={'image': 255, 'video': 1}, random_mm_bucket_config={(256, 256, 1): 0.5, (720, 1280, 1): 0.5, (720, 1280, 16): 0.0}, hf_subset=None, hf_split=None, hf_name=None, hf_output_len=None, prefix_repetition_prefix_len=256, prefix_repetition_suffix_len=256, prefix_repetition_num_prefixes=10, prefix_repetition_output_len=128, speed_bench_dataset_subset='qualitative', speed_bench_output_len=4096, speed_bench_category=None, label=None, backend='openai', base_url='http://127.0.0.1:18001', host='127.0.0.1', port=8000, endpoint='/v1/completions', header=None, max_concurrency=1, model='LiquidAI/LFM3-1.7B-GGUF', input_len=None, output_len=None, tokenizer='/bench-tokenizer', tokenizer_mode='auto', use_beam_search=False, logprobs=None, request_rate=inf, burstiness=1.0, disable_tqdm=False, num_warmups=0, profile=False, save_result=True, save_detailed=False, append_result=False, metadata=None, result_dir='/sma-run/speed/cells/decode_c1_r1/attempt-1', result_filename='bench.json', ignore_eos=False, percentile_metrics='ttft,tpot,itl,e2el', metric_percentiles='50,90,99', goodput=None, request_id_prefix='bench-111f0556-', top_p=None, top_k=None, min_p=None, temperature=None, frequency_penalty=None, presence_penalty=None, repetition_penalty=None, served_model_name=None, lora_modules=None, lora_assignment='random', ramp_up_strategy=None, ramp_up_start_rps=None, ramp_up_end_rps=None, ready_check_timeout_sec=0, extra_body=None, skip_tokenizer_init=False, insecure=False, plot_timeline=False, timeline_itl_thresholds='25,50', plot_dataset_stats=False)
+INFO 11-02 12:07:57 [utils.py:90] Sampling input_len from [128, 128] and output_len from [512, 512]
+WARNING: vllm bench serve no longer sets temperature==0 (greedy) in requests by default. The default will be determined on the server side and can be model/API specific. For the old behavior, include --temperature=0.
+Starting initial single prompt test run...
+Skipping endpoint ready check.
+Starting main benchmark run...
+Traffic request rate: inf
+Burstiness factor: 1.0 (Poisson process)
+Maximum request concurrency: 1
+tip: install termplotlib and gnuplot to plot the metrics
+============ Serving Benchmark Result ============
+Successful requests:                     32        
+Failed requests:                         0         
+Maximum request concurrency:             1         
+Benchmark duration (s):                  120.81    
+Total input tokens:                      4096      
+Total generated tokens:                  14712     
+Request throughput (req/s):              0.26      
+Output token throughput (tok/s):         121.77    
+Peak output token throughput (tok/s):    145.00    
+Peak concurrent requests:                2.00      
+Total token throughput (tok/s):          155.68    
+---------------Time to First Token----------------
+Mean TTFT (ms):                          45.91     
+Median TTFT (ms):                        46.13     
+P50 TTFT (ms):                           46.13     
+P90 TTFT (ms):                           47.25     
+P99 TTFT (ms):                           48.29     
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          69.28     
+Median TPOT (ms):                        7.14      
+P50 TPOT (ms):                           7.14      
+P90 TPOT (ms):                           10.41     
+P99 TPOT (ms):                           1058.68   
+---------------Inter-token Latency----------------
+Mean ITL (ms):                           7.23      
+Median ITL (ms):                         6.93      
+P50 ITL (ms):                            6.93      
+P90 ITL (ms):                            8.58      
+P99 ITL (ms):                            37.94     
+----------------End-to-end Latency----------------
+Mean E2EL (ms):                          3748.49   
+Median E2EL (ms):                        3691.62   
+P50 E2EL (ms):                           3691.62   
+P90 E2EL (ms):                           3943.70   
+P99 E2EL (ms):                           3970.37   
+==================================================
+
+W1102 12:07:55.618000 1 torch/utils/cpp_extension.py:140] No CUDA runtime is found, using CUDA_HOME='/usr/local/cuda'
+
+  0%|          | 0/32 [00:00<?, ?it/s]
+  3%|▎         | 1/32 [00:03<02:03,  3.98s/it]
+  6%|▋         | 2/32 [00:07<01:58,  3.95s/it]
+  9%|▉         | 3/32 [00:11<01:55,  3.97s/it]
+ 12%|█▎        | 4/32 [00:15<01:50,  3.96s/it]
+ 16%|█▌        | 5/32 [00:19<01:46,  3.96s/it]
+ 19%|█▉        | 6/32 [00:23<01:43,  3.96s/it]
+ 22%|██▏       | 7/32 [00:27<01:39,  3.97s/it]
+ 25%|██▌       | 8/32 [00:31<01:32,  3.87s/it]
+ 28%|██▊       | 9/32 [00:35<01:29,  3.88s/it]
+ 31%|███▏      | 10/32 [00:39<01:24,  3.83s/it]
+ 34%|███▍      | 11/32 [00:42<01:19,  3.79s/it]
+ 38%|███▊      | 12/32 [00:46<01:15,  3.78s/it]
+ 41%|████      | 13/32 [00:50<01:11,  3.77s/it]
+ 44%|████▍     | 14/32 [00:53<01:07,  3.76s/it]
+ 47%|████▋     | 15/32 [00:57<01:03,  3.75s/it]
+ 50%|█████     | 16/32 [01:01<00:59,  3.72s/it]
+ 53%|█████▎    | 17/32 [01:05<00:55,  3.72s/it]
+ 56%|█████▋    | 18/32 [01:08<00:52,  3.73s/it]
+ 59%|█████▉    | 19/32 [01:12<00:48,  3.73s/it]
+ 62%|██████▎   | 20/32 [01:16<00:44,  3.73s/it]
+ 66%|██████▌   | 21/32 [01:20<00:41,  3.73s/it]
+ 69%|██████▉   | 22/32 [01:23<00:37,  3.72s/it]
+ 72%|███████▏  | 23/32 [01:27<00:33,  3.72s/it]
+ 75%|███████▌  | 24/32 [01:31<00:29,  3.71s/it]
+ 78%|███████▊  | 25/32 [01:34<00:25,  3.71s/it]
+ 81%|████████▏ | 26/32 [01:38<00:22,  3.72s/it]
+ 84%|████████▍ | 27/32 [01:42<00:18,  3.71s/it]
+ 88%|████████▊ | 28/32 [01:45<00:14,  3.72s/it]
+ 91%|█████████ | 29/32 [01:49<00:11,  3.72s/it]
+ 94%|█████████▍| 30/32 [01:53<00:07,  3.72s/it]
+ 97%|█████████▋| 31/32 [01:57<00:03,  3.70s/it]
+100%|██████████| 32/32 [02:00<00:00,  3.71s/it]
+100%|██████████| 32/32 [02:00<00:00,  3.78s/it]

@@ -1,0 +1,25 @@
+{
+  "argv": [
+    "ssh",
+    "-i",
+    "/home/<host>/.ssh/sma_x86",
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "ConnectTimeout=20",
+    "-o",
+    "ServerAliveInterval=30",
+    "-o",
+    "ServerAliveCountMax=4",
+    "-p",
+    "2222",
+    "-o",
+    "ControlMaster=auto",
+    "-o",
+    "ControlPath=/home/<host>/.local/share/sma/ssh/v100-1/%C",
+    "-o",
+    "ControlPersist=600",
+    "sma@${V100_HOST}",
+    "cd /work/sma && CUDA_VISIBLE_DEVICES=1 /work/sma/llama.cpp-b11960/build/bin/llama-perplexity -m /work/sma/models/LiquidAI_LFM3-1.7B-GGUF@bad5729bba61/LFM3-1.7B-QAD-Q4_0.gguf -f /work/sma/runs/20261101T235005Z-92de6572/corpus.txt -c 2048 --chunks 8 -ngl all -fa on -ctk q8_0 -ctv q8_0 --seed 0 --kl-divergence-base /work/sma/runs/20261101T235000Z-a6786dc0/kld-base.bin --kl-divergence --threads 3 --threads-batch 3"
+  ]
+}

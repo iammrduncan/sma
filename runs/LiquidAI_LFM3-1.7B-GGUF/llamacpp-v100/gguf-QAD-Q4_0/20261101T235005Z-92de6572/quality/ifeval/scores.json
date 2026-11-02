@@ -1,0 +1,29 @@
+{
+  "answers_cut_off": 0,
+  "bench": "lm-eval://ifeval",
+  "bundle": "attempt-1/lm-eval___ifeval/eval-20261102T001420Z-lm-eval___ifeval.json",
+  "categories": null,
+  "ci_lower": 0.7098,
+  "ci_upper": 0.7837,
+  "concurrency": 8,
+  "context_per_stream": 65536,
+  "dataset_size": 541,
+  "error": null,
+  "failures": 9,
+  "limit": null,
+  "measures": {
+    "inst_level_loose_acc": 0.8573141486810552,
+    "inst_level_strict_acc": 0.8261390887290168,
+    "prompt_level_loose_acc": 0.7929759704251387,
+    "prompt_level_strict_acc": 0.7486136783733827
+  },
+  "n": 541,
+  "pass_at_1_failures_as_wrong": null,
+  "primary_metric": "pass@1",
+  "primary_score": 0.7486,
+  "repeats": 1,
+  "scorer": "nemo-evaluator 0.3.0",
+  "scorer_shares": {},
+  "shuffle_seed": 0,
+  "suite": "ifeval"
+}

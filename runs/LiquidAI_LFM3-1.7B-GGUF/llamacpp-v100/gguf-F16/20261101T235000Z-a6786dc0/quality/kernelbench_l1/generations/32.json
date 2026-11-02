@@ -1,0 +1,16 @@
+{
+  "content": "<tool_call>\n<function=write>\n<parameter=path>\nModelNew.py\n</parameter>\n<parameter=content>\nimport torch\nimport torch.nn as nn\nimport torch.nn.functional as F\nfrom torch.utils.cpp_extension import load_inline\n\n# Define the custom CUDA kernel for element-wise HardTanh (sigmoid-like clipping to [-1, 1])\n# HardTanh: tanh(x) but clamped to min_val=-1.0 and max_val=1.0.\n# We implement a simple per-element hard-tanh using a fast approximation or just call torch.tanh with clamping?\n# Since we want custom CUDA operator, we can write kernel that computes element-wise tanh then clamp.\n\nhardtanh_kernel_source = \"\"\"\n#include <torch/extension.h>\n#include <cuda_runtime.h>\n\n__global__ void hardtanh_kernel(const float* x, float* out, int size) {\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    if (idx < size) {\n        float val = tanhf(x[idx]); // tanh\n        if (val > 1.0f) out[idx] = 1.0f;\n        else if (val < -1.0f) out[idx] = -1.0f;\n        else out[idx] = val;\n    }\n}\n\ntorch::Tensor hardtanh_cuda(torch::Tensor x) {\n    auto size = x.numel();\n    auto out = torch::zeros_like(x);\n\n    const int block_size = 256;\n    const int num_blocks = (size + block_size - 1) / block_size;\n\n    hardtanh_kernel<<<num_blocks, block_size>>>(x.data_ptr<float>(), out.data_ptr<float>(), size);\n\n    return out;\n}\n\"\"\"\n\nhardtanh_cpp_source = (\n    \"torch::Tensor hardtanh_cuda(torch::Tensor x);\"\n)\n\n# Compile the inline CUDA code for HardTanh activation\nhardtanh = load_inline(\n    name=\"hardtanh\",\n    cpp_sources=hardtanh_cpp_source,\n    cuda_sources=hardtanh_kernel_source,\n    functions=[\"hardtanh_cuda\"],\n    verbose=True,\n    extra_cflags=[],\n    extra_ldflags=[],\n)\n\n\nclass ModelNew(nn.Module):\n    def __init__(self) -> None:\n        super().__init__()\n        self.hardtanh = hardtanh\n\n    def forward(self, x: torch.Tensor) -> torch.Tensor:\n        \"\"\"\n        Applies HardTanh activation to the input tensor.\n\n        Args:\n            x (torch.Tensor): Input tensor of any shape.\n\n        Returns:\n            torch.Tensor: Output tensor with HardTanh applied, same shape as input.\n        \"\"\"\n        return self.hardtanh.hardtanh_cuda(x)\n\n\nif __name__ == \"__main__\":\n    # Quick sanity check (not part of the required output)\n    import torch\n    model = ModelNew()\n    x = torch.rand(1, 393216).cuda()\n    out = model(x)\n    print(out.shape)\n\n</parameter>\n</function>\n</tool_call>",
+  "finish_reason": "stop",
+  "kernel": null,
+  "name": "32_HardTanh",
+  "problem_id": 32,
+  "reasoning": null,
+  "usage": {
+    "completion_tokens": 677,
+    "prompt_tokens": 998,
+    "prompt_tokens_details": {
+      "cached_tokens": 463
+    },
+    "total_tokens": 1675
+  }
+}

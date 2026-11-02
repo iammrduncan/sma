@@ -1,0 +1,17 @@
+{
+  "candidate_run_id": "20261101T235005Z-92de6572",
+  "delta_ppl": 6.222344,
+  "engine": "llamacpp",
+  "k": null,
+  "k_note": "llama.cpp compares the full vocabulary, not a top-k",
+  "kl_mean": 0.247808,
+  "kl_median": 0.110621,
+  "kl_p99": 1.693434,
+  "method": "llama-perplexity-kld",
+  "ppl_candidate": 30.243096,
+  "ppl_reference": 24.020752,
+  "reference_run_id": "20261101T235000Z-a6786dc0",
+  "rms_delta_p": 0.10615000000000001,
+  "scored_tokens": 8184,
+  "top1_agreement": 0.7356999999999999
+}

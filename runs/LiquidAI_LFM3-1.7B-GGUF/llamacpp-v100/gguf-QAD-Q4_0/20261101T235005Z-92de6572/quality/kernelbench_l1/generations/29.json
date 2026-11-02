@@ -1,0 +1,16 @@
+{
+  "content": "<tool_call>\n<function=write>\n<parameter=path>\nModelNew.py\n</parameter>\n<parameter=content>\nimport torch\nimport torch.nn as nn\nfrom torch.utils.cpp_extension import load_inline\n\n\n# Define the custom CUDA kernel for element-wise Softplus (using online softmax-like approach)\n# Since PyTorch's F.softplus is used, we implement a custom CUDA operator that computes element-wise softplus.\n# We'll write inline code to replace torch.nn.functional.softplus.\n\nsoftplus_cpp_source = \"\"\"\ntorch::Tensor softplus_cuda(torch::Tensor x) {\n    auto size = x.numel();\n    auto out = torch::zeros_like(x);\n\n    const int block_size = 256;\n    const int num_blocks = (size + block_size - 1) / block_size;\n\n    // For each element, we need to compute softplus. Since softplus is non-linear and requires per-element computation,\n    // we can launch a kernel where each thread handles one element.\n    // However, for simplicity and performance on large tensors, we use a two-level approach:\n    // 1. Each block processes multiple elements (e.g., using shared memory to compute partial sums?).\n    // But given the constraints, we implement a simple per-element kernel.\n\n    softplus_kernel<<<num_blocks, block_size>>>(x.data_ptr<float>(), out.data_ptr<float>(), size);\n    return out;\n}\n\n__global__ void softplus_kernel(const float* x, float* out, int total_elements) {\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    if (idx < total_elements) {\n        // Compute softplus: ln(1 + exp(x))\n        // To avoid overflow, we can use the stable formula:\n        // softplus(z) = max(0, z) + ln(1 + exp(-|z|)) for negative? Actually standard: log(1+exp(x)).\n        // For large positive x, exp(x) overflows. Use: if x > 0: x + log(1+exp(-x)); else: log(1+exp(x)).\n        float val = x;\n        if (val < 0) {\n            val = logf(1.0f + expf(val));\n        } else {\n            // For large positive, compute as val - logf(exp(-val) + 1)? Actually:\n            // softplus(z) = ln(1+exp(z)). For z>0: we can write z + ln(1+exp(-z)).\n            float exp_neg_z = expf(-val);\n            val += logf(1.0f + exp_neg_z);\n        }\n        out[idx] = val;\n    }\n}\n\"\"\"\n\n# Compile the inline CUDA code for element-wise softplus\nsoftplus = load_inline(\n    name=\"elementwise_softplus\",\n    cpp_sources=softplus_cpp_source,\n    cuda_sources=softplus_cpp_source,  # same source includes both kernel and function? Actually we need to split.\n    functions=[\"softplus_cuda\"],\n    verbose=True,\n    extra_cflags=[],\n    extra_ldflags=[],\n)\n\n\nclass ModelNew(nn.Module):\n    def __init__(self) -> None:\n        super().__init__()\n        self.softplus = softplus\n\n    def forward(self, x: torch.Tensor) -> torch.Tensor:\n        return self.softplus.elementwise_softplus_cuda(x)\n\n</parameter>\n</function>\n</tool_call>",
+  "finish_reason": "stop",
+  "kernel": null,
+  "name": "29_Softplus",
+  "problem_id": 29,
+  "reasoning": null,
+  "usage": {
+    "completion_tokens": 751,
+    "prompt_tokens": 979,
+    "prompt_tokens_details": {
+      "cached_tokens": 461
+    },
+    "total_tokens": 1730
+  }
+}

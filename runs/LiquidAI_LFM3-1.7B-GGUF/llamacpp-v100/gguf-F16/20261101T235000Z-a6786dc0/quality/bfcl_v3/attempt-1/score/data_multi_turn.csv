@@ -1,0 +1,2 @@
+Rank,Model,Multi Turn Overall Acc,Base,Miss Func,Miss Param,Long Context
+1,LiquidAI_LFM3-1.7B-GGUF,35.56%,42.22%,33.33%,27.78%,38.89%

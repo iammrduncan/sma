@@ -1,0 +1,792 @@
+{
+  "architecture": "lfm3",
+  "architecture_check": {
+    "message": "llama.cpp has no architecture registry to query; the server start is the check.",
+    "ok": true,
+    "source": "llama.cpp"
+  },
+  "architectures": [
+    "lfm3"
+  ],
+  "config_snapshot": {
+    "browsecomp": {
+      "enabled": true,
+      "judge_concurrency": 1,
+      "judge_extra_body": {
+        "cache_prompt": false,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "judge_max_tokens": 4096,
+      "judge_model": "qwen3.8-flash-fp4",
+      "judge_temperature": 0.0,
+      "judge_timeout_s": 900,
+      "k": 5,
+      "limit": 100,
+      "local_port": 8791,
+      "max_iterations": 100,
+      "max_tokens": 20000,
+      "min_context": 32768,
+      "remote_dir": "sma-bcp",
+      "request_timeout_s": 1800,
+      "search_port": 8791,
+      "search_start_s": 600,
+      "snippet_max_tokens": 512,
+      "workers": 4
+    },
+    "determinism": {
+      "batch_sizes": [
+        1,
+        8,
+        64
+      ],
+      "max_tokens": 32,
+      "prompts": [
+        "The capital of France is",
+        "2 + 2 =",
+        "def add(a, b):\n    return"
+      ],
+      "temperature": 0
+    },
+    "doctor": {
+      "gpu_index": 0,
+      "min_free_gb": 20
+    },
+    "engine": {
+      "apply_clock_cap": false,
+      "batch_invariant": true,
+      "bind_host": "127.0.0.1",
+      "clock_cap_mhz": null,
+      "container_prefix": "sma",
+      "extra_args": [],
+      "gpu_memory_utilization": 0.9,
+      "gpus": "all",
+      "image": "nvcr.io/nvidia/vllm:26.05.post1-py3",
+      "image_digest": null,
+      "linear_backend": "flashinfer_b12x",
+      "llamacpp_cache_ram_mib": 0,
+      "llamacpp_image": "ghcr.io/ggml-org/llama.cpp:full-cuda13-b11960",
+      "llamacpp_image_digest": null,
+      "max_num_seqs": 64,
+      "moe_backend": "flashinfer_b12x",
+      "moe_backend_fallbacks": [
+        "marlin"
+      ],
+      "name": "vllm",
+      "no_async_scheduling_with_batch_invariant": true,
+      "no_flashinfer_autotune_quality": true,
+      "port": 18001,
+      "reasoning_parser": null,
+      "server_stop_timeout_s": 30,
+      "sglang_attention_backend": "flashinfer",
+      "sglang_determinism_backend": "flashinfer",
+      "sglang_disable_deep_gemm": true,
+      "sglang_image": "lmsysorg/sglang:v0.5.10.post1-cu130",
+      "sglang_image_digest": null,
+      "shm_size": "16g",
+      "tool_call_parser": null,
+      "trust_remote_code": false
+    },
+    "harness": {
+      "cgroup_parent": "sma-harness.slice",
+      "cpus_timed": "5-9",
+      "cpus_untimed": "0-4",
+      "lock_dir": "~/.local/share/sma/locks"
+    },
+    "hf": {
+      "cache_dir": "/data/models/sma/hf",
+      "download_timeout_s": 3600,
+      "token_env": "HF_TOKEN"
+    },
+    "host_alias": "v100-pod",
+    "kernelbench": {
+      "concurrency": 8,
+      "enabled": true,
+      "level": 1,
+      "max_tokens": 131072,
+      "options": {},
+      "poll_s": 60,
+      "queue_wait_s": 172800.0,
+      "request_timeout_s": 14400,
+      "wait_s": 21600
+    },
+    "lock_path": "/home/<host>/.local/share/sma/locks/v100-v100-0.lock",
+    "logprobs": {
+      "corpus_version": "sma-corpus-v3",
+      "llamacpp_chunks": 8,
+      "num_windows": 48,
+      "reference_wait_s": 21600.0,
+      "top_k": 64,
+      "window_tokens": 2048
+    },
+    "memory": {
+      "budget_gb": 33.0,
+      "guard_cgroup": "sma-harness.slice",
+      "guard_free_gb": 6,
+      "overhead_gb": {
+        "llamacpp": 1.0,
+        "sglang": 13.0,
+        "vllm": 13.0
+      },
+      "quality_min_context": 8192,
+      "start_context": 65536
+    },
+    "quality": {
+      "chat_template_kwargs": {
+        "enable_thinking": false
+      },
+      "concurrency": 8,
+      "enabled": true,
+      "executable": "nel",
+      "max_tokens": 131072,
+      "request_timeout_s": 14400,
+      "suites": [
+        {
+          "bench": "lm-eval://ifeval",
+          "image": null,
+          "limit": null,
+          "metric": null,
+          "name": "ifeval",
+          "params": null,
+          "questions": 541,
+          "sampling": false,
+          "task": null,
+          "tools": false
+        },
+        {
+          "bench": "sma:gsm8k",
+          "image": null,
+          "limit": 150,
+          "metric": null,
+          "name": "gsm8k",
+          "params": null,
+          "questions": null,
+          "sampling": false,
+          "task": null,
+          "tools": false
+        },
+        {
+          "bench": null,
+          "image": null,
+          "limit": 700,
+          "metric": null,
+          "name": "mmlu_pro",
+          "params": null,
+          "questions": null,
+          "sampling": false,
+          "task": null,
+          "tools": false
+        },
+        {
+          "bench": "gpqa",
+          "image": null,
+          "limit": null,
+          "metric": null,
+          "name": "gpqa_diamond",
+          "params": null,
+          "questions": 198,
+          "sampling": false,
+          "task": null,
+          "tools": false
+        },
+        {
+          "bench": "sma:musique",
+          "image": null,
+          "limit": 100,
+          "metric": "answer_f1",
+          "name": "musique",
+          "params": null,
+          "questions": null,
+          "sampling": false,
+          "task": null,
+          "tools": false
+        },
+        {
+          "bench": null,
+          "image": "nvcr.io/nvidia/eval-factory/bfcl:26.03",
+          "limit": 2000,
+          "metric": null,
+          "name": "bfcl_v3",
+          "params": null,
+          "questions": 4441,
+          "sampling": false,
+          "task": "bfclv3_ast",
+          "tools": true
+        },
+        {
+          "bench": null,
+          "image": "nvcr.io/nvidia/eval-factory/livecodebench:26.03",
+          "limit": null,
+          "metric": null,
+          "name": "livecodebench",
+          "params": {
+            "extra": {
+              "cache_batch_size": 105,
+              "end_date": "2025-05-01",
+              "n_samples": 1,
+              "start_date": "2025-02-15"
+            }
+          },
+          "questions": 105,
+          "sampling": true,
+          "task": "codegeneration_release_v6",
+          "tools": false
+        }
+      ],
+      "temperature": 0.0
+    },
+    "queue": {
+      "claim_grace_s": 30,
+      "dir": "~/.local/share/sma/queue",
+      "heartbeat_s": 30,
+      "max_attempts": 2,
+      "poll_s": 5,
+      "retry_backoff_factor": 2,
+      "retry_backoff_s": 30,
+      "stale_claim_s": 3600
+    },
+    "remote": {
+      "enabled": true,
+      "gpus": "0",
+      "hardware": "v100",
+      "host_env": "V100_HOST",
+      "key_env": "V100_HOST_SSH_KEY",
+      "llamacpp_build": "llama.cpp-b11960",
+      "port_env": "V100_HOST_SSH_PORT",
+      "remote_port": 8001,
+      "root": "/work/sma",
+      "slot": "v100-0",
+      "slots": [
+        {
+          "gpus": "0",
+          "local_port": 18001,
+          "name": "v100-0",
+          "remote_port": null,
+          "remote_port_env": "V100_MODEL1_PORT",
+          "search_port": 8791
+        },
+        {
+          "gpus": "1",
+          "local_port": 18002,
+          "name": "v100-1",
+          "remote_port": null,
+          "remote_port_env": "V100_MODEL2_PORT",
+          "search_port": 8792
+        },
+        {
+          "gpus": "2",
+          "local_port": 18003,
+          "name": "v100-2",
+          "remote_port": null,
+          "remote_port_env": "V100_MODEL3_PORT",
+          "search_port": 8793
+        },
+        {
+          "gpus": "3",
+          "local_port": 18004,
+          "name": "v100-3",
+          "remote_port": null,
+          "remote_port_env": "V100_MODEL4_PORT",
+          "search_port": 8794
+        }
+      ],
+      "threads_per_slot": 3,
+      "user_env": "V100_HOST_USER"
+    },
+    "retries": {
+      "attempts": 3,
+      "backoff_factor": 2.0,
+      "backoff_s": 2.0
+    },
+    "runs_dir": "runs",
+    "schema_version": 1,
+    "seed": 0,
+    "speed": {
+      "decode": {
+        "input_len": 128,
+        "name": "decode",
+        "output_len": 512
+      },
+      "derive_stat": "p50",
+      "metric_percentiles": "50,90,99",
+      "num_prompts": 32,
+      "percentile_metrics": "ttft,tpot,itl,e2el",
+      "prefill": {
+        "input_len": 2048,
+        "name": "prefill",
+        "output_len": 64
+      },
+      "repeats": 1,
+      "sweep": {
+        "input_len": 1024,
+        "name": "sweep",
+        "output_len": 256
+      },
+      "sweep_concurrency": [
+        1,
+        4,
+        8
+      ],
+      "throttle_retries": 1,
+      "warmup_max_tokens": 8,
+      "warmup_requests": 4,
+      "warmup_soak_s": 30
+    },
+    "swebench": {
+      "agent_config": "swebench.yaml",
+      "agent_wait_s": 43200,
+      "dataset_file": "data/verified-mini.jsonl",
+      "enabled": false,
+      "grade_timeout_s": 1800,
+      "grade_wait_s": 7200,
+      "grade_workers": 4,
+      "min_context": 32768,
+      "poll_s": 60,
+      "remote_dir": "sma-swe",
+      "split": "test",
+      "step_limit": 250,
+      "subset": "data/verified-mini",
+      "workers": 8
+    },
+    "telemetry": {
+      "cool_between_legs": true,
+      "drop_page_cache": false,
+      "engine_metrics_interval_s": 15,
+      "idle_timeout_s": 600,
+      "idle_until_cool_c": 55,
+      "interval_s": 1.0,
+      "max_sample_gap_s": 2.5,
+      "min_sample_ratio": 0.8,
+      "poll_s": 5,
+      "spec_bandwidth_gbps": 273,
+      "spec_usable_gb": 115,
+      "sw_power_cap_invalidates": false
+    },
+    "timeouts": {
+      "bench_s": 7200,
+      "command_s": 120,
+      "docker_s": 300,
+      "eval_s": 86400,
+      "health_poll_s": 2,
+      "health_request_s": 5,
+      "image_pull_s": 3600,
+      "logprob_request_s": 600,
+      "metrics_s": 10,
+      "server_start_s": 900
+    }
+  },
+  "dispatch_concurrency": 8,
+  "engine": {
+    "batch_invariant_quality": false,
+    "batch_invariant_supported": false,
+    "batch_invariant_warning": "llama.cpp has no batch-invariant mode. The determinism probe still runs and records what it sees.",
+    "bench_image": "nvcr.io/nvidia/vllm:26.05.post1-py3@sha256:94e21552f644e0c1627464ba89d2f7a4ce7442e196f72afa0bb5d7fba23cbb03",
+    "bench_tokenizer": {
+      "check": "every token id and BPE merge matches the GGUF's; its other ids are unused padding",
+      "reason": "the bench image's transformers cannot read GGUF architecture lfm3",
+      "repo": "LiquidAI/LFM3-1.7B-Base",
+      "revision": "545fc8f4c7b5fa9f405105274cd29c4f8f44b526",
+      "source": "repo"
+    },
+    "build_info": "b1-8642541",
+    "clock_cap_mhz": null,
+    "context_per_stream": 65536,
+    "deterministic_quality": {
+      "attention_backend": "flash_attn",
+      "determinism_backend": null,
+      "prefix_cache": true,
+      "radix_cache": null
+    },
+    "env_quality": {},
+    "env_speed": {},
+    "flags_quality": [
+      "-m",
+      "/model/LFM3-1.7B-F16.gguf",
+      "--host",
+      "0.0.0.0",
+      "--port",
+      "8000",
+      "--alias",
+      "LiquidAI/LFM3-1.7B-GGUF",
+      "--seed",
+      "0",
+      "-ngl",
+      "all",
+      "-fa",
+      "on",
+      "-ctk",
+      "q8_0",
+      "-ctv",
+      "q8_0",
+      "-c",
+      "526777",
+      "-np",
+      "8",
+      "--kv-unified",
+      "--kv-unified-per-slot",
+      "65536",
+      "--cache-ram",
+      "0",
+      "--metrics",
+      "--no-webui",
+      "--jinja",
+      "-lv",
+      "4",
+      "--chat-template-kwargs",
+      "{\"enable_thinking\": false}",
+      "--threads",
+      "3",
+      "--threads-batch",
+      "3"
+    ],
+    "flags_speed": [
+      "-m",
+      "/model/LFM3-1.7B-F16.gguf",
+      "--host",
+      "0.0.0.0",
+      "--port",
+      "8000",
+      "--alias",
+      "LiquidAI/LFM3-1.7B-GGUF",
+      "--seed",
+      "0",
+      "-ngl",
+      "all",
+      "-fa",
+      "on",
+      "-ctk",
+      "q8_0",
+      "-ctv",
+      "q8_0",
+      "-c",
+      "526777",
+      "-np",
+      "8",
+      "--kv-unified",
+      "--kv-unified-per-slot",
+      "65536",
+      "--cache-ram",
+      "0",
+      "--metrics",
+      "--no-webui",
+      "--jinja",
+      "-lv",
+      "4",
+      "--threads",
+      "3",
+      "--threads-batch",
+      "3"
+    ],
+    "flashinfer_autotune_quality": true,
+    "image": "llama.cpp source build llama.cpp-b11960 on the serving machine (services/v100-serving)",
+    "image_digest": "8642541b255bfb5dc39cd351a178be09013a55d6",
+    "kv_cache_reported": {
+      "quality": {
+        "build_info": "b1-8642541",
+        "kv_type": "q8_0,q8_0",
+        "kv_type_line": "0.01.415.512 I llama_kv_cache: size =   13.28 MiB (  2560 cells,   5 layers,  8/1 seqs), K (q8_0):    6.64 MiB, V (q8_0):    6.64 MiB",
+        "pool_tokens": 526848,
+        "scale_1_0": null
+      },
+      "speed": {
+        "build_info": "b1-8642541",
+        "kv_type": "q8_0,q8_0",
+        "kv_type_line": "0.01.662.726 I llama_kv_cache: size =   13.28 MiB (  2560 cells,   5 layers,  8/1 seqs), K (q8_0):    6.64 MiB, V (q8_0):    6.64 MiB",
+        "pool_tokens": 526848,
+        "scale_1_0": null
+      }
+    },
+    "kv_cache_scales": "q8_0 per-block scales",
+    "kv_cache_type": "q8_0",
+    "linear_backend": null,
+    "logprobs_mode": "llama-perplexity full-vocabulary KL",
+    "max_logprobs": 64,
+    "moe_backend_chain": [
+      "flashinfer_b12x",
+      "marlin"
+    ],
+    "moe_backend_config": "flashinfer_b12x",
+    "moe_backend_fallback": false,
+    "moe_backend_quality": null,
+    "moe_backend_quality_fallback": false,
+    "moe_backend_speed": null,
+    "moe_backend_speed_fallback": false,
+    "moe_backend_used": null,
+    "name": "llamacpp",
+    "no_async_scheduling_quality": false,
+    "resolved_backend_note": null,
+    "seed": 0,
+    "selected_by": "default",
+    "selection_reason": null,
+    "tensor_parallel_size": 1,
+    "tool_call_parser": "llama.cpp --jinja"
+  },
+  "file_hashes": {
+    "LFM3-1.7B-F16.gguf": "sha256:b7ab8b69a85e4dfbf62cdfd0e02d7d051ed09f2c5b84c701771dddb073b85970"
+  },
+  "gguf": {
+    "architecture": "lfm3",
+    "file_type": "MOSTLY_F16",
+    "file_type_id": 1,
+    "files": [
+      "LFM3-1.7B-F16.gguf"
+    ],
+    "model_file": "LFM3-1.7B-F16.gguf",
+    "name": "LFM3 1.7B",
+    "native_context": 262144,
+    "notes": [],
+    "selector": "F16",
+    "split_count": 1
+  },
+  "host_alias": "v100-pod",
+  "is_moe": false,
+  "large_files": {
+    "logprobs/kld-base.bin": {
+      "bytes": 2095235028,
+      "sha256": "sha256:dc92dc4fa17a921b06aed1932c70b5bc16958e0e95df35d68164a894da658df5"
+    },
+    "quality/browsecomp_plus/trajectories.jsonl.gz": {
+      "bytes": 6626637,
+      "sha256": "sha256:3f146dba4fa8d9ea6ae04bc841833c7bee1348fc44fd4481f226bc85050af487"
+    }
+  },
+  "logprobs_reference_file": "logprobs/kld-base.bin",
+  "memory_plan": {
+    "benchmarks": {
+      "browsecomp": 65536,
+      "determinism": 4096,
+      "kernelbench": 65536,
+      "logprobs": 65536,
+      "quality": 65536,
+      "speed": 65536
+    },
+    "budget_bytes": 33000000000,
+    "budget_gb": 33.0,
+    "buffer_bytes": 2157678592,
+    "buffer_bytes_per_token": 4096,
+    "buffer_gb": 2.16,
+    "context": 65536,
+    "context_reason": "65,536 tokens fits",
+    "footprint_bytes": 10063109920,
+    "footprint_gb": 10.06,
+    "kv_bytes_per_token": 6528,
+    "kv_type": "q8_0",
+    "ladder": [
+      65536,
+      32768,
+      16384,
+      8192,
+      4096,
+      2048,
+      1024
+    ],
+    "layout_notes": [],
+    "notes": [],
+    "overhead_bytes": 1000000000,
+    "overhead_gb": 1.0,
+    "pool_bytes": 3438804992,
+    "pool_gb": 3.44,
+    "pool_streams": 8,
+    "pool_tokens": 526777,
+    "stream_bytes": 429850624,
+    "stream_gb": 0.43,
+    "streams_32k": 15,
+    "streams_full_context": 8,
+    "weights_bytes": 3466626336,
+    "weights_gb": 3.47
+  },
+  "model_repo": "LiquidAI/LFM3-1.7B-GGUF",
+  "model_slug": "LiquidAI_LFM3-1.7B-GGUF",
+  "pair_job_id": "job-20261101T232925211940Z-ab16e20f",
+  "params": {
+    "active": 1728801600,
+    "active_b": 1.7,
+    "method": "GGUF tensor shapes; dense: active = total, embeddings included, from safetensors shapes",
+    "size_class": "1-3B",
+    "source": "safetensors shapes",
+    "total": 1728801600,
+    "total_b": 1.7
+  },
+  "quant_composition": {
+    "tensor_bytes": {
+      "F16": 3456827392,
+      "F32": 1551616
+    },
+    "tensor_types": {
+      "F16": 154,
+      "F32": 133
+    }
+  },
+  "quant_detail": "GGUF MOSTLY_F16; tensors 154 F16, 133 F32",
+  "quant_detected": "gguf",
+  "quant_flag": "gguf",
+  "quant_label": "F16",
+  "quant_producer": null,
+  "reference_run_id": null,
+  "revision_requested": null,
+  "revision_sha": "bad5729bba61d076fff20d2548e62526665af215",
+  "run_id": "20261101T235000Z-a6786dc0",
+  "schema_version": 2,
+  "serving": {
+    "build": {
+      "commit": "8642541b255bfb5dc39cd351a178be09013a55d6",
+      "cuda": "Build cuda_12.8.r12.8/compiler.35583870_0",
+      "cuda_architectures": "70",
+      "flags": [
+        "-DGGML_CUDA=ON",
+        "-DCMAKE_CUDA_ARCHITECTURES=70",
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DLLAMA_CURL=OFF",
+        "-DGGML_NATIVE=OFF",
+        "-DBUILD_SHARED_LIBS=OFF"
+      ],
+      "sha256": {
+        "llama-perplexity": "89568821feb80623cc0c4f75c4bc3c802ec254b3c359d8d76b93ab61f8038581",
+        "llama-server": "602ba1ef253522d251caed9977b309b1d9f74634bbf5c7809ea519270bebb174"
+      },
+      "tag": "b11960"
+    },
+    "driver": "580.178.04",
+    "gpu_memory": [
+      "32768 MiB"
+    ],
+    "gpu_names": [
+      "Tesla PG500-216"
+    ],
+    "gpus": "0",
+    "hardware": "v100",
+    "slot": "v100-0"
+  },
+  "sma_git_commit": "8884e8c5305b889a0e085db7985dc07030944277",
+  "sma_git_dirty": true,
+  "sma_version": "0.1.0",
+  "steps": {
+    "browsecomp_plus": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-11-02T12:05:28Z",
+      "started": "2026-11-02T09:57:05Z",
+      "status": "done"
+    },
+    "browsecomp_plus_results": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-11-02T12:06:30Z",
+      "started": "2026-11-02T12:05:28Z",
+      "status": "done"
+    },
+    "cleanup": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-11-02T12:13:52Z",
+      "started": "2026-11-02T12:13:52Z",
+      "status": "done"
+    },
+    "determinism": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-11-01T23:51:32Z",
+      "started": "2026-11-01T23:51:08Z",
+      "status": "done"
+    },
+    "fetch": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-11-01T23:51:05Z",
+      "started": "2026-11-01T23:50:00Z",
+      "status": "done"
+    },
+    "kernelbench": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-11-02T09:57:04Z",
+      "started": "2026-11-02T08:50:14Z",
+      "status": "done"
+    },
+    "kernelbench_results": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-11-02T12:06:31Z",
+      "started": "2026-11-02T12:06:31Z",
+      "status": "done"
+    },
+    "logprobs": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-11-01T23:52:50Z",
+      "started": "2026-11-01T23:51:32Z",
+      "status": "done"
+    },
+    "quality": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-11-02T08:50:14Z",
+      "started": "2026-11-01T23:52:50Z",
+      "status": "done"
+    },
+    "serve_quality": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-11-01T23:51:08Z",
+      "started": "2026-11-01T23:51:05Z",
+      "status": "done"
+    },
+    "serve_speed": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-11-02T12:06:48Z",
+      "started": "2026-11-02T12:06:32Z",
+      "status": "done"
+    },
+    "speed": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-11-02T12:13:39Z",
+      "started": "2026-11-02T12:06:48Z",
+      "status": "done"
+    },
+    "swebench": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-11-02T09:57:05Z",
+      "started": "2026-11-02T09:57:04Z",
+      "status": "done"
+    },
+    "teardown": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-11-02T12:13:52Z",
+      "started": "2026-11-02T12:13:52Z",
+      "status": "done"
+    },
+    "telemetry": {
+      "attempts": 1,
+      "error": null,
+      "finished": "2026-11-02T12:13:40Z",
+      "started": "2026-11-02T12:13:40Z",
+      "status": "done"
+    }
+  },
+  "subject": {
+    "engine": "llamacpp",
+    "hardware_alias": "v100-pod",
+    "model_repo": "LiquidAI/LFM3-1.7B-GGUF",
+    "quant": "F16",
+    "revision_sha": "bad5729bba61d076fff20d2548e62526665af215",
+    "thinking": "off"
+  },
+  "thinking": "off",
+  "timestamps": {
+    "created": "2026-11-01T23:50:00Z",
+    "finished": "2026-11-02T12:13:39Z",
+    "started": "2026-11-01T23:50:00Z"
+  },
+  "tokenizer_fingerprint": "sha256:8a0206d02d98207a0d9596774b1bdfff17f60e5b08ae2410f6c5e152466e46df",
+  "warnings": [
+    "Determinism probe failed. The run continues. Use the recorded concurrency for both quants and treat quality deltas against a wider noise band.",
+    "Speed cell sweep_c4_r1 bench failed on attempt 1: bench completed 30 requests, and speed.num_prompts is 32. A speed cell is invalid unless every prompt finished.. Retrying after backoff. This is not a thermal or power throttle, so there is no cool-down.",
+    "Speed cell sweep_c8_r1 bench failed on attempt 1: bench completed 31 requests, and speed.num_prompts is 32. A speed cell is invalid unless every prompt finished.. Retrying after backoff. This is not a thermal or power throttle, so there is no cool-down.",
+    "2 speed cell(s) were invalid because the bench failed (completed count, request errors, or a missing bench result). Those retries used a backoff and did not cool down. Bench-failed cells stay on disk and are excluded from the headline tok/s."
+  ]
+}

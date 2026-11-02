@@ -1,0 +1,19 @@
+config:
+  type: codegeneration_release_v6
+  output_dir: /results
+  params:
+    parallelism: 8
+    extra:
+      n_samples: 1
+      start_date: '2025-02-15'
+      end_date: '2025-05-01'
+      cache_batch_size: 105
+    max_new_tokens: 61440
+    request_timeout: 14400
+    temperature: 0.0
+    top_p: 1.0
+target:
+  api_endpoint:
+    url: http://127.0.0.1:18001/v1/chat/completions
+    model_id: LiquidAI/LFM3-1.7B-GGUF
+    type: chat

@@ -1,0 +1,36 @@
+{
+  "calibration_error": null,
+  "ci_lower": 0.027786123800628143,
+  "ci_upper": 0.12476815511608857,
+  "concurrency": 4,
+  "context_per_stream": 65536,
+  "correct": 6,
+  "error": null,
+  "evidence_recall": 0.2569203851703852,
+  "gold_recall": 0.2818333333333333,
+  "judge": "qwen3.8-flash-fp4",
+  "judge_parse_errors": 0,
+  "judge_settings": {
+    "concurrency": 1,
+    "extra_body": {
+      "cache_prompt": false,
+      "chat_template_kwargs": {
+        "enable_thinking": false
+      }
+    },
+    "max_tokens": 4096,
+    "temperature": 0.0
+  },
+  "limit": 100,
+  "n": 100,
+  "primary_metric": "accuracy",
+  "primary_score": 0.06,
+  "scorer": "BrowseComp-Plus 04694903 evaluate_run.py grader, judged by qwen3.8-flash-fp4",
+  "search_calls": 21.54,
+  "statuses": {
+    "completed": 18,
+    "error": 78,
+    "length": 4
+  },
+  "suite": "browsecomp_plus"
+}

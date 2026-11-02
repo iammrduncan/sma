@@ -1,0 +1,89 @@
+command: " livecodebench --model LiquidAI/LFM3-1.7B-GGUF \\\n            --scenario\
+  \ codegeneration \\\n            --release_version release_v6 \\\n            --url\
+  \ http://127.0.0.1:18001/v1/chat/completions \\\n            --temperature 0.0 \\\
+  \n            --top_p 1.0 \\\n            --evaluate \\\n            --codegen_n\
+  \ 1 \\\n            --use_cache \\\n            --cache_batch_size 105 \\\n    \
+  \        --num_process_evaluate 5 \\\n            --n 1 \\\n            --max_tokens\
+  \ 61440 \\\n            --out_dir /results \\\n            --multiprocess 8 \\\n\
+  \            --max_retries 5 \\\n            --timeout 14400 --start_date 2025-02-15\
+  \   --end_date 2025-05-01   "
+config:
+  output_dir: /results
+  params:
+    extra:
+      cache_batch_size: 105
+      cot_code_execution: false
+      end_date: '2025-05-01'
+      n_samples: 1
+      num_process_evaluate: 5
+      release_version: release_v6
+      start_date: '2025-02-15'
+      support_system_role: false
+    max_new_tokens: 61440
+    max_retries: 5
+    parallelism: 8
+    request_timeout: 14400
+    task: codegeneration
+    temperature: 0.0
+    top_p: 1.0
+  supported_endpoint_types:
+  - chat
+  type: codegeneration_release_v6
+git_hash: 83a6bbd46e65be5bceb13b920aa2f90dd73ec155
+results:
+  groups:
+    codegeneration:
+      metrics:
+        pass@1:
+          scores:
+            pass@1:
+              stats:
+                stderr: 0.04852615860619696
+              value: 0.42857142857142855
+  tasks:
+    codegeneration:
+      metrics:
+        pass@1:
+          scores:
+            pass@1:
+              stats:
+                stderr: 0.04852615860619696
+              value: 0.42857142857142855
+target:
+  api_endpoint:
+    adapter_config:
+      discovery:
+        dirs: []
+        modules: []
+      endpoint_type: chat
+      interceptors:
+      - config:
+          cache_dir: /results/cache
+          max_saved_requests: 5
+          max_saved_responses: 5
+          reuse_cached_responses: true
+          save_requests: true
+          save_responses: true
+        enabled: true
+        name: caching
+      - config: {}
+        enabled: true
+        name: endpoint
+      - config:
+          cache_dir: /results/response_stats_cache
+          logging_aggregated_stats_interval: 100
+        enabled: true
+        name: response_stats
+      log_failed_requests: false
+      mode: server
+      post_eval_hooks:
+      - config:
+          html_report_size: 5
+          report_types:
+          - html
+          - json
+        enabled: true
+        name: post_eval_report
+    model_id: LiquidAI/LFM3-1.7B-GGUF
+    type: chat
+    url: http://127.0.0.1:18001/v1/chat/completions

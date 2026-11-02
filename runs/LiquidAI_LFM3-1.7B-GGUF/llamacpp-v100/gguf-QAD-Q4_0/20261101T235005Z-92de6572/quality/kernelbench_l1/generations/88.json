@@ -1,0 +1,16 @@
+{
+  "content": "<tool_call>\n<function=write>\n<parameter=path>\nModelNew.py\n</parameter>\n<parameter=content>\nimport torch\nimport torch.nn as nn\nimport torch.nn.functional as F\nfrom torch.utils.cpp_extension import load_inline\n\n# Define the custom CUDA kernel for element-wise GELU activation.\n# The GELU formula: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))\n# We implement a fused kernel that computes this in-place on the input tensor.\n\ngelu_source = \"\"\"\n#include <torch/extension.h>\n#include <cuda_runtime.h>\n\n__global__ void gelu_kernel(const float* x, float* out, int size) {\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    if (idx < size) {\n        float x_val = x[idx];\n        float sqrt_2_over_pi = 1.0 / math.sqrt(math.pi); // Wait: sqrt(2/pi) = sqrt(2)/sqrt(pi)\n        // Actually compute: sqrt(2.0 / math.pi)\n        float t = sqrt(2.0 / math.pi) * (x_val + 0.044715_f * pow(x_val, 3.0f));\n        out[idx] = 0.5f * x_val * (1.0f + tanhf(t));\n    }\n}\n\ntorch::Tensor gelu_cuda(torch::Tensor x) {\n    auto size = x.numel();\n    auto out = torch::zeros_like(x);\n\n    const int block_size = 256;\n    const int num_blocks = (size + block_size - 1) / block_size;\n\n    gelu_kernel<<<num_blocks, block_size>>>(x.data_ptr<float>(), out.data_ptr<float>(), size);\n\n    return out;\n}\n\"\"\"\n\ngelu_cpp_source = (\n    \"torch::Tensor gelu_cuda(torch::Tensor x);\"\n)\n\n# Compile the inline CUDA code for GELU activation\ngelu = load_inline(\n    name=\"gelu\",\n    cpp_sources=gelu_cpp_source,\n    cuda_sources=gelu_source,\n    functions=[\"gelu_cuda\"],\n    verbose=True,\n    extra_cflags=[],\n    extra_ldflags=[],\n)\n\n\nclass ModelNew(nn.Module):\n    \"\"\"\n    GELU activation function implemented via custom CUDA operator.\n    \"\"\"\n\n    def __init__(self):\n        super(ModelNew, self).__init__()\n\n        # Store the compiled gelu kernel\n        self.gelu = gelu\n\n    def forward(self, x):\n        return self.gelu.elementwise_add_cuda(x)  # Wait: function name is gelu_cuda, not elementwise_add_cuda.\n        # Actually we defined function gelu_cuda inside the inline code. Let's check:\n        # In the source: torch::Tensor gelu_cuda(torch::Tensor x)\n        # So call gelu_cuda(x).\n\n    def forward(self, x):\n        return gelu_cuda(x)\n\n</parameter>\n</function>\n</tool_call>",
+  "finish_reason": "stop",
+  "kernel": null,
+  "name": "88_MinGPTNewGelu",
+  "problem_id": 88,
+  "reasoning": null,
+  "usage": {
+    "completion_tokens": 671,
+    "prompt_tokens": 1016,
+    "prompt_tokens_details": {
+      "cached_tokens": 11
+    },
+    "total_tokens": 1687
+  }
+}

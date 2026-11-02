@@ -1,0 +1,63 @@
+{"event": "run_created", "level": "INFO", "logger": "sma", "message": "run_created run_id=20261101T235005Z-92de6572 repo=LiquidAI/LFM3-1.7B-GGUF quant=gguf", "ts": "2026-11-01T23:50:05Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=fetch run_id=20261101T235005Z-92de6572 attempt=1", "ts": "2026-11-01T23:50:05Z"}
+{"event": "fetched", "level": "INFO", "logger": "sma", "message": "fetched repo=LiquidAI/LFM3-1.7B-GGUF revision_sha=bad5729bba61d076fff20d2548e62526665af215", "ts": "2026-11-01T23:50:08Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=KV cache: q8_0, 6,528 bytes per token in the full-attention layers", "ts": "2026-11-01T23:50:35Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=context per stream: 65,536 tokens (65,536 tokens fits)", "ts": "2026-11-01T23:50:35Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=memory: 1.05 GB weights + 1.0 GB engine overhead + 3.44 GB KV pool + 2.16 GB engine buffers sized by it = 7.65 GB of the 33.0 GB budget", "ts": "2026-11-01T23:50:35Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=KV pool: 8 slots at 65,536 tokens, the most the server runs at once", "ts": "2026-11-01T23:50:35Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=streams that fit: 8 at 65,536 tokens, 15 at 32,768", "ts": "2026-11-01T23:50:35Z"}
+{"event": "memory_plan", "level": "INFO", "logger": "sma", "message": "memory_plan line=per benchmark: browsecomp 65,536, determinism 4,096, kernelbench 65,536, logprobs 65,536, quality 65,536, speed 65,536", "ts": "2026-11-01T23:50:35Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=fetch run_id=20261101T235005Z-92de6572", "ts": "2026-11-01T23:50:36Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=serve_quality run_id=20261101T235005Z-92de6572 attempt=1", "ts": "2026-11-01T23:50:36Z"}
+{"event": "remote_model", "level": "INFO", "logger": "sma", "message": "remote_model file=LFM3-1.7B-QAD-Q4_0.gguf repo=LiquidAI/LFM3-1.7B-GGUF", "ts": "2026-11-01T23:50:36Z"}
+{"event": "remote_model_ready", "level": "INFO", "logger": "sma", "message": "remote_model_ready file=LFM3-1.7B-QAD-Q4_0.gguf state=present", "ts": "2026-11-01T23:50:36Z"}
+{"event": "remote_start", "level": "INFO", "logger": "sma", "message": "remote_start name=sma-20261101T235005Z-92de6572-quality mode=quality gpus=1", "ts": "2026-11-01T23:50:36Z"}
+{"event": "server_log", "level": "INFO", "logger": "sma", "message": "server_log mode=quality path=/home/<host>/github/sma/runs/LiquidAI_LFM3-1.7B-GGUF/llamacpp-v100/gguf-QAD-Q4_0/20261101T235005Z-92de6572/logs/server-quality.log", "ts": "2026-11-01T23:50:36Z"}
+{"event": "server_ready", "level": "INFO", "logger": "sma", "message": "server_ready mode=quality elapsed_s=2", "ts": "2026-11-01T23:50:38Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=serve_quality run_id=20261101T235005Z-92de6572", "ts": "2026-11-01T23:50:38Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=determinism run_id=20261101T235005Z-92de6572 attempt=1", "ts": "2026-11-01T23:50:38Z"}
+{"event": "warning", "level": "INFO", "logger": "sma", "message": "warning message=Determinism probe failed. The run continues. Use the recorded concurrency for both quants and treat quality deltas against a wider noise band.", "ts": "2026-11-01T23:50:59Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=determinism run_id=20261101T235005Z-92de6572", "ts": "2026-11-01T23:50:59Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=logprobs run_id=20261101T235005Z-92de6572 attempt=1", "ts": "2026-11-01T23:50:59Z"}
+{"event": "reference_wait", "level": "INFO", "logger": "sma", "message": "reference_wait run_id=20261101T235005Z-92de6572 reference=20261101T235000Z-a6786dc0", "ts": "2026-11-01T23:51:11Z"}
+{"event": "reference_ready", "level": "INFO", "logger": "sma", "message": "reference_ready run_id=20261101T235005Z-92de6572 reference=20261101T235000Z-a6786dc0", "ts": "2026-11-01T23:52:51Z"}
+{"event": "remote_model", "level": "INFO", "logger": "sma", "message": "remote_model file=LFM3-1.7B-QAD-Q4_0.gguf repo=LiquidAI/LFM3-1.7B-GGUF", "ts": "2026-11-01T23:52:52Z"}
+{"event": "remote_model_ready", "level": "INFO", "logger": "sma", "message": "remote_model_ready file=LFM3-1.7B-QAD-Q4_0.gguf state=present", "ts": "2026-11-01T23:52:52Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=logprobs run_id=20261101T235005Z-92de6572", "ts": "2026-11-01T23:52:59Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=quality run_id=20261101T235005Z-92de6572 attempt=1", "ts": "2026-11-01T23:52:59Z"}
+{"event": "remote_model", "level": "INFO", "logger": "sma", "message": "remote_model file=LFM3-1.7B-QAD-Q4_0.gguf repo=LiquidAI/LFM3-1.7B-GGUF", "ts": "2026-11-01T23:52:59Z"}
+{"event": "remote_model_ready", "level": "INFO", "logger": "sma", "message": "remote_model_ready file=LFM3-1.7B-QAD-Q4_0.gguf state=present", "ts": "2026-11-01T23:52:59Z"}
+{"event": "remote_start", "level": "INFO", "logger": "sma", "message": "remote_start name=sma-20261101T235005Z-92de6572-quality mode=quality gpus=1", "ts": "2026-11-01T23:52:59Z"}
+{"event": "server_log", "level": "INFO", "logger": "sma", "message": "server_log mode=quality path=/home/<host>/github/sma/runs/LiquidAI_LFM3-1.7B-GGUF/llamacpp-v100/gguf-QAD-Q4_0/20261101T235005Z-92de6572/logs/server-quality.log", "ts": "2026-11-01T23:52:59Z"}
+{"event": "server_ready", "level": "INFO", "logger": "sma", "message": "server_ready mode=quality elapsed_s=2", "ts": "2026-11-01T23:53:01Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=quality run_id=20261101T235005Z-92de6572", "ts": "2026-11-02T08:07:44Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=kernelbench run_id=20261101T235005Z-92de6572 attempt=1", "ts": "2026-11-02T08:07:44Z"}
+{"event": "kernelbench_generate", "level": "INFO", "logger": "sma", "message": "kernelbench_generate problems=100 run_id=20261101T235005Z-92de6572", "ts": "2026-11-02T08:07:45Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=kernelbench run_id=20261101T235005Z-92de6572", "ts": "2026-11-02T08:48:10Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=swebench run_id=20261101T235005Z-92de6572 attempt=1", "ts": "2026-11-02T08:48:10Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=swebench run_id=20261101T235005Z-92de6572", "ts": "2026-11-02T08:48:11Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=browsecomp_plus run_id=20261101T235005Z-92de6572 attempt=1", "ts": "2026-11-02T08:48:11Z"}
+{"event": "browsecomp_search_ready", "level": "INFO", "logger": "sma", "message": "browsecomp_search_ready docs=100195 run_id=20261101T235005Z-92de6572", "ts": "2026-11-02T08:48:28Z"}
+{"event": "browsecomp_start", "level": "INFO", "logger": "sma", "message": "browsecomp_start questions=100 run_id=20261101T235005Z-92de6572", "ts": "2026-11-02T08:48:28Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=browsecomp_plus run_id=20261101T235005Z-92de6572", "ts": "2026-11-02T10:54:21Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=browsecomp_plus_results run_id=20261101T235005Z-92de6572 attempt=1", "ts": "2026-11-02T10:54:21Z"}
+{"event": "browsecomp_judge", "level": "INFO", "logger": "sma", "message": "browsecomp_judge questions=100 judge=qwen3.8-flash-fp4 run_id=20261101T235005Z-92de6572", "ts": "2026-11-02T10:54:22Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=browsecomp_plus_results run_id=20261101T235005Z-92de6572", "ts": "2026-11-02T10:54:24Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=kernelbench_results run_id=20261101T235005Z-92de6572 attempt=1", "ts": "2026-11-02T10:54:25Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=kernelbench_results run_id=20261101T235005Z-92de6572", "ts": "2026-11-02T10:54:25Z"}
+{"event": "speed_turn_wait", "level": "INFO", "logger": "sma", "message": "speed_turn_wait run_id=20261101T235005Z-92de6572 lock=speed-v100.lock", "ts": "2026-11-02T10:54:25Z"}
+{"event": "speed_turn", "level": "INFO", "logger": "sma", "message": "speed_turn run_id=20261101T235005Z-92de6572 waited_s=0.0", "ts": "2026-11-02T10:54:25Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=serve_speed run_id=20261101T235005Z-92de6572 attempt=1", "ts": "2026-11-02T10:54:26Z"}
+{"event": "remote_model", "level": "INFO", "logger": "sma", "message": "remote_model file=LFM3-1.7B-QAD-Q4_0.gguf repo=LiquidAI/LFM3-1.7B-GGUF", "ts": "2026-11-02T10:54:37Z"}
+{"event": "remote_model_ready", "level": "INFO", "logger": "sma", "message": "remote_model_ready file=LFM3-1.7B-QAD-Q4_0.gguf state=present", "ts": "2026-11-02T10:54:37Z"}
+{"event": "remote_start", "level": "INFO", "logger": "sma", "message": "remote_start name=sma-20261101T235005Z-92de6572-speed mode=speed gpus=1", "ts": "2026-11-02T10:54:37Z"}
+{"event": "server_log", "level": "INFO", "logger": "sma", "message": "server_log mode=speed path=/home/<host>/github/sma/runs/LiquidAI_LFM3-1.7B-GGUF/llamacpp-v100/gguf-QAD-Q4_0/20261101T235005Z-92de6572/logs/server-speed.log", "ts": "2026-11-02T10:54:37Z"}
+{"event": "server_ready", "level": "INFO", "logger": "sma", "message": "server_ready mode=speed elapsed_s=2", "ts": "2026-11-02T10:54:39Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=serve_speed run_id=20261101T235005Z-92de6572", "ts": "2026-11-02T10:54:40Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=speed run_id=20261101T235005Z-92de6572 attempt=1", "ts": "2026-11-02T10:54:40Z"}
+{"event": "fetched", "level": "INFO", "logger": "sma", "message": "fetched repo=LiquidAI/LFM3-1.7B-Base revision_sha=545fc8f4c7b5fa9f405105274cd29c4f8f44b526", "ts": "2026-11-02T10:55:15Z"}
+{"event": "bench_tokenizer", "level": "INFO", "logger": "sma", "message": "bench_tokenizer run_id=20261101T235005Z-92de6572 repo=LiquidAI/LFM3-1.7B-Base revision_sha=545fc8f4c7b5fa9f405105274cd29c4f8f44b526", "ts": "2026-11-02T10:55:15Z"}
+{"event": "warning", "level": "INFO", "logger": "sma", "message": "warning message=Speed cell sweep_c4_r1 bench failed on attempt 1: bench completed 30 requests, and speed.num_prompts is 32. A speed cell is invalid unless every prompt finished.. Retrying after backoff. This is not a thermal or power throttle, so there is no cool-down.", "ts": "2026-11-02T10:59:02Z"}
+{"event": "warning", "level": "INFO", "logger": "sma", "message": "warning message=Speed cell sweep_c8_r1 bench failed on attempt 1: bench completed 31 requests, and speed.num_prompts is 32. A speed cell is invalid unless every prompt finished.. Retrying after backoff. This is not a thermal or power throttle, so there is no cool-down.", "ts": "2026-11-02T11:00:16Z"}
+{"event": "warning", "level": "INFO", "logger": "sma", "message": "warning message=1 speed cell(s) were invalid because the bench failed (completed count, request errors, or a missing bench result). Those retries used a backoff and did not cool down. Bench-failed cells stay on disk and are excluded from the headline tok/s.", "ts": "2026-11-02T11:00:52Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=speed run_id=20261101T235005Z-92de6572", "ts": "2026-11-02T11:00:52Z"}

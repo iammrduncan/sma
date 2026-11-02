@@ -1,0 +1,16 @@
+{
+  "content": "<tool_call>\n<function=write>\n<parameter=content>\nimport torch\nimport torch.nn as nn\nimport torch.nn.functional as F\nfrom torch.utils.cpp_extension import load_inline\n\n# Define custom CUDA kernel for element-wise ELU activation (ELU(x, alpha) = max(0, x) if x<0 else alpha*(x+1))\nelu_kernel_source = \"\"\"\n#include <torch/extension.h>\n#include <cuda_runtime.h>\n\n__global__ void elu_kernel(const float* input, const float* alpha, float* output, int size) {\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    if (idx < size) {\n        float x = input[idx];\n        float a = alpha; // alpha is passed as constant per element? For vectorized ELU we need to handle all elements.\n        // Since alpha is scalar, we can load it once and broadcast. However kernel above only gets one alpha value per thread.\n        // We'll implement online: compute output = (x > 0) ? x : a * (x + 1);\n        if (x < 0.0f) {\n            output[idx] = a * (x + 1.0f);\n        } else {\n            output[idx] = x;\n        }\n    }\n}\n\ntorch::Tensor elu_cuda(torch::Tensor x, float alpha) {\n    auto size = x.numel();\n    auto out = torch::zeros_like(x);\n\n    const int block_size = 256;\n    const int num_blocks = (size + block_size - 1) / block_size;\n\n    elu_kernel<<<num_blocks, block_size>>>(x.data_ptr<float>(), static_cast<const float*>(&alpha), out.data_ptr<float>(), size);\n\n    return out;\n}\n\"\"\"\n\n# Compile inline CUDA function for element-wise ELU\nelu_cpp_source = (\n    \"torch::Tensor elu_cuda(torch::Tensor x, float alpha);\"\n)\n\nelu_cuda = load_inline(\n    name=\"elu_cuda\",\n    cpp_sources=elu_cpp_source,\n    cuda_sources=elu_kernel_source,\n    functions=[\"elu_cuda\"],\n    verbose=True,\n    extra_cflags=[],\n    extra_ldflags=[],\n)\n\nclass ModelNew(nn.Module):\n    def __init__(self, alpha: float = 1.0) -> None:\n        super().__init__()\n        self.alpha = alpha\n        # Store the compiled CUDA operator for element-wise ELU\n        self.elu_cuda = elu_cuda\n\n    def forward(self, x: torch.Tensor) -> torch.Tensor:\n        return self.elu_cuda(x, self.alpha)\n\n# For compatibility with get_inputs and get_init_inputs (not needed in new class)\ndef get_inputs():\n    batch_size = 4096\n    dim = 393216\n    x = torch.rand(batch_size, dim).cuda()\n    return [x]\n\ndef get_init_inputs():\n    return [1.0]  # Provide alpha value for initialization\n\n</parameter>\n<parameter=path>\nModelNew.py\n</parameter>\n</function>\n</tool_call>",
+  "finish_reason": "stop",
+  "kernel": null,
+  "name": "31_ELU",
+  "problem_id": 31,
+  "reasoning": null,
+  "usage": {
+    "completion_tokens": 683,
+    "prompt_tokens": 1045,
+    "prompt_tokens_details": {
+      "cached_tokens": 462
+    },
+    "total_tokens": 1728
+  }
+}

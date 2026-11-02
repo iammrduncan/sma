@@ -1,0 +1,148 @@
+{
+  "run_id": "eval-20261102T043928Z-gpqa",
+  "config_hash": "sha256:9801dd652c79b64b4bc370e80a1e14f08d8d3fec9b7a8a27603599ae16a23dc2",
+  "sdk_version": "0.3.0",
+  "timestamp": "2026-11-02T04:39:28.417615+00:00",
+  "config": {
+    "benchmark": "gpqa",
+    "model": "LiquidAI/LFM3-1.7B-GGUF",
+    "base_url": "http://127.0.0.1:58229",
+    "repeats": 1,
+    "max_problems": null,
+    "scorers": null,
+    "_sandbox_config": "capture_cmd=None verify_timeout=600.0 stateful=False type='none'",
+    "shuffle_seed": 0,
+    "shuffle": {
+      "seed": 0,
+      "applied": true,
+      "ds_full_size": 198,
+      "ds_effective_size": 198
+    }
+  },
+  "benchmark": {
+    "name": "gpqa",
+    "samples": 198,
+    "repeats": 1,
+    "scores": {
+      "pass@1": {
+        "value": 0.5909,
+        "bootstrap_ci_lower": 0.5253,
+        "bootstrap_ci_upper": 0.6566
+      },
+      "summary": {
+        "mean": 0.5909090909090909,
+        "std": 0.492912386875406,
+        "min": 0.0,
+        "max": 1.0,
+        "median": 1.0,
+        "n": 198
+      },
+      "breakdowns": {
+        "correct": [
+          {
+            "group": "False",
+            "n": 81,
+            "mean_reward": 0.0,
+            "ci_lower": 0.0,
+            "ci_upper": 0.0
+          },
+          {
+            "group": "True",
+            "n": 117,
+            "mean_reward": 1.0,
+            "ci_lower": 1.0,
+            "ci_upper": 1.0
+          }
+        ],
+        "extracted": [
+          {
+            "group": "A",
+            "n": 68,
+            "mean_reward": 0.4853,
+            "ci_lower": 0.3676,
+            "ci_upper": 0.6029
+          },
+          {
+            "group": "B",
+            "n": 33,
+            "mean_reward": 0.697,
+            "ci_lower": 0.5455,
+            "ci_upper": 0.8485
+          },
+          {
+            "group": "C",
+            "n": 42,
+            "mean_reward": 0.5714,
+            "ci_lower": 0.4286,
+            "ci_upper": 0.7143
+          },
+          {
+            "group": "D",
+            "n": 55,
+            "mean_reward": 0.6727,
+            "ci_lower": 0.5455,
+            "ci_upper": 0.8
+          }
+        ]
+      },
+      "runtime": {
+        "total_steps": 198,
+        "total_tokens": 1482221,
+        "total_prompt_tokens": 50431,
+        "total_completion_tokens": 1431790,
+        "total_reasoning_tokens": 0,
+        "elapsed_seconds": 5461.94,
+        "latency_percentiles_ms": {
+          "p50": 186100.6,
+          "p90": 425775.55,
+          "p99": 580312.58
+        },
+        "tokens_per_second": 271.37,
+        "steps_per_second": 0.04,
+        "model_errors": 0,
+        "total_retries": 0,
+        "finish_reason_counts": {
+          "stop": 198
+        }
+      },
+      "failures": {
+        "total_steps": 198,
+        "total_failures": 2,
+        "failure_rate": 0.0101,
+        "categories": {
+          "refusal": {
+            "count": 2,
+            "percentage": 0.0101,
+            "exemplars": [
+              {
+                "problem_idx": 71,
+                "repeat": 0,
+                "error": "refusal"
+              },
+              {
+                "problem_idx": 102,
+                "repeat": 0,
+                "error": "refusal"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "categories": {
+      "Biology": {
+        "mean_reward": 0.4211,
+        "n": 19
+      },
+      "Chemistry": {
+        "mean_reward": 0.4194,
+        "n": 93
+      },
+      "Physics": {
+        "mean_reward": 0.814,
+        "n": 86
+      }
+    }
+  },
+  "n_results": 198
+}

@@ -1,0 +1,26 @@
+{
+  "answers_cut_off": 0,
+  "bench": "sma:gsm8k",
+  "bundle": "attempt-1/sma_gsm8k/eval-20261102T002022Z-sma_gsm8k.json",
+  "categories": null,
+  "ci_lower": 0.8267,
+  "ci_upper": 0.9267,
+  "concurrency": 8,
+  "context_per_stream": 65536,
+  "dataset_size": 1319,
+  "error": null,
+  "failures": 0,
+  "limit": 150,
+  "measures": null,
+  "n": 150,
+  "pass_at_1_failures_as_wrong": null,
+  "primary_metric": "pass@1",
+  "primary_score": 0.88,
+  "repeats": 1,
+  "scorer": "nemo-evaluator 0.3.0",
+  "scorer_shares": {
+    "correct": 0.88
+  },
+  "shuffle_seed": 0,
+  "suite": "gsm8k"
+}

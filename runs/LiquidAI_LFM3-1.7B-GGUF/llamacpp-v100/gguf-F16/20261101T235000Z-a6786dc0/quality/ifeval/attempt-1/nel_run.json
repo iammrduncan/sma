@@ -1,0 +1,10 @@
+{
+  "run_id": "20261101_235253_052acab4",
+  "executor": "local",
+  "output_dir": "/home/<host>/github/sma/runs/LiquidAI_LFM3-1.7B-GGUF/llamacpp-v100/gguf-F16/20261101T235000Z-a6786dc0/quality/ifeval/attempt-1",
+  "started_at": "2026-11-01T23:52:53.298799+00:00",
+  "config_summary": "lm-eval://ifeval",
+  "details": {
+    "pid": 3930258
+  }
+}
