@@ -1,5 +1,5 @@
 {
-  "batch_invariant": true,
+  "batch_invariant": false,
   "delta_ppl": null,
   "deployment": {
     "computed": {
@@ -21,14 +21,14 @@
       "output_tok_s_c1": null,
       "output_tok_s_c4": null,
       "output_tok_s_c8": null,
-      "peak_memory_gb": 0.0,
+      "peak_memory_gb": 98.26,
       "streams_32k": null,
       "streams_full_context": null
     },
-    "sentence": "bf16 weights with an FP8 KV cache on sglang: 3.84 GB of weights, 128,000 tokens per stream, 57 full-length streams (computed) within 100.0 GB. Peak memory 0.0 GB.",
+    "sentence": "bf16 weights with an FP8 KV cache on sglang: 3.84 GB of weights, 128,000 tokens per stream, 57 full-length streams (computed) within 100.0 GB. Peak memory 98.26 GB.",
     "weight_format": "bf16"
   },
-  "determinism_passed": null,
+  "determinism_passed": true,
   "energy": {
     "joules": null,
     "joules_per_bench_request": null,
@@ -39,7 +39,7 @@
   },
   "engine": "sglang",
   "engine_image": "lmsysorg/sglang:dev-lfm3",
-  "engine_image_digest": null,
+  "engine_image_digest": "sha256:b710010bdf234cf4f666b4f8679b95f0482f44200f1e6951a476b32e88b18eeb",
   "host_alias": "gpu-host-1",
   "kl_k": null,
   "kl_mean": null,
@@ -50,8 +50,8 @@
   "params_active_b": 1.9,
   "params_total": 1918181888,
   "params_total_b": 1.9,
-  "perplexity": null,
-  "perplexity_tokens": null,
+  "perplexity": 173.8562723318909,
+  "perplexity_tokens": 98256,
   "quality": {},
   "quant_detected": "bf16",
   "quant_flag": "bf16",
@@ -74,18 +74,19 @@
     "prefill_tok_s_stat": "p50",
     "unverified_cells": 0
   },
-  "status": "running",
+  "status": "done",
   "thermal": {
     "clock_cap_mhz": null,
     "log": "telemetry.csv",
     "sw_power_cap_invalidates": false,
-    "temp_end_c": 41.0,
+    "temp_end_c": 47.0,
     "temp_start_c": 41.0,
     "throttle_samples": 0
   },
   "thinking": "off",
   "top1_agreement": null,
   "warnings": [
-    "Page cache was not dropped. The next model may see leftover file cache."
+    "Page cache was not dropped. The next model may see leftover file cache.",
+    "The quality server's log does not say which KV cache type it uses. SMA asked for fp8; the type is unconfirmed."
   ]
 }

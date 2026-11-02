@@ -1,0 +1,10 @@
+{
+  "run_id": "20261031_152336_ce865acb",
+  "executor": "local",
+  "output_dir": "/home/<host>/github/sma/runs/LiquidAI_LFM3-1.7B-NVFP4/sglang/nvfp4/20261031T152011Z-4521cda0/quality/ifeval/attempt-1",
+  "started_at": "2026-10-31T15:23:36.925383+00:00",
+  "config_summary": "lm-eval://ifeval",
+  "details": {
+    "pid": 1473451
+  }
+}

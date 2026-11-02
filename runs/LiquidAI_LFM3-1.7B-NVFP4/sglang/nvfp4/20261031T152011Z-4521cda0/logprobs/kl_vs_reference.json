@@ -1,0 +1,294 @@
+{
+  "approximation": "Top-k KL plus one tail bucket. q_tail = 1 - q mass on the reference top-k ids when those ids are present. Missing ids are folded into the tail and counted in approximate_positions. Probabilities below 1e-12 are floored so those positions stay in the mean. This is not full-vocabulary KL.",
+  "bound": "Coarse-grained KL: the reference top-k ids plus one tail bucket. Merging tokens into a bucket can only lower KL (log-sum inequality), and flooring q upward only lowers a term, so kl_mean is a lower bound on full-vocabulary KL.",
+  "candidate_engine": "sglang",
+  "candidate_image_digest": "sha256:b710010bdf234cf4f666b4f8679b95f0482f44200f1e6951a476b32e88b18eeb",
+  "candidate_quant": "nvfp4",
+  "candidate_run_id": "20261031T152011Z-4521cda0",
+  "cross_engine": false,
+  "delta_ppl": 2.426059300432822,
+  "engine": "sglang",
+  "image_digest_match": true,
+  "k": 64,
+  "k_values": [
+    64
+  ],
+  "kl_approximate_positions": 98256,
+  "kl_epsilon": 1e-12,
+  "kl_finite_positions": 98256,
+  "kl_floored_positions": 31,
+  "kl_infinite_positions": 31,
+  "kl_mean": 0.11354498752822273,
+  "kl_mean_se": 0.007311196221921963,
+  "kl_positions": 98256,
+  "kl_quantiles": {
+    "max": 8.481029077761592,
+    "p50": 0.0707812135140073,
+    "p90": 0.24260169909695545,
+    "p95": 0.3503605114752113,
+    "p99": 0.7054451134960324,
+    "p99_9": 1.5739066976558949
+  },
+  "ln_ppl_ratio": 0.0753575064188096,
+  "ln_ppl_ratio_se": 0.007970451853930173,
+  "log_base": "e",
+  "method": "page_topk_tail_missing_folded",
+  "notes": [],
+  "per_window": [
+    {
+      "index": 0,
+      "kl_mean": 0.11803367973802499,
+      "positions": 2047
+    },
+    {
+      "index": 1,
+      "kl_mean": 0.10775472735429983,
+      "positions": 2047
+    },
+    {
+      "index": 2,
+      "kl_mean": 0.1363125085488124,
+      "positions": 2047
+    },
+    {
+      "index": 3,
+      "kl_mean": 0.08016531231830415,
+      "positions": 2047
+    },
+    {
+      "index": 4,
+      "kl_mean": 0.0853189899951075,
+      "positions": 2047
+    },
+    {
+      "index": 5,
+      "kl_mean": 0.10414784470923046,
+      "positions": 2047
+    },
+    {
+      "index": 6,
+      "kl_mean": 0.1378391430304842,
+      "positions": 2047
+    },
+    {
+      "index": 7,
+      "kl_mean": 0.09574577662136353,
+      "positions": 2047
+    },
+    {
+      "index": 8,
+      "kl_mean": 0.2521922197948475,
+      "positions": 2047
+    },
+    {
+      "index": 9,
+      "kl_mean": 0.08604322977434677,
+      "positions": 2047
+    },
+    {
+      "index": 10,
+      "kl_mean": 0.12000835336104425,
+      "positions": 2047
+    },
+    {
+      "index": 11,
+      "kl_mean": 0.2183939022987167,
+      "positions": 2047
+    },
+    {
+      "index": 12,
+      "kl_mean": 0.09910681684238219,
+      "positions": 2047
+    },
+    {
+      "index": 13,
+      "kl_mean": 0.09293434905707541,
+      "positions": 2047
+    },
+    {
+      "index": 14,
+      "kl_mean": 0.15382292677410747,
+      "positions": 2047
+    },
+    {
+      "index": 15,
+      "kl_mean": 0.07996210848028477,
+      "positions": 2047
+    },
+    {
+      "index": 16,
+      "kl_mean": 0.07715389505443002,
+      "positions": 2047
+    },
+    {
+      "index": 17,
+      "kl_mean": 0.07531371209616256,
+      "positions": 2047
+    },
+    {
+      "index": 18,
+      "kl_mean": 0.08250421167402258,
+      "positions": 2047
+    },
+    {
+      "index": 19,
+      "kl_mean": 0.08710934382049579,
+      "positions": 2047
+    },
+    {
+      "index": 20,
+      "kl_mean": 0.07681183160676086,
+      "positions": 2047
+    },
+    {
+      "index": 21,
+      "kl_mean": 0.15070799001526516,
+      "positions": 2047
+    },
+    {
+      "index": 22,
+      "kl_mean": 0.110030141139824,
+      "positions": 2047
+    },
+    {
+      "index": 23,
+      "kl_mean": 0.12760582553019512,
+      "positions": 2047
+    },
+    {
+      "index": 24,
+      "kl_mean": 0.08122566827975948,
+      "positions": 2047
+    },
+    {
+      "index": 25,
+      "kl_mean": 0.25587377540543926,
+      "positions": 2047
+    },
+    {
+      "index": 26,
+      "kl_mean": 0.10008139140056617,
+      "positions": 2047
+    },
+    {
+      "index": 27,
+      "kl_mean": 0.18865070999658526,
+      "positions": 2047
+    },
+    {
+      "index": 28,
+      "kl_mean": 0.08726343237326231,
+      "positions": 2047
+    },
+    {
+      "index": 29,
+      "kl_mean": 0.09039359217379726,
+      "positions": 2047
+    },
+    {
+      "index": 30,
+      "kl_mean": 0.07936405909323517,
+      "positions": 2047
+    },
+    {
+      "index": 31,
+      "kl_mean": 0.07760449731725665,
+      "positions": 2047
+    },
+    {
+      "index": 32,
+      "kl_mean": 0.08615552123672546,
+      "positions": 2047
+    },
+    {
+      "index": 33,
+      "kl_mean": 0.08317009884910469,
+      "positions": 2047
+    },
+    {
+      "index": 34,
+      "kl_mean": 0.07984623471062126,
+      "positions": 2047
+    },
+    {
+      "index": 35,
+      "kl_mean": 0.20445876605437713,
+      "positions": 2047
+    },
+    {
+      "index": 36,
+      "kl_mean": 0.08148008540262601,
+      "positions": 2047
+    },
+    {
+      "index": 37,
+      "kl_mean": 0.08435477699455819,
+      "positions": 2047
+    },
+    {
+      "index": 38,
+      "kl_mean": 0.203238939492474,
+      "positions": 2047
+    },
+    {
+      "index": 39,
+      "kl_mean": 0.08514728892110054,
+      "positions": 2047
+    },
+    {
+      "index": 40,
+      "kl_mean": 0.08772410713991342,
+      "positions": 2047
+    },
+    {
+      "index": 41,
+      "kl_mean": 0.0871706582030808,
+      "positions": 2047
+    },
+    {
+      "index": 42,
+      "kl_mean": 0.08517318573498751,
+      "positions": 2047
+    },
+    {
+      "index": 43,
+      "kl_mean": 0.08713337725271537,
+      "positions": 2047
+    },
+    {
+      "index": 44,
+      "kl_mean": 0.08309355679426275,
+      "positions": 2047
+    },
+    {
+      "index": 45,
+      "kl_mean": 0.07620669279960107,
+      "positions": 2047
+    },
+    {
+      "index": 46,
+      "kl_mean": 0.24133436700211655,
+      "positions": 2047
+    },
+    {
+      "index": 47,
+      "kl_mean": 0.07899577909093637,
+      "positions": 2047
+    }
+  ],
+  "perplexity_candidate": 33.42225989040791,
+  "perplexity_reference": 30.996200589975086,
+  "reference_engine": "sglang",
+  "reference_image_digest": "sha256:b710010bdf234cf4f666b4f8679b95f0482f44200f1e6951a476b32e88b18eeb",
+  "reference_quant": "bf16",
+  "reference_run_id": "20261030T045832Z-157bb315",
+  "rms_delta_p": 0.07262723149739214,
+  "schema_version": 1,
+  "token_sequence_mismatches": 0,
+  "tokenizer_fingerprint": "sha256:7e226e34bface23ccf6e495d157bf77186c1c30a7659880e1a8994db528c3701",
+  "top1_agreement": 0.7752910763719264,
+  "top1_agreement_se": 0.007053043142985463,
+  "top1_positions": 98256,
+  "uncertainty": "Standard errors (*_se) are cluster-robust with one cluster per window, because positions in a window share context. Statistics follow llama.cpp's --kl-divergence report. SMA scores every position after the first in a window; llama.cpp scores only the second half of each chunk.",
+  "windows_compared": 48
+}

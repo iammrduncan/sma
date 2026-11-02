@@ -14,3 +14,15 @@
 {"event": "docker_run", "level": "INFO", "logger": "sma", "message": "docker_run name=sma-20261030T053344Z-44a97566-quality mode=quality", "ts": "2026-10-30T05:34:18Z"}
 {"event": "server_log", "level": "INFO", "logger": "sma", "message": "server_log mode=quality path=/home/<host>/github/sma/runs/LiquidAI_LFM3-VL-2B/sglang/bf16/20261030T053344Z-44a97566/logs/server-quality.log", "ts": "2026-10-30T05:34:18Z"}
 {"event": "server_wait", "level": "INFO", "logger": "sma", "message": "server_wait mode=quality elapsed_s=16 line=[2026-10-30 05:34:34] torchcodec is unavailable; video audio-track detection and audio decoding via AudioDecoder are disabled: No module named 'torchcodec'", "ts": "2026-10-30T05:34:34Z"}
+{"event": "server_wait", "level": "INFO", "logger": "sma", "message": "server_wait mode=quality elapsed_s=33 line=Multi-thread loading shards: 100% Completed | 1/1 [00:00<00:00, 54.80it/s]", "ts": "2026-10-30T05:34:50Z"}
+{"event": "server_wait", "level": "INFO", "logger": "sma", "message": "server_wait mode=quality elapsed_s=49 line=[2026-10-30 05:35:07] Processor tokenizer for /model is TokenizersBackend, reloading via get_tokenizer", "ts": "2026-10-30T05:35:07Z"}
+{"event": "server_wait", "level": "INFO", "logger": "sma", "message": "server_wait mode=quality elapsed_s=65 line=Capturing batches (bs=64 avail_mem=31.17 GB):   0%|          | 0/12 [00:00<?, ?it/s][2026-10-30 05:35:15] CuTe DSL gated conv kernel compiled: ('decode', 2048, 7, 65, 128, torch.bfloat16, torch.bfloat", "ts": "2026-10-30T05:35:23Z"}
+{"event": "server_ready", "level": "INFO", "logger": "sma", "message": "server_ready mode=quality elapsed_s=78", "ts": "2026-10-30T05:35:36Z"}
+{"event": "warning", "level": "INFO", "logger": "sma", "message": "warning message=The quality server's log does not say which KV cache type it uses. SMA asked for fp8; the type is unconfirmed.", "ts": "2026-10-30T05:35:36Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=serve_quality run_id=20261030T053344Z-44a97566", "ts": "2026-10-30T05:35:36Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=determinism run_id=20261030T053344Z-44a97566 attempt=1", "ts": "2026-10-30T05:35:36Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=determinism run_id=20261030T053344Z-44a97566", "ts": "2026-10-30T05:35:44Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=logprobs run_id=20261030T053344Z-44a97566 attempt=1", "ts": "2026-10-30T05:35:44Z"}
+{"event": "step_done", "level": "INFO", "logger": "sma", "message": "step_done step=logprobs run_id=20261030T053344Z-44a97566", "ts": "2026-10-30T05:36:09Z"}
+{"event": "step_start", "level": "INFO", "logger": "sma", "message": "step_start step=quality run_id=20261030T053344Z-44a97566 attempt=1", "ts": "2026-10-30T05:36:09Z"}
+{"event": "warning", "level": "INFO", "logger": "sma", "message": "warning message=Page cache was not dropped. The next model may see leftover file cache.", "ts": "2026-10-30T05:39:53Z"}

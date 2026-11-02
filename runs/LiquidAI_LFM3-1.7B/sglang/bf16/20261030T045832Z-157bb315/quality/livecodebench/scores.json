@@ -1,0 +1,38 @@
+{
+  "categories": {
+    "easy": {
+      "correct": 25,
+      "total": 25
+    },
+    "hard": {
+      "correct": 12,
+      "total": 49
+    },
+    "medium": {
+      "correct": 19,
+      "total": 31
+    }
+  },
+  "ci_lower": 0.4384248641867362,
+  "ci_upper": 0.6258888639821806,
+  "concurrency": 8,
+  "context_per_stream": 262144,
+  "harness_metrics": {
+    "codegeneration/pass@1": 0.580952380952381
+  },
+  "image": "nvcr.io/nvidia/eval-factory/livecodebench:26.03@sha256:ccfeb5fd91c1c6ec5045c8372bdb4b667d5b6cc6b4d5d203ff4ba3be69e3a87b",
+  "limit": null,
+  "n": 105,
+  "primary_metric": "pass@1",
+  "primary_score": 0.5333333333333333,
+  "regrade": {
+    "at": "2026-11-01T06:05:02Z",
+    "graders": 5,
+    "image": "nvcr.io/nvidia/eval-factory/livecodebench:26.03@sha256:ccfeb5fd91c1c6ec5045c8372bdb4b667d5b6cc6b4d5d203ff4ba3be69e3a87b",
+    "script_sha256": "21215b5692f990d4a97440cdb8144bf7be30a31df9e8b5dc65349ec1fcdac200",
+    "timeout_s": 6
+  },
+  "scorer": "eval-factory codegeneration_release_v6",
+  "suite": "livecodebench",
+  "task": "codegeneration_release_v6"
+}

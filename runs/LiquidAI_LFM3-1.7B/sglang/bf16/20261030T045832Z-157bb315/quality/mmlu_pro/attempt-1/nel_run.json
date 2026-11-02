@@ -1,0 +1,10 @@
+{
+  "run_id": "20261030_092720_24ed5b37",
+  "executor": "local",
+  "output_dir": "/home/<host>/github/sma/runs/LiquidAI_LFM3-1.7B/sglang/bf16/20261030T045832Z-157bb315/quality/mmlu_pro/attempt-1",
+  "started_at": "2026-10-30T09:27:20.684833+00:00",
+  "config_summary": "mmlu_pro",
+  "details": {
+    "pid": 3030337
+  }
+}

@@ -1,0 +1,809 @@
+
+============================================================
+  Benchmark 1/1: mmlu_pro
+============================================================
+
+  mmlu_pro: pass@1=0.6443 
+Report: attempt-1/report.md
+
+Completed 1 benchmark(s). Results: attempt-1
+
+2026-10-31 12:39:26,484 INFO nemo_evaluator.orchestration.orchestrator: asyncio default ThreadPoolExecutor set to max_workers=200
+2026-10-31 12:39:26,496 INFO nemo_evaluator.adapters.interceptors.endpoint: Endpoint interceptor initialized: upstream=http://127.0.0.1:8000/v1 request_timeout=14400.0 max_retries=2 extra_body_keys=['chat_template_kwargs'] extra_headers=[]
+2026-10-31 12:39:26,496 INFO nemo_evaluator.adapters.pipeline: AdapterPipeline ready (3 interceptors: ['payload_modifier', 'endpoint', 'reasoning'])
+2026-10-31 12:39:26,612 INFO nemo_evaluator.adapters.proxy: Adapter proxy ready at http://127.0.0.1:54797 (port=54797)
+2026-10-31 12:39:27,039 INFO httpx2: HTTP Request: HEAD https://huggingface.co/datasets/TIGER-Lab/MMLU-Pro/resolve/main/README.md "HTTP/1.1 307 Temporary Redirect"
+2026-10-31 12:39:27,116 INFO httpx2: HTTP Request: HEAD https://huggingface.co/api/resolve-cache/datasets/TIGER-Lab/MMLU-Pro/b189ec765aa7ed75c8acfea42df31fdae71f97be/README.md?%2Fdatasets%2FTIGER-Lab%2FMMLU-Pro%2Fresolve%2Fmain%2FREADME.md=&etag=%2229e49a8b4c80bb3701e56f69acd89197f0eea371%22 "HTTP/1.1 200 OK"
+2026-10-31 12:39:27,180 INFO httpx2: HTTP Request: HEAD https://huggingface.co/datasets/TIGER-Lab/MMLU-Pro/resolve/b189ec765aa7ed75c8acfea42df31fdae71f97be/MMLU-Pro.py "HTTP/1.1 404 Not Found"
+2026-10-31 12:39:27,375 INFO httpx2: HTTP Request: HEAD https://s3.amazonaws.com/datasets.huggingface.co/datasets/datasets/TIGER-Lab/MMLU-Pro/TIGER-Lab/MMLU-Pro.py "HTTP/1.1 404 Not Found"
+2026-10-31 12:39:27,443 INFO httpx2: HTTP Request: GET https://huggingface.co/api/datasets/TIGER-Lab/MMLU-Pro/revision/b189ec765aa7ed75c8acfea42df31fdae71f97be "HTTP/1.1 200 OK"
+2026-10-31 12:39:27,510 INFO httpx2: HTTP Request: HEAD https://huggingface.co/datasets/TIGER-Lab/MMLU-Pro/resolve/b189ec765aa7ed75c8acfea42df31fdae71f97be/.huggingface.yaml "HTTP/1.1 404 Not Found"
+2026-10-31 12:39:27,671 INFO httpx2: HTTP Request: GET https://datasets-server.huggingface.co/info?dataset=TIGER-Lab/MMLU-Pro "HTTP/1.1 200 OK"
+2026-10-31 12:39:27,772 INFO httpx2: HTTP Request: GET https://huggingface.co/api/datasets/TIGER-Lab/MMLU-Pro/tree/b189ec765aa7ed75c8acfea42df31fdae71f97be/data?recursive=false&expand=false "HTTP/1.1 200 OK"
+2026-10-31 12:39:27,843 INFO httpx2: HTTP Request: GET https://huggingface.co/api/datasets/TIGER-Lab/MMLU-Pro/tree/b189ec765aa7ed75c8acfea42df31fdae71f97be?recursive=false&expand=false "HTTP/1.1 200 OK"
+2026-10-31 12:39:27,919 INFO httpx2: HTTP Request: HEAD https://huggingface.co/datasets/TIGER-Lab/MMLU-Pro/resolve/b189ec765aa7ed75c8acfea42df31fdae71f97be/dataset_infos.json "HTTP/1.1 404 Not Found"
+2026-10-31 12:39:28,210 INFO nemo_evaluator.environments.custom: BYOB mmlu_pro: 12032 samples
+2026-10-31 12:39:28,224 INFO nemo_evaluator.observability.progress: mmlu_pro | 700 problems x 1 repeats = 700 steps
+2026-10-31 12:39:28,224 INFO nemo_evaluator.engine.eval_loop: eval start: mmlu_pro problems=700 [0:700] repeats=1 concurrency=8
+2026-10-31 12:39:28,225 INFO nemo_evaluator.engine.eval_loop: p6005 r0: solver-entry at +0.0s
+2026-10-31 12:39:28,225 INFO nemo_evaluator.engine.eval_loop: p4090 r0: solver-entry at +0.0s
+2026-10-31 12:39:28,225 INFO nemo_evaluator.engine.eval_loop: p8845 r0: solver-entry at +0.0s
+2026-10-31 12:39:28,226 INFO nemo_evaluator.engine.eval_loop: p7058 r0: solver-entry at +0.0s
+2026-10-31 12:39:28,226 INFO nemo_evaluator.engine.eval_loop: p7194 r0: solver-entry at +0.0s
+2026-10-31 12:39:28,226 INFO nemo_evaluator.engine.eval_loop: p7763 r0: solver-entry at +0.0s
+2026-10-31 12:39:28,226 INFO nemo_evaluator.engine.eval_loop: p6833 r0: solver-entry at +0.0s
+2026-10-31 12:39:28,226 INFO nemo_evaluator.engine.eval_loop: p322 r0: solver-entry at +0.0s
+2026-10-31 12:39:28,227 INFO nemo_evaluator.adapters.interceptors.payload_modifier: payload_modifier: remove=[], add=['seed', 'temperature'], rename=[], headers_add=[], headers_remove=[], headers_rename=[]
+2026-10-31 12:39:35,800 INFO nemo_evaluator.engine.eval_loop: p4837 r0: solver-entry at +0.0s
+2026-10-31 12:39:36,145 INFO nemo_evaluator.engine.eval_loop: p4992 r0: solver-entry at +0.0s
+2026-10-31 12:39:37,256 INFO nemo_evaluator.engine.eval_loop: p11247 r0: solver-entry at +0.0s
+2026-10-31 12:39:41,757 INFO nemo_evaluator.engine.eval_loop: p6999 r0: solver-entry at +0.0s
+2026-10-31 12:39:43,089 INFO nemo_evaluator.engine.eval_loop: p3375 r0: solver-entry at +0.0s
+2026-10-31 12:39:54,480 INFO nemo_evaluator.engine.eval_loop: p4144 r0: solver-entry at +0.0s
+2026-10-31 12:39:58,086 INFO nemo_evaluator.engine.eval_loop: p10197 r0: solver-entry at +0.0s
+2026-10-31 12:39:58,936 INFO nemo_evaluator.engine.eval_loop: p1240 r0: solver-entry at +0.0s
+2026-10-31 12:40:28,656 INFO nemo_evaluator.observability.progress: progress: 9/700 (1.3%) | pass@1=55.6% (5/9) | 0.1/s | 1m00s elapsed | ETA 1h17m | 15991 tok
+2026-10-31 12:40:28,657 INFO nemo_evaluator.engine.eval_loop: p8970 r0: solver-entry at +0.0s
+2026-10-31 12:40:32,753 INFO nemo_evaluator.engine.eval_loop: p5932 r0: solver-entry at +0.0s
+2026-10-31 12:40:34,088 INFO nemo_evaluator.engine.eval_loop: p544 r0: solver-entry at +0.0s
+2026-10-31 12:40:43,034 INFO nemo_evaluator.engine.eval_loop: p7805 r0: solver-entry at +0.0s
+2026-10-31 12:40:46,609 INFO nemo_evaluator.engine.eval_loop: p8391 r0: solver-entry at +0.0s
+2026-10-31 12:40:48,700 INFO nemo_evaluator.engine.eval_loop: p10658 r0: solver-entry at +0.0s
+2026-10-31 12:40:50,132 INFO nemo_evaluator.engine.eval_loop: p2577 r0: solver-entry at +0.0s
+2026-10-31 12:40:54,240 INFO nemo_evaluator.engine.eval_loop: p11056 r0: solver-entry at +0.0s
+2026-10-31 12:41:02,224 INFO nemo_evaluator.engine.eval_loop: p5032 r0: solver-entry at +0.0s
+2026-10-31 12:41:03,840 INFO nemo_evaluator.engine.eval_loop: p6641 r0: solver-entry at +0.0s
+2026-10-31 12:41:05,718 INFO nemo_evaluator.engine.eval_loop: p9074 r0: solver-entry at +0.0s
+2026-10-31 12:41:08,865 INFO nemo_evaluator.engine.eval_loop: p11223 r0: solver-entry at +0.0s
+2026-10-31 12:41:13,561 INFO nemo_evaluator.engine.eval_loop: p10377 r0: solver-entry at +0.0s
+2026-10-31 12:41:17,687 INFO nemo_evaluator.engine.eval_loop: p12017 r0: solver-entry at +0.0s
+2026-10-31 12:41:23,440 INFO nemo_evaluator.engine.eval_loop: p10958 r0: solver-entry at +0.0s
+2026-10-31 12:41:32,157 INFO nemo_evaluator.observability.progress: progress: 24/700 (3.4%) | pass@1=58.3% (14/24) | 0.2/s | 2m03s elapsed | ETA 58m10s | 57047 tok
+2026-10-31 12:41:32,157 INFO nemo_evaluator.engine.eval_loop: p2833 r0: solver-entry at +0.0s
+2026-10-31 12:41:34,801 INFO nemo_evaluator.engine.eval_loop: p6922 r0: solver-entry at +0.0s
+2026-10-31 12:41:38,362 INFO nemo_evaluator.engine.eval_loop: p4180 r0: solver-entry at +0.0s
+2026-10-31 12:41:39,500 INFO nemo_evaluator.engine.eval_loop: p10618 r0: solver-entry at +0.0s
+2026-10-31 12:41:49,822 INFO nemo_evaluator.engine.eval_loop: p6584 r0: solver-entry at +0.0s
+2026-10-31 12:42:10,745 INFO nemo_evaluator.engine.eval_loop: p1343 r0: solver-entry at +0.0s
+2026-10-31 12:42:14,299 INFO nemo_evaluator.engine.eval_loop: p1775 r0: solver-entry at +0.0s
+2026-10-31 12:42:22,502 INFO nemo_evaluator.engine.eval_loop: p8561 r0: solver-entry at +0.0s
+2026-10-31 12:42:39,963 INFO nemo_evaluator.observability.progress: progress: 32/700 (4.6%) | pass@1=62.5% (20/32) | 0.2/s | 3m11s elapsed | ETA 1h06m | 78722 tok
+2026-10-31 12:42:39,964 INFO nemo_evaluator.engine.eval_loop: p2467 r0: solver-entry at +0.0s
+2026-10-31 12:42:42,722 INFO nemo_evaluator.engine.eval_loop: p6903 r0: solver-entry at +0.0s
+2026-10-31 12:42:46,071 INFO nemo_evaluator.engine.eval_loop: p7809 r0: solver-entry at +0.0s
+2026-10-31 12:42:50,328 INFO nemo_evaluator.engine.eval_loop: p6664 r0: solver-entry at +0.0s
+2026-10-31 12:42:59,934 INFO nemo_evaluator.engine.eval_loop: p2741 r0: solver-entry at +0.0s
+2026-10-31 12:42:59,946 INFO nemo_evaluator.engine.eval_loop: p2649 r0: solver-entry at +0.0s
+2026-10-31 12:43:16,384 INFO nemo_evaluator.engine.eval_loop: p4313 r0: solver-entry at +0.0s
+2026-10-31 12:43:17,827 INFO nemo_evaluator.engine.eval_loop: p6593 r0: solver-entry at +0.0s
+2026-10-31 12:43:21,028 INFO nemo_evaluator.engine.eval_loop: p8270 r0: solver-entry at +0.0s
+2026-10-31 12:43:24,958 INFO nemo_evaluator.engine.eval_loop: p9125 r0: solver-entry at +0.0s
+2026-10-31 12:43:32,217 INFO nemo_evaluator.engine.eval_loop: p9786 r0: solver-entry at +0.0s
+2026-10-31 12:43:38,542 INFO nemo_evaluator.engine.eval_loop: p5573 r0: solver-entry at +0.0s
+2026-10-31 12:43:48,160 INFO nemo_evaluator.observability.progress: progress: 44/700 (6.3%) | pass@1=70.5% (31/44) | 0.2/s | 4m19s elapsed | ETA 1h04m | 109905 tok
+2026-10-31 12:43:48,160 INFO nemo_evaluator.engine.eval_loop: p11224 r0: solver-entry at +0.0s
+2026-10-31 12:43:55,247 INFO nemo_evaluator.engine.eval_loop: p8368 r0: solver-entry at +0.0s
+2026-10-31 12:44:00,087 INFO nemo_evaluator.engine.eval_loop: p10949 r0: solver-entry at +0.0s
+2026-10-31 12:44:01,888 INFO nemo_evaluator.engine.eval_loop: p6947 r0: solver-entry at +0.0s
+2026-10-31 12:44:09,120 INFO nemo_evaluator.engine.eval_loop: p3508 r0: solver-entry at +0.0s
+2026-10-31 12:44:15,887 INFO nemo_evaluator.engine.eval_loop: p4387 r0: solver-entry at +0.0s
+2026-10-31 12:44:16,721 INFO nemo_evaluator.engine.eval_loop: p10417 r0: solver-entry at +0.0s
+2026-10-31 12:44:24,023 INFO nemo_evaluator.engine.eval_loop: p7270 r0: solver-entry at +0.0s
+2026-10-31 12:44:39,064 INFO nemo_evaluator.engine.eval_loop: p946 r0: solver-entry at +0.0s
+2026-10-31 12:44:41,115 INFO nemo_evaluator.engine.eval_loop: p1741 r0: solver-entry at +0.0s
+2026-10-31 12:44:46,169 INFO nemo_evaluator.engine.eval_loop: p6990 r0: solver-entry at +0.0s
+2026-10-31 12:44:53,405 INFO nemo_evaluator.observability.progress: progress: 55/700 (7.9%) | pass@1=70.9% (39/55) | 0.2/s | 5m25s elapsed | ETA 1h03m | 151827 tok
+2026-10-31 12:44:53,405 INFO nemo_evaluator.engine.eval_loop: p9838 r0: solver-entry at +0.0s
+2026-10-31 12:45:03,647 INFO nemo_evaluator.engine.eval_loop: p46 r0: solver-entry at +0.0s
+2026-10-31 12:45:15,603 INFO nemo_evaluator.engine.eval_loop: p11041 r0: solver-entry at +0.0s
+2026-10-31 12:45:19,182 INFO nemo_evaluator.engine.eval_loop: p2387 r0: solver-entry at +0.0s
+2026-10-31 12:45:39,172 INFO nemo_evaluator.engine.eval_loop: p8704 r0: solver-entry at +0.0s
+2026-10-31 12:45:44,015 INFO nemo_evaluator.engine.eval_loop: p4723 r0: solver-entry at +0.0s
+2026-10-31 12:45:47,089 INFO nemo_evaluator.engine.eval_loop: p11797 r0: solver-entry at +0.0s
+2026-10-31 12:45:49,842 INFO nemo_evaluator.engine.eval_loop: p8856 r0: solver-entry at +0.0s
+2026-10-31 12:45:55,278 INFO nemo_evaluator.observability.progress: progress: 63/700 (9.0%) | pass@1=71.4% (45/63) | 0.2/s | 6m27s elapsed | ETA 1h05m | 188658 tok
+2026-10-31 12:45:55,279 INFO nemo_evaluator.engine.eval_loop: p11419 r0: solver-entry at +0.0s
+2026-10-31 12:45:55,631 INFO nemo_evaluator.engine.eval_loop: p8683 r0: solver-entry at +0.0s
+2026-10-31 12:46:01,081 INFO nemo_evaluator.engine.eval_loop: p1929 r0: solver-entry at +0.0s
+2026-10-31 12:46:09,944 INFO nemo_evaluator.engine.eval_loop: p5961 r0: solver-entry at +0.0s
+2026-10-31 12:46:11,886 INFO nemo_evaluator.engine.eval_loop: p9327 r0: solver-entry at +0.0s
+2026-10-31 12:46:16,614 INFO nemo_evaluator.engine.eval_loop: p1804 r0: solver-entry at +0.0s
+2026-10-31 12:46:20,272 INFO nemo_evaluator.engine.eval_loop: p11752 r0: solver-entry at +0.0s
+2026-10-31 12:46:30,744 INFO nemo_evaluator.engine.eval_loop: p4334 r0: solver-entry at +0.0s
+2026-10-31 12:46:35,069 INFO nemo_evaluator.engine.eval_loop: p6884 r0: solver-entry at +0.0s
+2026-10-31 12:46:41,383 INFO nemo_evaluator.engine.eval_loop: p9614 r0: solver-entry at +0.0s
+2026-10-31 12:46:41,598 INFO nemo_evaluator.engine.eval_loop: p7774 r0: solver-entry at +0.0s
+2026-10-31 12:46:43,898 INFO nemo_evaluator.engine.eval_loop: p11994 r0: solver-entry at +0.0s
+2026-10-31 12:46:45,560 INFO nemo_evaluator.engine.eval_loop: p2118 r0: solver-entry at +0.0s
+2026-10-31 12:46:57,298 INFO nemo_evaluator.observability.progress: progress: 76/700 (10.9%) | pass@1=69.7% (53/76) | 0.2/s | 7m29s elapsed | ETA 1h01m | 260954 tok
+2026-10-31 12:46:57,298 INFO nemo_evaluator.engine.eval_loop: p5494 r0: solver-entry at +0.0s
+2026-10-31 12:46:58,043 INFO nemo_evaluator.engine.eval_loop: p586 r0: solver-entry at +0.0s
+2026-10-31 12:47:02,411 INFO nemo_evaluator.engine.eval_loop: p10769 r0: solver-entry at +0.0s
+2026-10-31 12:47:03,033 INFO nemo_evaluator.engine.eval_loop: p3958 r0: solver-entry at +0.0s
+2026-10-31 12:47:11,580 INFO nemo_evaluator.engine.eval_loop: p1194 r0: solver-entry at +0.0s
+2026-10-31 12:47:12,100 INFO nemo_evaluator.engine.eval_loop: p5870 r0: solver-entry at +0.0s
+2026-10-31 12:47:15,355 INFO nemo_evaluator.engine.eval_loop: p9575 r0: solver-entry at +0.0s
+2026-10-31 12:47:17,729 INFO nemo_evaluator.engine.eval_loop: p7611 r0: solver-entry at +0.0s
+2026-10-31 12:47:18,914 INFO nemo_evaluator.engine.eval_loop: p3179 r0: solver-entry at +0.0s
+2026-10-31 12:47:26,213 INFO nemo_evaluator.engine.eval_loop: p2193 r0: solver-entry at +0.0s
+2026-10-31 12:47:30,697 INFO nemo_evaluator.engine.eval_loop: p4466 r0: solver-entry at +0.0s
+2026-10-31 12:47:30,944 INFO nemo_evaluator.engine.eval_loop: p6530 r0: solver-entry at +0.0s
+2026-10-31 12:47:35,446 INFO nemo_evaluator.engine.eval_loop: p4658 r0: solver-entry at +0.0s
+2026-10-31 12:47:49,373 INFO nemo_evaluator.engine.eval_loop: p3496 r0: solver-entry at +0.0s
+2026-10-31 12:47:49,486 INFO nemo_evaluator.engine.eval_loop: p2976 r0: solver-entry at +0.0s
+2026-10-31 12:47:51,984 INFO nemo_evaluator.engine.eval_loop: p6513 r0: solver-entry at +0.0s
+2026-10-31 12:47:53,916 INFO nemo_evaluator.engine.eval_loop: p3803 r0: solver-entry at +0.0s
+2026-10-31 12:47:54,409 INFO nemo_evaluator.engine.eval_loop: p6709 r0: solver-entry at +0.0s
+2026-10-31 12:47:57,391 INFO nemo_evaluator.observability.progress: progress: 94/700 (13.4%) | pass@1=67.0% (63/94) | 0.2/s | 8m29s elapsed | ETA 54m42s | 297251 tok
+2026-10-31 12:47:57,391 INFO nemo_evaluator.engine.eval_loop: p8006 r0: solver-entry at +0.0s
+2026-10-31 12:48:00,700 INFO nemo_evaluator.engine.eval_loop: p1139 r0: solver-entry at +0.0s
+2026-10-31 12:48:03,014 INFO nemo_evaluator.engine.eval_loop: p6817 r0: solver-entry at +0.0s
+2026-10-31 12:48:07,811 INFO nemo_evaluator.engine.eval_loop: p10024 r0: solver-entry at +0.0s
+2026-10-31 12:48:16,278 INFO nemo_evaluator.engine.eval_loop: p1176 r0: solver-entry at +0.0s
+2026-10-31 12:48:37,115 INFO nemo_evaluator.engine.eval_loop: p1693 r0: solver-entry at +0.0s
+2026-10-31 12:48:39,682 INFO nemo_evaluator.engine.eval_loop: p9236 r0: solver-entry at +0.0s
+2026-10-31 12:48:39,699 INFO nemo_evaluator.engine.eval_loop: p9194 r0: solver-entry at +0.0s
+2026-10-31 12:48:47,499 INFO nemo_evaluator.engine.eval_loop: p210 r0: solver-entry at +0.0s
+2026-10-31 12:48:48,083 INFO nemo_evaluator.engine.eval_loop: p3952 r0: solver-entry at +0.0s
+2026-10-31 12:48:52,022 INFO nemo_evaluator.engine.eval_loop: p2105 r0: solver-entry at +0.0s
+2026-10-31 12:48:53,451 INFO nemo_evaluator.engine.eval_loop: p11912 r0: solver-entry at +0.0s
+2026-10-31 12:48:54,452 INFO nemo_evaluator.engine.eval_loop: p10934 r0: solver-entry at +0.0s
+2026-10-31 12:49:05,627 INFO nemo_evaluator.observability.progress: progress: 107/700 (15.3%) | pass@1=68.2% (73/107) | 0.2/s | 9m37s elapsed | ETA 53m19s | 342129 tok
+2026-10-31 12:49:05,627 INFO nemo_evaluator.engine.eval_loop: p5181 r0: solver-entry at +0.0s
+2026-10-31 12:49:10,774 INFO nemo_evaluator.engine.eval_loop: p9626 r0: solver-entry at +0.0s
+2026-10-31 12:49:17,244 INFO nemo_evaluator.engine.eval_loop: p9515 r0: solver-entry at +0.0s
+2026-10-31 12:49:24,406 INFO nemo_evaluator.engine.eval_loop: p8435 r0: solver-entry at +0.0s
+2026-10-31 12:49:34,167 INFO nemo_evaluator.engine.eval_loop: p10249 r0: solver-entry at +0.0s
+2026-10-31 12:49:41,970 INFO nemo_evaluator.engine.eval_loop: p9709 r0: solver-entry at +0.0s
+2026-10-31 12:50:00,969 INFO nemo_evaluator.engine.eval_loop: p4988 r0: solver-entry at +0.0s
+2026-10-31 12:50:05,332 INFO nemo_evaluator.engine.eval_loop: p7282 r0: solver-entry at +0.0s
+2026-10-31 12:50:06,961 INFO nemo_evaluator.observability.progress: progress: 115/700 (16.4%) | pass@1=68.7% (79/115) | 0.2/s | 10m38s elapsed | ETA 54m09s | 362145 tok
+2026-10-31 12:50:06,961 INFO nemo_evaluator.engine.eval_loop: p8929 r0: solver-entry at +0.0s
+2026-10-31 12:50:07,736 INFO nemo_evaluator.engine.eval_loop: p7641 r0: solver-entry at +0.0s
+2026-10-31 12:50:14,008 INFO nemo_evaluator.engine.eval_loop: p9041 r0: solver-entry at +0.0s
+2026-10-31 12:50:17,058 INFO nemo_evaluator.engine.eval_loop: p10376 r0: solver-entry at +0.0s
+2026-10-31 12:50:20,291 INFO nemo_evaluator.engine.eval_loop: p3247 r0: solver-entry at +0.0s
+2026-10-31 12:50:32,451 INFO nemo_evaluator.engine.eval_loop: p10828 r0: solver-entry at +0.0s
+2026-10-31 12:50:44,343 INFO nemo_evaluator.engine.eval_loop: p5402 r0: solver-entry at +0.0s
+2026-10-31 12:51:02,962 INFO nemo_evaluator.engine.eval_loop: p182 r0: solver-entry at +0.0s
+2026-10-31 12:51:14,798 INFO nemo_evaluator.observability.progress: progress: 123/700 (17.6%) | pass@1=69.1% (85/123) | 0.2/s | 11m46s elapsed | ETA 55m14s | 384870 tok
+2026-10-31 12:51:14,798 INFO nemo_evaluator.engine.eval_loop: p3028 r0: solver-entry at +0.0s
+2026-10-31 12:51:26,647 INFO nemo_evaluator.engine.eval_loop: p7801 r0: solver-entry at +0.0s
+2026-10-31 12:51:26,915 INFO nemo_evaluator.engine.eval_loop: p7751 r0: solver-entry at +0.0s
+2026-10-31 12:51:27,763 INFO nemo_evaluator.engine.eval_loop: p4192 r0: solver-entry at +0.0s
+2026-10-31 12:51:30,440 INFO nemo_evaluator.engine.eval_loop: p10668 r0: solver-entry at +0.0s
+2026-10-31 12:51:51,272 INFO nemo_evaluator.engine.eval_loop: p5274 r0: solver-entry at +0.0s
+2026-10-31 12:51:57,149 INFO nemo_evaluator.engine.eval_loop: p6437 r0: solver-entry at +0.0s
+2026-10-31 12:52:14,510 INFO nemo_evaluator.engine.eval_loop: p369 r0: solver-entry at +0.0s
+2026-10-31 12:52:14,640 INFO nemo_evaluator.engine.eval_loop: p9620 r0: solver-entry at +0.0s
+2026-10-31 12:52:27,425 INFO nemo_evaluator.observability.progress: progress: 132/700 (18.9%) | pass@1=68.2% (90/132) | 0.2/s | 12m59s elapsed | ETA 55m52s | 437505 tok
+2026-10-31 12:52:27,425 INFO nemo_evaluator.engine.eval_loop: p10600 r0: solver-entry at +0.0s
+2026-10-31 12:52:30,820 INFO nemo_evaluator.engine.eval_loop: p8186 r0: solver-entry at +0.0s
+2026-10-31 12:52:33,150 INFO nemo_evaluator.engine.eval_loop: p1172 r0: solver-entry at +0.0s
+2026-10-31 12:52:36,041 INFO nemo_evaluator.engine.eval_loop: p8672 r0: solver-entry at +0.0s
+2026-10-31 12:52:41,190 INFO nemo_evaluator.engine.eval_loop: p1056 r0: solver-entry at +0.0s
+2026-10-31 12:52:42,394 INFO nemo_evaluator.engine.eval_loop: p5262 r0: solver-entry at +0.0s
+2026-10-31 12:52:46,121 INFO nemo_evaluator.engine.eval_loop: p5133 r0: solver-entry at +0.0s
+2026-10-31 12:52:54,312 INFO nemo_evaluator.engine.eval_loop: p9083 r0: solver-entry at +0.0s
+2026-10-31 12:52:54,915 INFO nemo_evaluator.engine.eval_loop: p8029 r0: solver-entry at +0.0s
+2026-10-31 12:52:57,509 INFO nemo_evaluator.engine.eval_loop: p11534 r0: solver-entry at +0.0s
+2026-10-31 12:53:06,613 INFO nemo_evaluator.engine.eval_loop: p720 r0: solver-entry at +0.0s
+2026-10-31 12:53:18,166 INFO nemo_evaluator.engine.eval_loop: p11976 r0: solver-entry at +0.0s
+2026-10-31 12:53:43,045 INFO nemo_evaluator.observability.progress: progress: 144/700 (20.6%) | pass@1=67.4% (97/144) | 0.2/s | 14m14s elapsed | ETA 55m00s | 467905 tok
+2026-10-31 12:53:43,045 INFO nemo_evaluator.engine.eval_loop: p521 r0: solver-entry at +0.0s
+2026-10-31 12:53:54,217 INFO nemo_evaluator.engine.eval_loop: p7394 r0: solver-entry at +0.0s
+2026-10-31 12:54:26,365 INFO nemo_evaluator.engine.eval_loop: p7494 r0: solver-entry at +0.0s
+2026-10-31 12:54:27,891 INFO nemo_evaluator.engine.eval_loop: p993 r0: solver-entry at +0.0s
+2026-10-31 12:54:45,596 INFO nemo_evaluator.observability.progress: progress: 148/700 (21.1%) | pass@1=66.9% (99/148) | 0.2/s | 15m17s elapsed | ETA 57m01s | 478563 tok
+2026-10-31 12:54:45,596 INFO nemo_evaluator.engine.eval_loop: p11085 r0: solver-entry at +0.0s
+2026-10-31 12:55:13,045 INFO nemo_evaluator.engine.eval_loop: p11841 r0: solver-entry at +0.0s
+2026-10-31 12:55:24,873 INFO nemo_evaluator.engine.eval_loop: p8953 r0: solver-entry at +0.0s
+2026-10-31 12:55:37,666 INFO nemo_evaluator.engine.eval_loop: p1824 r0: solver-entry at +0.0s
+2026-10-31 12:57:03,981 INFO nemo_evaluator.observability.progress: progress: 152/700 (21.7%) | pass@1=66.4% (101/152) | 0.1/s | 17m35s elapsed | ETA 1h03m | 541300 tok
+2026-10-31 12:57:03,981 INFO nemo_evaluator.engine.eval_loop: p5760 r0: solver-entry at +0.0s
+2026-10-31 12:57:29,836 INFO nemo_evaluator.engine.eval_loop: p4222 r0: solver-entry at +0.0s
+2026-10-31 12:57:59,663 INFO nemo_evaluator.engine.eval_loop: p9809 r0: solver-entry at +0.0s
+2026-10-31 12:58:07,983 INFO nemo_evaluator.observability.progress: progress: 155/700 (22.1%) | pass@1=65.8% (102/155) | 0.1/s | 18m39s elapsed | ETA 1h05m | 562487 tok
+2026-10-31 12:58:07,983 INFO nemo_evaluator.engine.eval_loop: p4048 r0: solver-entry at +0.0s
+2026-10-31 12:58:08,268 INFO nemo_evaluator.engine.eval_loop: p1171 r0: solver-entry at +0.0s
+2026-10-31 12:58:24,102 INFO nemo_evaluator.engine.eval_loop: p1942 r0: solver-entry at +0.0s
+2026-10-31 12:58:39,980 INFO nemo_evaluator.engine.eval_loop: p7184 r0: solver-entry at +0.0s
+2026-10-31 12:58:58,894 INFO nemo_evaluator.engine.eval_loop: p11520 r0: solver-entry at +0.0s
+2026-10-31 12:59:17,498 INFO nemo_evaluator.observability.progress: progress: 160/700 (22.9%) | pass@1=64.4% (103/160) | 0.1/s | 19m49s elapsed | ETA 1h06m | 633630 tok
+2026-10-31 12:59:17,498 INFO nemo_evaluator.engine.eval_loop: p4824 r0: solver-entry at +0.0s
+2026-10-31 12:59:26,469 INFO nemo_evaluator.engine.eval_loop: p1166 r0: solver-entry at +0.0s
+2026-10-31 12:59:28,869 INFO nemo_evaluator.engine.eval_loop: p3657 r0: solver-entry at +0.0s
+2026-10-31 12:59:58,117 INFO nemo_evaluator.engine.eval_loop: p7910 r0: solver-entry at +0.0s
+2026-10-31 13:00:04,717 INFO nemo_evaluator.engine.eval_loop: p3968 r0: solver-entry at +0.0s
+2026-10-31 13:00:06,461 INFO nemo_evaluator.engine.eval_loop: p7911 r0: solver-entry at +0.0s
+2026-10-31 13:00:07,134 INFO nemo_evaluator.engine.eval_loop: p6014 r0: solver-entry at +0.0s
+2026-10-31 13:00:21,761 INFO nemo_evaluator.observability.progress: progress: 167/700 (23.9%) | pass@1=65.9% (110/167) | 0.1/s | 20m53s elapsed | ETA 1h06m | 696258 tok
+2026-10-31 13:00:21,762 INFO nemo_evaluator.engine.eval_loop: p5287 r0: solver-entry at +0.0s
+2026-10-31 13:00:23,993 INFO nemo_evaluator.engine.eval_loop: p4391 r0: solver-entry at +0.0s
+2026-10-31 13:00:27,938 INFO nemo_evaluator.engine.eval_loop: p10433 r0: solver-entry at +0.0s
+2026-10-31 13:00:33,473 INFO nemo_evaluator.engine.eval_loop: p8355 r0: solver-entry at +0.0s
+2026-10-31 13:00:35,547 INFO nemo_evaluator.engine.eval_loop: p2595 r0: solver-entry at +0.0s
+2026-10-31 13:00:40,701 INFO nemo_evaluator.engine.eval_loop: p5565 r0: solver-entry at +0.0s
+2026-10-31 13:00:47,279 INFO nemo_evaluator.engine.eval_loop: p3220 r0: solver-entry at +0.0s
+2026-10-31 13:00:55,318 INFO nemo_evaluator.engine.eval_loop: p4583 r0: solver-entry at +0.0s
+2026-10-31 13:00:58,446 INFO nemo_evaluator.engine.eval_loop: p2485 r0: solver-entry at +0.0s
+2026-10-31 13:01:04,501 INFO nemo_evaluator.engine.eval_loop: p6957 r0: solver-entry at +0.0s
+2026-10-31 13:01:11,107 INFO nemo_evaluator.engine.eval_loop: p10408 r0: solver-entry at +0.0s
+2026-10-31 13:01:37,936 INFO nemo_evaluator.observability.progress: progress: 178/700 (25.4%) | pass@1=67.4% (120/178) | 0.1/s | 22m09s elapsed | ETA 1h04m | 731940 tok
+2026-10-31 13:01:37,936 INFO nemo_evaluator.engine.eval_loop: p10063 r0: solver-entry at +0.0s
+2026-10-31 13:01:44,943 INFO nemo_evaluator.engine.eval_loop: p9078 r0: solver-entry at +0.0s
+2026-10-31 13:01:45,959 INFO nemo_evaluator.engine.eval_loop: p578 r0: solver-entry at +0.0s
+2026-10-31 13:01:53,418 INFO nemo_evaluator.engine.eval_loop: p9022 r0: solver-entry at +0.0s
+2026-10-31 13:01:55,487 INFO nemo_evaluator.engine.eval_loop: p9175 r0: solver-entry at +0.0s
+2026-10-31 13:02:02,177 INFO nemo_evaluator.engine.eval_loop: p6864 r0: solver-entry at +0.0s
+2026-10-31 13:02:02,282 INFO nemo_evaluator.engine.eval_loop: p1391 r0: solver-entry at +0.0s
+2026-10-31 13:02:03,329 INFO nemo_evaluator.engine.eval_loop: p10476 r0: solver-entry at +0.0s
+2026-10-31 13:02:08,034 INFO nemo_evaluator.engine.eval_loop: p9951 r0: solver-entry at +0.0s
+2026-10-31 13:02:10,554 INFO nemo_evaluator.engine.eval_loop: p10642 r0: solver-entry at +0.0s
+2026-10-31 13:02:13,036 INFO nemo_evaluator.engine.eval_loop: p3140 r0: solver-entry at +0.0s
+2026-10-31 13:02:14,734 INFO nemo_evaluator.engine.eval_loop: p5681 r0: solver-entry at +0.0s
+2026-10-31 13:02:19,718 INFO nemo_evaluator.engine.eval_loop: p8794 r0: solver-entry at +0.0s
+2026-10-31 13:02:33,601 INFO nemo_evaluator.engine.eval_loop: p2228 r0: solver-entry at +0.0s
+2026-10-31 13:02:34,104 INFO nemo_evaluator.engine.eval_loop: p5471 r0: solver-entry at +0.0s
+2026-10-31 13:02:36,489 INFO nemo_evaluator.engine.eval_loop: p4055 r0: solver-entry at +0.0s
+2026-10-31 13:02:38,423 INFO nemo_evaluator.observability.progress: progress: 194/700 (27.7%) | pass@1=67.5% (131/194) | 0.1/s | 23m10s elapsed | ETA 1h00m | 787817 tok
+2026-10-31 13:02:38,423 INFO nemo_evaluator.engine.eval_loop: p7954 r0: solver-entry at +0.0s
+2026-10-31 13:02:42,603 INFO nemo_evaluator.engine.eval_loop: p3034 r0: solver-entry at +0.0s
+2026-10-31 13:02:44,326 INFO nemo_evaluator.engine.eval_loop: p7146 r0: solver-entry at +0.0s
+2026-10-31 13:02:45,675 INFO nemo_evaluator.engine.eval_loop: p7488 r0: solver-entry at +0.0s
+2026-10-31 13:02:49,944 INFO nemo_evaluator.engine.eval_loop: p8459 r0: solver-entry at +0.0s
+2026-10-31 13:02:50,917 INFO nemo_evaluator.engine.eval_loop: p291 r0: solver-entry at +0.0s
+2026-10-31 13:02:51,295 INFO nemo_evaluator.engine.eval_loop: p3774 r0: solver-entry at +0.0s
+2026-10-31 13:02:56,402 INFO nemo_evaluator.engine.eval_loop: p1830 r0: solver-entry at +0.0s
+2026-10-31 13:03:01,628 INFO nemo_evaluator.engine.eval_loop: p10693 r0: solver-entry at +0.0s
+2026-10-31 13:03:11,701 INFO nemo_evaluator.engine.eval_loop: p621 r0: solver-entry at +0.0s
+2026-10-31 13:03:23,299 INFO nemo_evaluator.engine.eval_loop: p5388 r0: solver-entry at +0.0s
+2026-10-31 13:03:24,771 INFO nemo_evaluator.engine.eval_loop: p2182 r0: solver-entry at +0.0s
+2026-10-31 13:03:25,715 INFO nemo_evaluator.engine.eval_loop: p5900 r0: solver-entry at +0.0s
+2026-10-31 13:03:30,220 INFO nemo_evaluator.engine.eval_loop: p3499 r0: solver-entry at +0.0s
+2026-10-31 13:03:32,033 INFO nemo_evaluator.engine.eval_loop: p11804 r0: solver-entry at +0.0s
+2026-10-31 13:03:40,692 INFO nemo_evaluator.observability.progress: progress: 209/700 (29.9%) | pass@1=67.5% (141/209) | 0.1/s | 24m12s elapsed | ETA 56m52s | 827650 tok
+2026-10-31 13:03:40,692 INFO nemo_evaluator.engine.eval_loop: p4921 r0: solver-entry at +0.0s
+2026-10-31 13:03:50,010 INFO nemo_evaluator.engine.eval_loop: p2403 r0: solver-entry at +0.0s
+2026-10-31 13:04:04,956 INFO nemo_evaluator.engine.eval_loop: p5666 r0: solver-entry at +0.0s
+2026-10-31 13:04:09,584 INFO nemo_evaluator.engine.eval_loop: p1409 r0: solver-entry at +0.0s
+2026-10-31 13:04:12,656 INFO nemo_evaluator.engine.eval_loop: p7198 r0: solver-entry at +0.0s
+2026-10-31 13:04:27,778 INFO nemo_evaluator.engine.eval_loop: p11966 r0: solver-entry at +0.0s
+2026-10-31 13:04:29,548 INFO nemo_evaluator.engine.eval_loop: p4822 r0: solver-entry at +0.0s
+2026-10-31 13:04:50,749 INFO nemo_evaluator.observability.progress: progress: 216/700 (30.9%) | pass@1=66.7% (144/216) | 0.1/s | 25m22s elapsed | ETA 56m51s | 861739 tok
+2026-10-31 13:04:50,750 INFO nemo_evaluator.engine.eval_loop: p3195 r0: solver-entry at +0.0s
+2026-10-31 13:04:58,687 INFO nemo_evaluator.engine.eval_loop: p10675 r0: solver-entry at +0.0s
+2026-10-31 13:05:02,827 INFO nemo_evaluator.engine.eval_loop: p329 r0: solver-entry at +0.0s
+2026-10-31 13:05:19,369 INFO nemo_evaluator.engine.eval_loop: p6333 r0: solver-entry at +0.0s
+2026-10-31 13:05:22,791 INFO nemo_evaluator.engine.eval_loop: p9510 r0: solver-entry at +0.0s
+2026-10-31 13:05:27,643 INFO nemo_evaluator.engine.eval_loop: p2931 r0: solver-entry at +0.0s
+2026-10-31 13:05:45,045 INFO nemo_evaluator.engine.eval_loop: p3479 r0: solver-entry at +0.0s
+2026-10-31 13:05:46,513 INFO nemo_evaluator.engine.eval_loop: p8087 r0: solver-entry at +0.0s
+2026-10-31 13:05:53,300 INFO nemo_evaluator.observability.progress: progress: 224/700 (32.0%) | pass@1=66.1% (148/224) | 0.1/s | 26m25s elapsed | ETA 56m08s | 893268 tok
+2026-10-31 13:05:53,300 INFO nemo_evaluator.engine.eval_loop: p1940 r0: solver-entry at +0.0s
+2026-10-31 13:05:55,424 INFO nemo_evaluator.engine.eval_loop: p1138 r0: solver-entry at +0.0s
+2026-10-31 13:06:01,730 INFO nemo_evaluator.engine.eval_loop: p11080 r0: solver-entry at +0.0s
+2026-10-31 13:06:04,552 INFO nemo_evaluator.engine.eval_loop: p164 r0: solver-entry at +0.0s
+2026-10-31 13:06:13,902 INFO nemo_evaluator.engine.eval_loop: p11867 r0: solver-entry at +0.0s
+2026-10-31 13:06:32,489 INFO nemo_evaluator.engine.eval_loop: p3284 r0: solver-entry at +0.0s
+2026-10-31 13:06:37,603 INFO nemo_evaluator.engine.eval_loop: p6865 r0: solver-entry at +0.0s
+2026-10-31 13:06:44,085 INFO nemo_evaluator.engine.eval_loop: p10337 r0: solver-entry at +0.0s
+2026-10-31 13:06:45,865 INFO nemo_evaluator.engine.eval_loop: p1479 r0: solver-entry at +0.0s
+2026-10-31 13:06:46,695 INFO nemo_evaluator.engine.eval_loop: p9307 r0: solver-entry at +0.0s
+2026-10-31 13:06:49,289 INFO nemo_evaluator.engine.eval_loop: p8653 r0: solver-entry at +0.0s
+2026-10-31 13:06:51,562 INFO nemo_evaluator.engine.eval_loop: p8334 r0: solver-entry at +0.0s
+2026-10-31 13:06:53,114 INFO nemo_evaluator.engine.eval_loop: p10102 r0: solver-entry at +0.0s
+2026-10-31 13:07:32,544 INFO nemo_evaluator.observability.progress: progress: 237/700 (33.9%) | pass@1=66.2% (157/237) | 0.1/s | 28m04s elapsed | ETA 54m50s | 949649 tok
+2026-10-31 13:07:32,545 INFO nemo_evaluator.engine.eval_loop: p11644 r0: solver-entry at +0.0s
+2026-10-31 13:07:41,114 INFO nemo_evaluator.engine.eval_loop: p5265 r0: solver-entry at +0.0s
+2026-10-31 13:07:57,876 INFO nemo_evaluator.engine.eval_loop: p11571 r0: solver-entry at +0.0s
+2026-10-31 13:08:03,391 INFO nemo_evaluator.engine.eval_loop: p728 r0: solver-entry at +0.0s
+2026-10-31 13:08:07,894 INFO nemo_evaluator.engine.eval_loop: p3300 r0: solver-entry at +0.0s
+2026-10-31 13:08:16,056 INFO nemo_evaluator.engine.eval_loop: p1661 r0: solver-entry at +0.0s
+2026-10-31 13:08:21,071 INFO nemo_evaluator.engine.eval_loop: p10834 r0: solver-entry at +0.0s
+2026-10-31 13:08:26,390 INFO nemo_evaluator.engine.eval_loop: p410 r0: solver-entry at +0.0s
+2026-10-31 13:08:34,815 INFO nemo_evaluator.observability.progress: progress: 245/700 (35.0%) | pass@1=66.1% (162/245) | 0.1/s | 29m06s elapsed | ETA 54m03s | 982838 tok
+2026-10-31 13:08:34,815 INFO nemo_evaluator.engine.eval_loop: p959 r0: solver-entry at +0.0s
+2026-10-31 13:08:48,661 INFO nemo_evaluator.engine.eval_loop: p758 r0: solver-entry at +0.0s
+2026-10-31 13:09:01,722 INFO nemo_evaluator.engine.eval_loop: p7683 r0: solver-entry at +0.0s
+2026-10-31 13:09:05,629 INFO nemo_evaluator.engine.eval_loop: p5907 r0: solver-entry at +0.0s
+2026-10-31 13:09:06,459 INFO nemo_evaluator.engine.eval_loop: p5804 r0: solver-entry at +0.0s
+2026-10-31 13:09:06,828 INFO nemo_evaluator.engine.eval_loop: p7053 r0: solver-entry at +0.0s
+2026-10-31 13:09:22,404 INFO nemo_evaluator.engine.eval_loop: p3830 r0: solver-entry at +0.0s
+2026-10-31 13:09:32,973 INFO nemo_evaluator.engine.eval_loop: p10788 r0: solver-entry at +0.0s
+2026-10-31 13:09:37,735 INFO nemo_evaluator.observability.progress: progress: 253/700 (36.1%) | pass@1=65.2% (165/253) | 0.1/s | 30m09s elapsed | ETA 53m17s | 1033285 tok
+2026-10-31 13:09:37,735 INFO nemo_evaluator.engine.eval_loop: p211 r0: solver-entry at +0.0s
+2026-10-31 13:09:43,493 INFO nemo_evaluator.engine.eval_loop: p9811 r0: solver-entry at +0.0s
+2026-10-31 13:09:52,837 INFO nemo_evaluator.engine.eval_loop: p6549 r0: solver-entry at +0.0s
+2026-10-31 13:09:54,288 INFO nemo_evaluator.engine.eval_loop: p4240 r0: solver-entry at +0.0s
+2026-10-31 13:09:54,484 INFO nemo_evaluator.engine.eval_loop: p8887 r0: solver-entry at +0.0s
+2026-10-31 13:10:01,082 INFO nemo_evaluator.engine.eval_loop: p4119 r0: solver-entry at +0.0s
+2026-10-31 13:10:04,795 INFO nemo_evaluator.engine.eval_loop: p317 r0: solver-entry at +0.0s
+2026-10-31 13:10:11,417 INFO nemo_evaluator.engine.eval_loop: p11011 r0: solver-entry at +0.0s
+2026-10-31 13:10:14,292 INFO nemo_evaluator.engine.eval_loop: p9250 r0: solver-entry at +0.0s
+2026-10-31 13:10:31,973 INFO nemo_evaluator.engine.eval_loop: p9151 r0: solver-entry at +0.0s
+2026-10-31 13:10:37,964 INFO nemo_evaluator.observability.progress: progress: 263/700 (37.6%) | pass@1=65.4% (172/263) | 0.1/s | 31m09s elapsed | ETA 51m46s | 1056104 tok
+2026-10-31 13:10:37,965 INFO nemo_evaluator.engine.eval_loop: p5275 r0: solver-entry at +0.0s
+2026-10-31 13:10:43,227 INFO nemo_evaluator.engine.eval_loop: p6643 r0: solver-entry at +0.0s
+2026-10-31 13:10:49,868 INFO nemo_evaluator.engine.eval_loop: p7578 r0: solver-entry at +0.0s
+2026-10-31 13:10:51,601 INFO nemo_evaluator.engine.eval_loop: p9658 r0: solver-entry at +0.0s
+2026-10-31 13:10:52,893 INFO nemo_evaluator.engine.eval_loop: p1567 r0: solver-entry at +0.0s
+2026-10-31 13:10:54,308 INFO nemo_evaluator.engine.eval_loop: p9363 r0: solver-entry at +0.0s
+2026-10-31 13:11:01,880 INFO nemo_evaluator.engine.eval_loop: p6881 r0: solver-entry at +0.0s
+2026-10-31 13:11:13,464 INFO nemo_evaluator.engine.eval_loop: p11048 r0: solver-entry at +0.0s
+2026-10-31 13:11:13,535 INFO nemo_evaluator.engine.eval_loop: p5953 r0: solver-entry at +0.0s
+2026-10-31 13:11:15,557 INFO nemo_evaluator.engine.eval_loop: p1972 r0: solver-entry at +0.0s
+2026-10-31 13:11:23,507 INFO nemo_evaluator.engine.eval_loop: p6079 r0: solver-entry at +0.0s
+2026-10-31 13:11:30,107 INFO nemo_evaluator.engine.eval_loop: p594 r0: solver-entry at +0.0s
+2026-10-31 13:11:31,257 INFO nemo_evaluator.engine.eval_loop: p6636 r0: solver-entry at +0.0s
+2026-10-31 13:11:41,037 INFO nemo_evaluator.observability.progress: progress: 276/700 (39.4%) | pass@1=64.9% (179/276) | 0.1/s | 32m12s elapsed | ETA 49m29s | 1094974 tok
+2026-10-31 13:11:41,037 INFO nemo_evaluator.engine.eval_loop: p10730 r0: solver-entry at +0.0s
+2026-10-31 13:11:44,420 INFO nemo_evaluator.engine.eval_loop: p8091 r0: solver-entry at +0.0s
+2026-10-31 13:11:48,059 INFO nemo_evaluator.engine.eval_loop: p10331 r0: solver-entry at +0.0s
+2026-10-31 13:11:52,272 INFO nemo_evaluator.engine.eval_loop: p3810 r0: solver-entry at +0.0s
+2026-10-31 13:11:54,325 INFO nemo_evaluator.engine.eval_loop: p6827 r0: solver-entry at +0.0s
+2026-10-31 13:11:58,465 INFO nemo_evaluator.engine.eval_loop: p6589 r0: solver-entry at +0.0s
+2026-10-31 13:12:00,619 INFO nemo_evaluator.engine.eval_loop: p4513 r0: solver-entry at +0.0s
+2026-10-31 13:12:01,378 INFO nemo_evaluator.engine.eval_loop: p1406 r0: solver-entry at +0.0s
+2026-10-31 13:12:08,495 INFO nemo_evaluator.engine.eval_loop: p7056 r0: solver-entry at +0.0s
+2026-10-31 13:12:11,701 INFO nemo_evaluator.engine.eval_loop: p10814 r0: solver-entry at +0.0s
+2026-10-31 13:12:14,108 INFO nemo_evaluator.engine.eval_loop: p3193 r0: solver-entry at +0.0s
+2026-10-31 13:12:18,315 INFO nemo_evaluator.engine.eval_loop: p10509 r0: solver-entry at +0.0s
+2026-10-31 13:12:24,438 INFO nemo_evaluator.engine.eval_loop: p8139 r0: solver-entry at +0.0s
+2026-10-31 13:12:29,620 INFO nemo_evaluator.engine.eval_loop: p8370 r0: solver-entry at +0.0s
+2026-10-31 13:12:34,563 INFO nemo_evaluator.engine.eval_loop: p4863 r0: solver-entry at +0.0s
+2026-10-31 13:12:34,845 INFO nemo_evaluator.engine.eval_loop: p10611 r0: solver-entry at +0.0s
+2026-10-31 13:12:39,174 INFO nemo_evaluator.engine.eval_loop: p9282 r0: solver-entry at +0.0s
+2026-10-31 13:12:55,580 INFO nemo_evaluator.observability.progress: progress: 293/700 (41.9%) | pass@1=66.2% (194/293) | 0.1/s | 33m27s elapsed | ETA 46m28s | 1131686 tok
+2026-10-31 13:12:55,580 INFO nemo_evaluator.engine.eval_loop: p4505 r0: solver-entry at +0.0s
+2026-10-31 13:12:58,803 INFO nemo_evaluator.engine.eval_loop: p11012 r0: solver-entry at +0.0s
+2026-10-31 13:13:01,012 INFO nemo_evaluator.engine.eval_loop: p4185 r0: solver-entry at +0.0s
+2026-10-31 13:13:04,147 INFO nemo_evaluator.engine.eval_loop: p3340 r0: solver-entry at +0.0s
+2026-10-31 13:13:12,367 INFO nemo_evaluator.engine.eval_loop: p4088 r0: solver-entry at +0.0s
+2026-10-31 13:13:12,768 INFO nemo_evaluator.engine.eval_loop: p11642 r0: solver-entry at +0.0s
+2026-10-31 13:13:18,503 INFO nemo_evaluator.engine.eval_loop: p8419 r0: solver-entry at +0.0s
+2026-10-31 13:13:19,310 INFO nemo_evaluator.engine.eval_loop: p11518 r0: solver-entry at +0.0s
+2026-10-31 13:13:20,050 INFO nemo_evaluator.engine.eval_loop: p154 r0: solver-entry at +0.0s
+2026-10-31 13:13:21,824 INFO nemo_evaluator.engine.eval_loop: p11455 r0: solver-entry at +0.0s
+2026-10-31 13:13:24,588 INFO nemo_evaluator.engine.eval_loop: p5322 r0: solver-entry at +0.0s
+2026-10-31 13:13:32,119 INFO nemo_evaluator.engine.eval_loop: p10990 r0: solver-entry at +0.0s
+2026-10-31 13:13:37,455 INFO nemo_evaluator.engine.eval_loop: p10591 r0: solver-entry at +0.0s
+2026-10-31 13:13:40,468 INFO nemo_evaluator.engine.eval_loop: p4189 r0: solver-entry at +0.0s
+2026-10-31 13:13:43,223 INFO nemo_evaluator.engine.eval_loop: p106 r0: solver-entry at +0.0s
+2026-10-31 13:13:45,992 INFO nemo_evaluator.engine.eval_loop: p9206 r0: solver-entry at +0.0s
+2026-10-31 13:14:03,923 INFO nemo_evaluator.observability.progress: progress: 309/700 (44.1%) | pass@1=66.7% (206/309) | 0.1/s | 34m35s elapsed | ETA 43m46s | 1173575 tok
+2026-10-31 13:14:03,923 INFO nemo_evaluator.engine.eval_loop: p464 r0: solver-entry at +0.0s
+2026-10-31 13:14:19,976 INFO nemo_evaluator.engine.eval_loop: p3723 r0: solver-entry at +0.0s
+2026-10-31 13:14:25,432 INFO nemo_evaluator.engine.eval_loop: p4657 r0: solver-entry at +0.0s
+2026-10-31 13:14:41,805 INFO nemo_evaluator.engine.eval_loop: p2113 r0: solver-entry at +0.0s
+2026-10-31 13:14:48,170 INFO nemo_evaluator.engine.eval_loop: p6540 r0: solver-entry at +0.0s
+2026-10-31 13:15:06,376 INFO nemo_evaluator.observability.progress: progress: 314/700 (44.9%) | pass@1=66.2% (208/314) | 0.1/s | 35m38s elapsed | ETA 43m48s | 1219300 tok
+2026-10-31 13:15:06,376 INFO nemo_evaluator.engine.eval_loop: p5433 r0: solver-entry at +0.0s
+2026-10-31 13:15:35,244 INFO nemo_evaluator.engine.eval_loop: p4494 r0: solver-entry at +0.0s
+2026-10-31 13:15:40,963 INFO nemo_evaluator.engine.eval_loop: p7769 r0: solver-entry at +0.0s
+2026-10-31 13:15:41,070 INFO nemo_evaluator.engine.eval_loop: p7361 r0: solver-entry at +0.0s
+2026-10-31 13:15:44,422 INFO nemo_evaluator.engine.eval_loop: p9888 r0: solver-entry at +0.0s
+2026-10-31 13:15:51,175 INFO nemo_evaluator.engine.eval_loop: p10365 r0: solver-entry at +0.0s
+2026-10-31 13:15:52,873 INFO nemo_evaluator.engine.eval_loop: p7314 r0: solver-entry at +0.0s
+2026-10-31 13:15:56,201 INFO nemo_evaluator.engine.eval_loop: p9642 r0: solver-entry at +0.0s
+2026-10-31 13:16:10,525 INFO nemo_evaluator.observability.progress: progress: 322/700 (46.0%) | pass@1=66.1% (213/322) | 0.1/s | 36m42s elapsed | ETA 43m05s | 1254687 tok
+2026-10-31 13:16:10,526 INFO nemo_evaluator.engine.eval_loop: p5486 r0: solver-entry at +0.0s
+2026-10-31 13:16:21,839 INFO nemo_evaluator.engine.eval_loop: p11558 r0: solver-entry at +0.0s
+2026-10-31 13:16:22,808 INFO nemo_evaluator.engine.eval_loop: p3036 r0: solver-entry at +0.0s
+2026-10-31 13:16:36,293 INFO nemo_evaluator.engine.eval_loop: p4348 r0: solver-entry at +0.0s
+2026-10-31 13:16:45,490 INFO nemo_evaluator.engine.eval_loop: p6876 r0: solver-entry at +0.0s
+2026-10-31 13:16:48,899 INFO nemo_evaluator.engine.eval_loop: p7142 r0: solver-entry at +0.0s
+2026-10-31 13:16:58,289 INFO nemo_evaluator.engine.eval_loop: p7497 r0: solver-entry at +0.0s
+2026-10-31 13:17:02,977 INFO nemo_evaluator.engine.eval_loop: p6933 r0: solver-entry at +0.0s
+2026-10-31 13:17:04,492 INFO nemo_evaluator.engine.eval_loop: p4911 r0: solver-entry at +0.0s
+2026-10-31 13:17:06,274 INFO nemo_evaluator.engine.eval_loop: p7285 r0: solver-entry at +0.0s
+2026-10-31 13:17:07,617 INFO nemo_evaluator.engine.eval_loop: p504 r0: solver-entry at +0.0s
+2026-10-31 13:17:13,547 INFO nemo_evaluator.observability.progress: progress: 333/700 (47.6%) | pass@1=64.9% (216/333) | 0.1/s | 37m45s elapsed | ETA 41m36s | 1297037 tok
+2026-10-31 13:17:13,548 INFO nemo_evaluator.engine.eval_loop: p4074 r0: solver-entry at +0.0s
+2026-10-31 13:17:21,927 INFO nemo_evaluator.engine.eval_loop: p10921 r0: solver-entry at +0.0s
+2026-10-31 13:17:22,199 INFO nemo_evaluator.engine.eval_loop: p4478 r0: solver-entry at +0.0s
+2026-10-31 13:17:22,782 INFO nemo_evaluator.engine.eval_loop: p191 r0: solver-entry at +0.0s
+2026-10-31 13:17:36,570 INFO nemo_evaluator.engine.eval_loop: p5104 r0: solver-entry at +0.0s
+2026-10-31 13:17:37,942 INFO nemo_evaluator.engine.eval_loop: p8125 r0: solver-entry at +0.0s
+2026-10-31 13:17:47,218 INFO nemo_evaluator.engine.eval_loop: p4680 r0: solver-entry at +0.0s
+2026-10-31 13:17:48,634 INFO nemo_evaluator.engine.eval_loop: p4398 r0: solver-entry at +0.0s
+2026-10-31 13:17:55,878 INFO nemo_evaluator.engine.eval_loop: p4046 r0: solver-entry at +0.0s
+2026-10-31 13:18:13,471 INFO nemo_evaluator.engine.eval_loop: p10669 r0: solver-entry at +0.0s
+2026-10-31 13:18:20,242 INFO nemo_evaluator.observability.progress: progress: 343/700 (49.0%) | pass@1=65.0% (223/343) | 0.1/s | 38m52s elapsed | ETA 40m27s | 1324399 tok
+2026-10-31 13:18:20,243 INFO nemo_evaluator.engine.eval_loop: p8443 r0: solver-entry at +0.0s
+2026-10-31 13:18:24,380 INFO nemo_evaluator.engine.eval_loop: p11489 r0: solver-entry at +0.0s
+2026-10-31 13:18:35,902 INFO nemo_evaluator.engine.eval_loop: p6420 r0: solver-entry at +0.0s
+2026-10-31 13:18:51,732 INFO nemo_evaluator.engine.eval_loop: p5846 r0: solver-entry at +0.0s
+2026-10-31 13:18:53,092 INFO nemo_evaluator.engine.eval_loop: p7039 r0: solver-entry at +0.0s
+2026-10-31 13:19:14,312 INFO nemo_evaluator.engine.eval_loop: p5752 r0: solver-entry at +0.0s
+2026-10-31 13:19:24,472 INFO nemo_evaluator.observability.progress: progress: 349/700 (49.9%) | pass@1=65.3% (228/349) | 0.1/s | 39m56s elapsed | ETA 40m09s | 1351480 tok
+2026-10-31 13:19:24,473 INFO nemo_evaluator.engine.eval_loop: p6116 r0: solver-entry at +0.0s
+2026-10-31 13:19:34,505 INFO nemo_evaluator.engine.eval_loop: p1429 r0: solver-entry at +0.0s
+2026-10-31 13:19:37,482 INFO nemo_evaluator.engine.eval_loop: p1623 r0: solver-entry at +0.0s
+2026-10-31 13:19:38,450 INFO nemo_evaluator.engine.eval_loop: p11685 r0: solver-entry at +0.0s
+2026-10-31 13:19:47,550 INFO nemo_evaluator.engine.eval_loop: p9226 r0: solver-entry at +0.0s
+2026-10-31 13:19:57,244 INFO nemo_evaluator.engine.eval_loop: p8001 r0: solver-entry at +0.0s
+2026-10-31 13:20:03,936 INFO nemo_evaluator.engine.eval_loop: p3108 r0: solver-entry at +0.0s
+2026-10-31 13:20:05,508 INFO nemo_evaluator.engine.eval_loop: p1002 r0: solver-entry at +0.0s
+2026-10-31 13:20:05,854 INFO nemo_evaluator.engine.eval_loop: p6211 r0: solver-entry at +0.0s
+2026-10-31 13:20:15,642 INFO nemo_evaluator.engine.eval_loop: p8455 r0: solver-entry at +0.0s
+2026-10-31 13:20:35,216 INFO nemo_evaluator.observability.progress: progress: 359/700 (51.3%) | pass@1=64.6% (232/359) | 0.1/s | 41m06s elapsed | ETA 39m03s | 1413581 tok
+2026-10-31 13:20:35,216 INFO nemo_evaluator.engine.eval_loop: p8888 r0: solver-entry at +0.0s
+2026-10-31 13:20:35,696 INFO nemo_evaluator.engine.eval_loop: p3295 r0: solver-entry at +0.0s
+2026-10-31 13:20:38,193 INFO nemo_evaluator.engine.eval_loop: p10121 r0: solver-entry at +0.0s
+2026-10-31 13:20:44,198 INFO nemo_evaluator.engine.eval_loop: p10714 r0: solver-entry at +0.0s
+2026-10-31 13:20:52,786 INFO nemo_evaluator.engine.eval_loop: p7633 r0: solver-entry at +0.0s
+2026-10-31 13:20:52,951 INFO nemo_evaluator.engine.eval_loop: p7157 r0: solver-entry at +0.0s
+2026-10-31 13:21:03,100 INFO nemo_evaluator.engine.eval_loop: p774 r0: solver-entry at +0.0s
+2026-10-31 13:21:03,933 INFO nemo_evaluator.engine.eval_loop: p1420 r0: solver-entry at +0.0s
+2026-10-31 13:21:04,889 INFO nemo_evaluator.engine.eval_loop: p6386 r0: solver-entry at +0.0s
+2026-10-31 13:21:07,946 INFO nemo_evaluator.engine.eval_loop: p2832 r0: solver-entry at +0.0s
+2026-10-31 13:21:10,475 INFO nemo_evaluator.engine.eval_loop: p10908 r0: solver-entry at +0.0s
+2026-10-31 13:21:25,247 INFO nemo_evaluator.engine.eval_loop: p3577 r0: solver-entry at +0.0s
+2026-10-31 13:21:32,509 INFO nemo_evaluator.engine.eval_loop: p4485 r0: solver-entry at +0.0s
+2026-10-31 13:21:32,664 INFO nemo_evaluator.engine.eval_loop: p6932 r0: solver-entry at +0.0s
+2026-10-31 13:21:36,236 INFO nemo_evaluator.observability.progress: progress: 373/700 (53.3%) | pass@1=65.1% (243/373) | 0.1/s | 42m08s elapsed | ETA 36m56s | 1444138 tok
+2026-10-31 13:21:36,236 INFO nemo_evaluator.engine.eval_loop: p2483 r0: solver-entry at +0.0s
+2026-10-31 13:21:36,999 INFO nemo_evaluator.engine.eval_loop: p8940 r0: solver-entry at +0.0s
+2026-10-31 13:21:43,360 INFO nemo_evaluator.engine.eval_loop: p11743 r0: solver-entry at +0.0s
+2026-10-31 13:21:46,772 INFO nemo_evaluator.engine.eval_loop: p10504 r0: solver-entry at +0.0s
+2026-10-31 13:21:56,237 INFO nemo_evaluator.engine.eval_loop: p526 r0: solver-entry at +0.0s
+2026-10-31 13:22:19,798 INFO nemo_evaluator.engine.eval_loop: p7049 r0: solver-entry at +0.0s
+2026-10-31 13:22:21,592 INFO nemo_evaluator.engine.eval_loop: p7011 r0: solver-entry at +0.0s
+2026-10-31 13:22:26,247 INFO nemo_evaluator.engine.eval_loop: p2966 r0: solver-entry at +0.0s
+2026-10-31 13:22:32,586 INFO nemo_evaluator.engine.eval_loop: p2824 r0: solver-entry at +0.0s
+2026-10-31 13:22:32,732 INFO nemo_evaluator.engine.eval_loop: p4791 r0: solver-entry at +0.0s
+2026-10-31 13:22:35,398 INFO nemo_evaluator.engine.eval_loop: p4183 r0: solver-entry at +0.0s
+2026-10-31 13:22:40,460 INFO nemo_evaluator.observability.progress: progress: 384/700 (54.9%) | pass@1=64.8% (249/384) | 0.1/s | 43m12s elapsed | ETA 35m33s | 1485433 tok
+2026-10-31 13:22:40,460 INFO nemo_evaluator.engine.eval_loop: p5011 r0: solver-entry at +0.0s
+2026-10-31 13:22:54,585 INFO nemo_evaluator.engine.eval_loop: p8624 r0: solver-entry at +0.0s
+2026-10-31 13:22:56,725 INFO nemo_evaluator.engine.eval_loop: p2130 r0: solver-entry at +0.0s
+2026-10-31 13:22:58,434 INFO nemo_evaluator.engine.eval_loop: p8962 r0: solver-entry at +0.0s
+2026-10-31 13:23:02,537 INFO nemo_evaluator.engine.eval_loop: p7133 r0: solver-entry at +0.0s
+2026-10-31 13:23:04,070 INFO nemo_evaluator.engine.eval_loop: p5228 r0: solver-entry at +0.0s
+2026-10-31 13:23:04,987 INFO nemo_evaluator.engine.eval_loop: p6434 r0: solver-entry at +0.0s
+2026-10-31 13:23:08,273 INFO nemo_evaluator.engine.eval_loop: p1058 r0: solver-entry at +0.0s
+2026-10-31 13:23:21,370 INFO nemo_evaluator.engine.eval_loop: p4154 r0: solver-entry at +0.0s
+2026-10-31 13:23:22,540 INFO nemo_evaluator.engine.eval_loop: p7292 r0: solver-entry at +0.0s
+2026-10-31 13:23:24,371 INFO nemo_evaluator.engine.eval_loop: p5644 r0: solver-entry at +0.0s
+2026-10-31 13:23:25,048 INFO nemo_evaluator.engine.eval_loop: p48 r0: solver-entry at +0.0s
+2026-10-31 13:23:32,068 INFO nemo_evaluator.engine.eval_loop: p6647 r0: solver-entry at +0.0s
+2026-10-31 13:23:35,895 INFO nemo_evaluator.engine.eval_loop: p6213 r0: solver-entry at +0.0s
+2026-10-31 13:23:42,621 INFO nemo_evaluator.observability.progress: progress: 398/700 (56.9%) | pass@1=64.8% (258/398) | 0.1/s | 44m14s elapsed | ETA 33m34s | 1531754 tok
+2026-10-31 13:23:42,621 INFO nemo_evaluator.engine.eval_loop: p10953 r0: solver-entry at +0.0s
+2026-10-31 13:23:47,353 INFO nemo_evaluator.engine.eval_loop: p2959 r0: solver-entry at +0.0s
+2026-10-31 13:23:54,521 INFO nemo_evaluator.engine.eval_loop: p11992 r0: solver-entry at +0.0s
+2026-10-31 13:24:01,583 INFO nemo_evaluator.engine.eval_loop: p1861 r0: solver-entry at +0.0s
+2026-10-31 13:24:01,780 INFO nemo_evaluator.engine.eval_loop: p453 r0: solver-entry at +0.0s
+2026-10-31 13:24:04,404 INFO nemo_evaluator.engine.eval_loop: p4127 r0: solver-entry at +0.0s
+2026-10-31 13:24:06,847 INFO nemo_evaluator.engine.eval_loop: p6361 r0: solver-entry at +0.0s
+2026-10-31 13:24:14,583 INFO nemo_evaluator.engine.eval_loop: p5687 r0: solver-entry at +0.0s
+2026-10-31 13:24:26,758 INFO nemo_evaluator.engine.eval_loop: p5278 r0: solver-entry at +0.0s
+2026-10-31 13:24:30,450 INFO nemo_evaluator.engine.eval_loop: p11816 r0: solver-entry at +0.0s
+2026-10-31 13:24:30,864 INFO nemo_evaluator.engine.eval_loop: p3223 r0: solver-entry at +0.0s
+2026-10-31 13:24:58,358 INFO nemo_evaluator.observability.progress: progress: 409/700 (58.4%) | pass@1=64.1% (262/409) | 0.1/s | 45m30s elapsed | ETA 32m22s | 1553150 tok
+2026-10-31 13:24:58,358 INFO nemo_evaluator.engine.eval_loop: p8100 r0: solver-entry at +0.0s
+2026-10-31 13:25:14,734 INFO nemo_evaluator.engine.eval_loop: p7268 r0: solver-entry at +0.0s
+2026-10-31 13:25:17,967 INFO nemo_evaluator.engine.eval_loop: p9425 r0: solver-entry at +0.0s
+2026-10-31 13:25:29,541 INFO nemo_evaluator.engine.eval_loop: p7080 r0: solver-entry at +0.0s
+2026-10-31 13:25:29,718 INFO nemo_evaluator.engine.eval_loop: p8933 r0: solver-entry at +0.0s
+2026-10-31 13:25:33,077 INFO nemo_evaluator.engine.eval_loop: p9549 r0: solver-entry at +0.0s
+2026-10-31 13:25:39,577 INFO nemo_evaluator.engine.eval_loop: p11306 r0: solver-entry at +0.0s
+2026-10-31 13:25:42,362 INFO nemo_evaluator.engine.eval_loop: p5908 r0: solver-entry at +0.0s
+2026-10-31 13:25:59,153 INFO nemo_evaluator.observability.progress: progress: 417/700 (59.6%) | pass@1=63.5% (265/417) | 0.1/s | 46m30s elapsed | ETA 31m34s | 1601501 tok
+2026-10-31 13:25:59,154 INFO nemo_evaluator.engine.eval_loop: p7825 r0: solver-entry at +0.0s
+2026-10-31 13:26:00,104 INFO nemo_evaluator.engine.eval_loop: p6754 r0: solver-entry at +0.0s
+2026-10-31 13:26:01,970 INFO nemo_evaluator.engine.eval_loop: p3920 r0: solver-entry at +0.0s
+2026-10-31 13:26:02,765 INFO nemo_evaluator.engine.eval_loop: p11910 r0: solver-entry at +0.0s
+2026-10-31 13:26:04,735 INFO nemo_evaluator.engine.eval_loop: p608 r0: solver-entry at +0.0s
+2026-10-31 13:26:07,097 INFO nemo_evaluator.engine.eval_loop: p6008 r0: solver-entry at +0.0s
+2026-10-31 13:26:15,412 INFO nemo_evaluator.engine.eval_loop: p7690 r0: solver-entry at +0.0s
+2026-10-31 13:26:15,653 INFO nemo_evaluator.engine.eval_loop: p7610 r0: solver-entry at +0.0s
+2026-10-31 13:26:23,328 INFO nemo_evaluator.engine.eval_loop: p3248 r0: solver-entry at +0.0s
+2026-10-31 13:26:36,673 INFO nemo_evaluator.engine.eval_loop: p11634 r0: solver-entry at +0.0s
+2026-10-31 13:26:38,457 INFO nemo_evaluator.engine.eval_loop: p4838 r0: solver-entry at +0.0s
+2026-10-31 13:26:41,033 INFO nemo_evaluator.engine.eval_loop: p9400 r0: solver-entry at +0.0s
+2026-10-31 13:26:41,246 INFO nemo_evaluator.engine.eval_loop: p1073 r0: solver-entry at +0.0s
+2026-10-31 13:27:03,751 INFO nemo_evaluator.observability.progress: progress: 430/700 (61.4%) | pass@1=63.5% (273/430) | 0.2/s | 47m35s elapsed | ETA 29m53s | 1648165 tok
+2026-10-31 13:27:03,751 INFO nemo_evaluator.engine.eval_loop: p11916 r0: solver-entry at +0.0s
+2026-10-31 13:27:05,403 INFO nemo_evaluator.engine.eval_loop: p2452 r0: solver-entry at +0.0s
+2026-10-31 13:27:11,977 INFO nemo_evaluator.engine.eval_loop: p628 r0: solver-entry at +0.0s
+2026-10-31 13:27:37,864 INFO nemo_evaluator.engine.eval_loop: p634 r0: solver-entry at +0.0s
+2026-10-31 13:27:47,899 INFO nemo_evaluator.engine.eval_loop: p8037 r0: solver-entry at +0.0s
+2026-10-31 13:28:02,687 INFO nemo_evaluator.engine.eval_loop: p2072 r0: solver-entry at +0.0s
+2026-10-31 13:28:14,003 INFO nemo_evaluator.observability.progress: progress: 436/700 (62.3%) | pass@1=63.5% (277/436) | 0.1/s | 48m45s elapsed | ETA 29m31s | 1670047 tok
+2026-10-31 13:28:14,003 INFO nemo_evaluator.engine.eval_loop: p4577 r0: solver-entry at +0.0s
+2026-10-31 13:28:23,239 INFO nemo_evaluator.engine.eval_loop: p3339 r0: solver-entry at +0.0s
+2026-10-31 13:28:26,364 INFO nemo_evaluator.engine.eval_loop: p9814 r0: solver-entry at +0.0s
+2026-10-31 13:28:37,781 INFO nemo_evaluator.engine.eval_loop: p6406 r0: solver-entry at +0.0s
+2026-10-31 13:28:41,335 INFO nemo_evaluator.engine.eval_loop: p5335 r0: solver-entry at +0.0s
+2026-10-31 13:28:52,737 INFO nemo_evaluator.engine.eval_loop: p710 r0: solver-entry at +0.0s
+2026-10-31 13:28:55,317 INFO nemo_evaluator.engine.eval_loop: p3670 r0: solver-entry at +0.0s
+2026-10-31 13:29:11,991 INFO nemo_evaluator.engine.eval_loop: p2219 r0: solver-entry at +0.0s
+2026-10-31 13:29:14,853 INFO nemo_evaluator.observability.progress: progress: 444/700 (63.4%) | pass@1=63.1% (280/444) | 0.1/s | 49m46s elapsed | ETA 28m42s | 1694474 tok
+2026-10-31 13:29:14,854 INFO nemo_evaluator.engine.eval_loop: p4679 r0: solver-entry at +0.0s
+2026-10-31 13:29:17,833 INFO nemo_evaluator.engine.eval_loop: p931 r0: solver-entry at +0.0s
+2026-10-31 13:29:35,565 INFO nemo_evaluator.engine.eval_loop: p9210 r0: solver-entry at +0.0s
+2026-10-31 13:29:50,726 INFO nemo_evaluator.engine.eval_loop: p2095 r0: solver-entry at +0.0s
+2026-10-31 13:29:52,733 INFO nemo_evaluator.engine.eval_loop: p7455 r0: solver-entry at +0.0s
+2026-10-31 13:29:56,381 INFO nemo_evaluator.engine.eval_loop: p4052 r0: solver-entry at +0.0s
+2026-10-31 13:30:03,978 INFO nemo_evaluator.engine.eval_loop: p3491 r0: solver-entry at +0.0s
+2026-10-31 13:30:14,492 INFO nemo_evaluator.engine.eval_loop: p9505 r0: solver-entry at +0.0s
+2026-10-31 13:30:16,249 INFO nemo_evaluator.observability.progress: progress: 452/700 (64.6%) | pass@1=63.3% (286/452) | 0.1/s | 50m48s elapsed | ETA 27m52s | 1745271 tok
+2026-10-31 13:30:16,249 INFO nemo_evaluator.engine.eval_loop: p5419 r0: solver-entry at +0.0s
+2026-10-31 13:30:28,696 INFO nemo_evaluator.engine.eval_loop: p11923 r0: solver-entry at +0.0s
+2026-10-31 13:30:30,757 INFO nemo_evaluator.engine.eval_loop: p1040 r0: solver-entry at +0.0s
+2026-10-31 13:30:43,428 INFO nemo_evaluator.engine.eval_loop: p566 r0: solver-entry at +0.0s
+2026-10-31 13:30:44,073 INFO nemo_evaluator.engine.eval_loop: p10415 r0: solver-entry at +0.0s
+2026-10-31 13:31:02,618 INFO nemo_evaluator.engine.eval_loop: p8162 r0: solver-entry at +0.0s
+2026-10-31 13:31:09,890 INFO nemo_evaluator.engine.eval_loop: p11300 r0: solver-entry at +0.0s
+2026-10-31 13:31:13,453 INFO nemo_evaluator.engine.eval_loop: p10601 r0: solver-entry at +0.0s
+2026-10-31 13:31:19,408 INFO nemo_evaluator.observability.progress: progress: 460/700 (65.7%) | pass@1=63.3% (291/460) | 0.1/s | 51m51s elapsed | ETA 27m03s | 1770629 tok
+2026-10-31 13:31:19,408 INFO nemo_evaluator.engine.eval_loop: p4789 r0: solver-entry at +0.0s
+2026-10-31 13:31:27,706 INFO nemo_evaluator.engine.eval_loop: p3662 r0: solver-entry at +0.0s
+2026-10-31 13:32:14,674 INFO nemo_evaluator.engine.eval_loop: p3812 r0: solver-entry at +0.0s
+2026-10-31 13:32:19,292 INFO nemo_evaluator.engine.eval_loop: p2123 r0: solver-entry at +0.0s
+2026-10-31 13:32:22,011 INFO nemo_evaluator.observability.progress: progress: 464/700 (66.3%) | pass@1=63.1% (293/464) | 0.1/s | 52m53s elapsed | ETA 26m54s | 1787448 tok
+2026-10-31 13:32:22,012 INFO nemo_evaluator.engine.eval_loop: p2252 r0: solver-entry at +0.0s
+2026-10-31 13:32:32,442 INFO nemo_evaluator.engine.eval_loop: p7068 r0: solver-entry at +0.0s
+2026-10-31 13:32:34,389 INFO nemo_evaluator.engine.eval_loop: p10604 r0: solver-entry at +0.0s
+2026-10-31 13:32:35,621 INFO nemo_evaluator.engine.eval_loop: p1093 r0: solver-entry at +0.0s
+2026-10-31 13:32:42,632 INFO nemo_evaluator.engine.eval_loop: p7356 r0: solver-entry at +0.0s
+2026-10-31 13:32:58,256 INFO nemo_evaluator.engine.eval_loop: p1440 r0: solver-entry at +0.0s
+2026-10-31 13:32:59,510 INFO nemo_evaluator.engine.eval_loop: p262 r0: solver-entry at +0.0s
+2026-10-31 13:33:04,237 INFO nemo_evaluator.engine.eval_loop: p2580 r0: solver-entry at +0.0s
+2026-10-31 13:33:08,748 INFO nemo_evaluator.engine.eval_loop: p3531 r0: solver-entry at +0.0s
+2026-10-31 13:33:21,820 INFO nemo_evaluator.engine.eval_loop: p7449 r0: solver-entry at +0.0s
+2026-10-31 13:33:32,569 INFO nemo_evaluator.observability.progress: progress: 474/700 (67.7%) | pass@1=63.5% (301/474) | 0.1/s | 54m04s elapsed | ETA 25m46s | 1846180 tok
+2026-10-31 13:33:32,570 INFO nemo_evaluator.engine.eval_loop: p2504 r0: solver-entry at +0.0s
+2026-10-31 13:33:46,114 INFO nemo_evaluator.engine.eval_loop: p8454 r0: solver-entry at +0.0s
+2026-10-31 13:33:58,599 INFO nemo_evaluator.engine.eval_loop: p1218 r0: solver-entry at +0.0s
+2026-10-31 13:34:53,359 INFO nemo_evaluator.observability.progress: progress: 477/700 (68.1%) | pass@1=63.3% (302/477) | 0.1/s | 55m25s elapsed | ETA 25m54s | 1860602 tok
+2026-10-31 13:34:53,360 INFO nemo_evaluator.engine.eval_loop: p6587 r0: solver-entry at +0.0s
+2026-10-31 13:34:59,491 INFO nemo_evaluator.engine.eval_loop: p9011 r0: solver-entry at +0.0s
+2026-10-31 13:35:16,050 INFO nemo_evaluator.engine.eval_loop: p9054 r0: solver-entry at +0.0s
+2026-10-31 13:35:19,562 INFO nemo_evaluator.engine.eval_loop: p9320 r0: solver-entry at +0.0s
+2026-10-31 13:35:25,371 INFO nemo_evaluator.engine.eval_loop: p3190 r0: solver-entry at +0.0s
+2026-10-31 13:35:30,917 INFO nemo_evaluator.engine.eval_loop: p9267 r0: solver-entry at +0.0s
+2026-10-31 13:35:31,498 INFO nemo_evaluator.engine.eval_loop: p10589 r0: solver-entry at +0.0s
+2026-10-31 13:35:32,843 INFO nemo_evaluator.engine.eval_loop: p7391 r0: solver-entry at +0.0s
+2026-10-31 13:35:38,808 INFO nemo_evaluator.engine.eval_loop: p4764 r0: solver-entry at +0.0s
+2026-10-31 13:35:46,758 INFO nemo_evaluator.engine.eval_loop: p2065 r0: solver-entry at +0.0s
+2026-10-31 13:35:51,977 INFO nemo_evaluator.engine.eval_loop: p7852 r0: solver-entry at +0.0s
+2026-10-31 13:36:01,114 INFO nemo_evaluator.observability.progress: progress: 488/700 (69.7%) | pass@1=63.3% (309/488) | 0.1/s | 56m32s elapsed | ETA 24m33s | 1917844 tok
+2026-10-31 13:36:01,115 INFO nemo_evaluator.engine.eval_loop: p7785 r0: solver-entry at +0.0s
+2026-10-31 13:36:01,260 INFO nemo_evaluator.engine.eval_loop: p3768 r0: solver-entry at +0.0s
+2026-10-31 13:36:01,767 INFO nemo_evaluator.engine.eval_loop: p5485 r0: solver-entry at +0.0s
+2026-10-31 13:36:15,921 INFO nemo_evaluator.engine.eval_loop: p8572 r0: solver-entry at +0.0s
+2026-10-31 13:36:19,457 INFO nemo_evaluator.engine.eval_loop: p7450 r0: solver-entry at +0.0s
+2026-10-31 13:36:21,038 INFO nemo_evaluator.engine.eval_loop: p756 r0: solver-entry at +0.0s
+2026-10-31 13:36:22,929 INFO nemo_evaluator.engine.eval_loop: p440 r0: solver-entry at +0.0s
+2026-10-31 13:36:26,532 INFO nemo_evaluator.engine.eval_loop: p2835 r0: solver-entry at +0.0s
+2026-10-31 13:36:34,806 INFO nemo_evaluator.engine.eval_loop: p7385 r0: solver-entry at +0.0s
+2026-10-31 13:36:41,565 INFO nemo_evaluator.engine.eval_loop: p12021 r0: solver-entry at +0.0s
+2026-10-31 13:36:57,581 INFO nemo_evaluator.engine.eval_loop: p1584 r0: solver-entry at +0.0s
+2026-10-31 13:37:02,656 INFO nemo_evaluator.observability.progress: progress: 499/700 (71.3%) | pass@1=63.9% (319/499) | 0.1/s | 57m34s elapsed | ETA 23m11s | 1958188 tok
+2026-10-31 13:37:02,656 INFO nemo_evaluator.engine.eval_loop: p4842 r0: solver-entry at +0.0s
+2026-10-31 13:37:15,489 INFO nemo_evaluator.engine.eval_loop: p8508 r0: solver-entry at +0.0s
+2026-10-31 13:37:23,269 INFO nemo_evaluator.engine.eval_loop: p11059 r0: solver-entry at +0.0s
+2026-10-31 13:37:28,384 INFO nemo_evaluator.engine.eval_loop: p5711 r0: solver-entry at +0.0s
+2026-10-31 13:37:45,717 INFO nemo_evaluator.engine.eval_loop: p8768 r0: solver-entry at +0.0s
+2026-10-31 13:38:13,320 INFO nemo_evaluator.observability.progress: progress: 504/700 (72.0%) | pass@1=63.5% (320/504) | 0.1/s | 58m45s elapsed | ETA 22m50s | 1977929 tok
+2026-10-31 13:38:13,321 INFO nemo_evaluator.engine.eval_loop: p2634 r0: solver-entry at +0.0s
+2026-10-31 13:38:17,761 INFO nemo_evaluator.engine.eval_loop: p4998 r0: solver-entry at +0.0s
+2026-10-31 13:38:21,755 INFO nemo_evaluator.engine.eval_loop: p6217 r0: solver-entry at +0.0s
+2026-10-31 13:38:24,647 INFO nemo_evaluator.engine.eval_loop: p9919 r0: solver-entry at +0.0s
+2026-10-31 13:38:24,858 INFO nemo_evaluator.engine.eval_loop: p3599 r0: solver-entry at +0.0s
+2026-10-31 13:38:35,600 INFO nemo_evaluator.engine.eval_loop: p205 r0: solver-entry at +0.0s
+2026-10-31 13:38:41,328 INFO nemo_evaluator.engine.eval_loop: p2746 r0: solver-entry at +0.0s
+2026-10-31 13:38:41,921 INFO nemo_evaluator.engine.eval_loop: p2842 r0: solver-entry at +0.0s
+2026-10-31 13:38:48,326 INFO nemo_evaluator.engine.eval_loop: p7557 r0: solver-entry at +0.0s
+2026-10-31 13:38:52,770 INFO nemo_evaluator.engine.eval_loop: p3885 r0: solver-entry at +0.0s
+2026-10-31 13:38:53,768 INFO nemo_evaluator.engine.eval_loop: p870 r0: solver-entry at +0.0s
+2026-10-31 13:38:54,755 INFO nemo_evaluator.engine.eval_loop: p6475 r0: solver-entry at +0.0s
+2026-10-31 13:38:55,023 INFO nemo_evaluator.engine.eval_loop: p609 r0: solver-entry at +0.0s
+2026-10-31 13:39:00,674 INFO nemo_evaluator.engine.eval_loop: p2312 r0: solver-entry at +0.0s
+2026-10-31 13:39:01,343 INFO nemo_evaluator.engine.eval_loop: p850 r0: solver-entry at +0.0s
+2026-10-31 13:39:05,068 INFO nemo_evaluator.engine.eval_loop: p7316 r0: solver-entry at +0.0s
+2026-10-31 13:39:06,289 INFO nemo_evaluator.engine.eval_loop: p1243 r0: solver-entry at +0.0s
+2026-10-31 13:39:11,929 INFO nemo_evaluator.engine.eval_loop: p9303 r0: solver-entry at +0.0s
+2026-10-31 13:39:14,015 INFO nemo_evaluator.observability.progress: progress: 522/700 (74.6%) | pass@1=64.0% (334/522) | 0.1/s | 59m45s elapsed | ETA 20m22s | 2052499 tok
+2026-10-31 13:39:14,015 INFO nemo_evaluator.engine.eval_loop: p9144 r0: solver-entry at +0.0s
+2026-10-31 13:39:14,201 INFO nemo_evaluator.engine.eval_loop: p3566 r0: solver-entry at +0.0s
+2026-10-31 13:39:24,577 INFO nemo_evaluator.engine.eval_loop: p8405 r0: solver-entry at +0.0s
+2026-10-31 13:39:32,045 INFO nemo_evaluator.engine.eval_loop: p10902 r0: solver-entry at +0.0s
+2026-10-31 13:39:44,330 INFO nemo_evaluator.engine.eval_loop: p9699 r0: solver-entry at +0.0s
+2026-10-31 13:39:56,535 INFO nemo_evaluator.engine.eval_loop: p3178 r0: solver-entry at +0.0s
+2026-10-31 13:40:14,017 INFO nemo_evaluator.observability.progress: progress: 528/700 (75.4%) | pass@1=64.2% (339/528) | 0.1/s | 1h00m elapsed | ETA 19m47s | 2074929 tok
+2026-10-31 13:40:14,018 INFO nemo_evaluator.engine.eval_loop: p1748 r0: solver-entry at +0.0s
+2026-10-31 13:40:16,031 INFO nemo_evaluator.engine.eval_loop: p7913 r0: solver-entry at +0.0s
+2026-10-31 13:40:31,964 INFO nemo_evaluator.engine.eval_loop: p32 r0: solver-entry at +0.0s
+2026-10-31 13:40:36,347 INFO nemo_evaluator.engine.eval_loop: p7529 r0: solver-entry at +0.0s
+2026-10-31 13:40:41,456 INFO nemo_evaluator.engine.eval_loop: p11126 r0: solver-entry at +0.0s
+2026-10-31 13:40:48,657 INFO nemo_evaluator.engine.eval_loop: p3133 r0: solver-entry at +0.0s
+2026-10-31 13:40:53,652 INFO nemo_evaluator.engine.eval_loop: p3865 r0: solver-entry at +0.0s
+2026-10-31 13:41:06,076 INFO nemo_evaluator.engine.eval_loop: p3010 r0: solver-entry at +0.0s
+2026-10-31 13:41:08,061 INFO nemo_evaluator.engine.eval_loop: p5927 r0: solver-entry at +0.0s
+2026-10-31 13:41:09,044 INFO nemo_evaluator.engine.eval_loop: p5343 r0: solver-entry at +0.0s
+2026-10-31 13:41:16,451 INFO nemo_evaluator.observability.progress: progress: 538/700 (76.9%) | pass@1=64.5% (347/538) | 0.1/s | 1h01m elapsed | ETA 18m36s | 2110598 tok
+2026-10-31 13:41:16,451 INFO nemo_evaluator.engine.eval_loop: p11432 r0: solver-entry at +0.0s
+2026-10-31 13:41:21,610 INFO nemo_evaluator.engine.eval_loop: p3513 r0: solver-entry at +0.0s
+2026-10-31 13:41:30,888 INFO nemo_evaluator.engine.eval_loop: p3064 r0: solver-entry at +0.0s
+2026-10-31 13:41:35,858 INFO nemo_evaluator.engine.eval_loop: p11985 r0: solver-entry at +0.0s
+2026-10-31 13:41:37,291 INFO nemo_evaluator.engine.eval_loop: p11694 r0: solver-entry at +0.0s
+2026-10-31 13:41:37,508 INFO nemo_evaluator.engine.eval_loop: p8045 r0: solver-entry at +0.0s
+2026-10-31 13:41:53,889 INFO nemo_evaluator.engine.eval_loop: p4488 r0: solver-entry at +0.0s
+2026-10-31 13:42:06,207 INFO nemo_evaluator.engine.eval_loop: p9799 r0: solver-entry at +0.0s
+2026-10-31 13:42:42,903 INFO nemo_evaluator.observability.progress: progress: 546/700 (78.0%) | pass@1=64.3% (351/546) | 0.1/s | 1h03m elapsed | ETA 17m50s | 2133943 tok
+2026-10-31 13:42:42,903 INFO nemo_evaluator.engine.eval_loop: p6531 r0: solver-entry at +0.0s
+2026-10-31 13:43:05,978 INFO nemo_evaluator.engine.eval_loop: p10994 r0: solver-entry at +0.0s
+2026-10-31 13:43:16,158 INFO nemo_evaluator.engine.eval_loop: p2672 r0: solver-entry at +0.0s
+2026-10-31 13:43:21,596 INFO nemo_evaluator.engine.eval_loop: p3138 r0: solver-entry at +0.0s
+2026-10-31 13:43:23,256 INFO nemo_evaluator.engine.eval_loop: p1483 r0: solver-entry at +0.0s
+2026-10-31 13:43:24,126 INFO nemo_evaluator.engine.eval_loop: p7350 r0: solver-entry at +0.0s
+2026-10-31 13:43:29,317 INFO nemo_evaluator.engine.eval_loop: p11538 r0: solver-entry at +0.0s
+2026-10-31 13:43:34,092 INFO nemo_evaluator.engine.eval_loop: p9191 r0: solver-entry at +0.0s
+2026-10-31 13:43:41,379 INFO nemo_evaluator.engine.eval_loop: p225 r0: solver-entry at +0.0s
+2026-10-31 13:43:43,179 INFO nemo_evaluator.observability.progress: progress: 555/700 (79.3%) | pass@1=64.3% (357/555) | 0.1/s | 1h04m elapsed | ETA 16m47s | 2189681 tok
+2026-10-31 13:43:43,179 INFO nemo_evaluator.engine.eval_loop: p6448 r0: solver-entry at +0.0s
+2026-10-31 13:43:45,340 INFO nemo_evaluator.engine.eval_loop: p4512 r0: solver-entry at +0.0s
+2026-10-31 13:43:58,647 INFO nemo_evaluator.engine.eval_loop: p10149 r0: solver-entry at +0.0s
+2026-10-31 13:44:03,282 INFO nemo_evaluator.engine.eval_loop: p963 r0: solver-entry at +0.0s
+2026-10-31 13:44:09,172 INFO nemo_evaluator.engine.eval_loop: p10174 r0: solver-entry at +0.0s
+2026-10-31 13:44:16,375 INFO nemo_evaluator.engine.eval_loop: p10041 r0: solver-entry at +0.0s
+2026-10-31 13:44:33,641 INFO nemo_evaluator.engine.eval_loop: p2445 r0: solver-entry at +0.0s
+2026-10-31 13:44:37,663 INFO nemo_evaluator.engine.eval_loop: p71 r0: solver-entry at +0.0s
+2026-10-31 13:44:43,025 INFO nemo_evaluator.engine.eval_loop: p5515 r0: solver-entry at +0.0s
+2026-10-31 13:44:43,968 INFO nemo_evaluator.observability.progress: progress: 564/700 (80.6%) | pass@1=64.4% (363/564) | 0.1/s | 1h05m elapsed | ETA 15m44s | 2233223 tok
+2026-10-31 13:44:43,968 INFO nemo_evaluator.engine.eval_loop: p7511 r0: solver-entry at +0.0s
+2026-10-31 13:44:46,082 INFO nemo_evaluator.engine.eval_loop: p6964 r0: solver-entry at +0.0s
+2026-10-31 13:44:48,511 INFO nemo_evaluator.engine.eval_loop: p5824 r0: solver-entry at +0.0s
+2026-10-31 13:44:50,659 INFO nemo_evaluator.engine.eval_loop: p5092 r0: solver-entry at +0.0s
+2026-10-31 13:45:04,106 INFO nemo_evaluator.engine.eval_loop: p1963 r0: solver-entry at +0.0s
+2026-10-31 13:45:04,417 INFO nemo_evaluator.engine.eval_loop: p5408 r0: solver-entry at +0.0s
+2026-10-31 13:45:05,330 INFO nemo_evaluator.engine.eval_loop: p9508 r0: solver-entry at +0.0s
+2026-10-31 13:45:08,376 INFO nemo_evaluator.engine.eval_loop: p10514 r0: solver-entry at +0.0s
+2026-10-31 13:45:14,827 INFO nemo_evaluator.engine.eval_loop: p4207 r0: solver-entry at +0.0s
+2026-10-31 13:45:25,024 INFO nemo_evaluator.engine.eval_loop: p4028 r0: solver-entry at +0.0s
+2026-10-31 13:45:26,956 INFO nemo_evaluator.engine.eval_loop: p1509 r0: solver-entry at +0.0s
+2026-10-31 13:45:40,438 INFO nemo_evaluator.engine.eval_loop: p6198 r0: solver-entry at +0.0s
+2026-10-31 13:45:40,799 INFO nemo_evaluator.engine.eval_loop: p8065 r0: solver-entry at +0.0s
+2026-10-31 13:45:41,781 INFO nemo_evaluator.engine.eval_loop: p6322 r0: solver-entry at +0.0s
+2026-10-31 13:45:48,985 INFO nemo_evaluator.observability.progress: progress: 578/700 (82.6%) | pass@1=65.1% (376/578) | 0.1/s | 1h06m elapsed | ETA 14m00s | 2287206 tok
+2026-10-31 13:45:48,985 INFO nemo_evaluator.engine.eval_loop: p11674 r0: solver-entry at +0.0s
+2026-10-31 13:45:53,174 INFO nemo_evaluator.engine.eval_loop: p10240 r0: solver-entry at +0.0s
+2026-10-31 13:45:56,298 INFO nemo_evaluator.engine.eval_loop: p5247 r0: solver-entry at +0.0s
+2026-10-31 13:46:01,277 INFO nemo_evaluator.engine.eval_loop: p1670 r0: solver-entry at +0.0s
+2026-10-31 13:46:05,395 INFO nemo_evaluator.engine.eval_loop: p11186 r0: solver-entry at +0.0s
+2026-10-31 13:46:13,413 INFO nemo_evaluator.engine.eval_loop: p1868 r0: solver-entry at +0.0s
+2026-10-31 13:46:26,644 INFO nemo_evaluator.engine.eval_loop: p8661 r0: solver-entry at +0.0s
+2026-10-31 13:46:58,069 INFO nemo_evaluator.observability.progress: progress: 585/700 (83.6%) | pass@1=65.0% (380/585) | 0.1/s | 1h07m elapsed | ETA 13m16s | 2308208 tok
+2026-10-31 13:46:58,069 INFO nemo_evaluator.engine.eval_loop: p6447 r0: solver-entry at +0.0s
+2026-10-31 13:47:13,965 INFO nemo_evaluator.engine.eval_loop: p8828 r0: solver-entry at +0.0s
+2026-10-31 13:47:18,008 INFO nemo_evaluator.engine.eval_loop: p6445 r0: solver-entry at +0.0s
+2026-10-31 13:47:26,905 INFO nemo_evaluator.engine.eval_loop: p9348 r0: solver-entry at +0.0s
+2026-10-31 13:47:27,800 INFO nemo_evaluator.engine.eval_loop: p7104 r0: solver-entry at +0.0s
+2026-10-31 13:47:32,959 INFO nemo_evaluator.engine.eval_loop: p8831 r0: solver-entry at +0.0s
+2026-10-31 13:47:40,585 INFO nemo_evaluator.engine.eval_loop: p6955 r0: solver-entry at +0.0s
+2026-10-31 13:47:56,354 INFO nemo_evaluator.engine.eval_loop: p4554 r0: solver-entry at +0.0s
+2026-10-31 13:48:19,256 INFO nemo_evaluator.observability.progress: progress: 593/700 (84.7%) | pass@1=64.8% (384/593) | 0.1/s | 1h08m elapsed | ETA 12m25s | 2335054 tok
+2026-10-31 13:48:19,256 INFO nemo_evaluator.engine.eval_loop: p5505 r0: solver-entry at +0.0s
+2026-10-31 13:48:22,294 INFO nemo_evaluator.engine.eval_loop: p4830 r0: solver-entry at +0.0s
+2026-10-31 13:48:27,751 INFO nemo_evaluator.engine.eval_loop: p6596 r0: solver-entry at +0.0s
+2026-10-31 13:48:27,940 INFO nemo_evaluator.engine.eval_loop: p7182 r0: solver-entry at +0.0s
+2026-10-31 13:48:32,284 INFO nemo_evaluator.engine.eval_loop: p3726 r0: solver-entry at +0.0s
+2026-10-31 13:48:40,814 INFO nemo_evaluator.engine.eval_loop: p10482 r0: solver-entry at +0.0s
+2026-10-31 13:48:49,973 INFO nemo_evaluator.engine.eval_loop: p982 r0: solver-entry at +0.0s
+2026-10-31 13:48:52,407 INFO nemo_evaluator.engine.eval_loop: p11953 r0: solver-entry at +0.0s
+2026-10-31 13:48:56,968 INFO nemo_evaluator.engine.eval_loop: p2266 r0: solver-entry at +0.0s
+2026-10-31 13:48:57,559 INFO nemo_evaluator.engine.eval_loop: p1813 r0: solver-entry at +0.0s
+2026-10-31 13:49:28,401 INFO nemo_evaluator.observability.progress: progress: 603/700 (86.1%) | pass@1=64.8% (391/603) | 0.1/s | 1h10m elapsed | ETA 11m15s | 2378125 tok
+2026-10-31 13:49:28,401 INFO nemo_evaluator.engine.eval_loop: p11210 r0: solver-entry at +0.0s
+2026-10-31 13:49:32,113 INFO nemo_evaluator.engine.eval_loop: p8102 r0: solver-entry at +0.0s
+2026-10-31 13:49:42,063 INFO nemo_evaluator.engine.eval_loop: p1893 r0: solver-entry at +0.0s
+2026-10-31 13:49:49,608 INFO nemo_evaluator.engine.eval_loop: p11643 r0: solver-entry at +0.0s
+2026-10-31 13:50:07,189 INFO nemo_evaluator.engine.eval_loop: p1831 r0: solver-entry at +0.0s
+2026-10-31 13:50:08,259 INFO nemo_evaluator.engine.eval_loop: p1946 r0: solver-entry at +0.0s
+2026-10-31 13:50:13,891 INFO nemo_evaluator.engine.eval_loop: p10123 r0: solver-entry at +0.0s
+2026-10-31 13:50:21,988 INFO nemo_evaluator.engine.eval_loop: p6645 r0: solver-entry at +0.0s
+2026-10-31 13:50:23,138 INFO nemo_evaluator.engine.eval_loop: p2191 r0: solver-entry at +0.0s
+2026-10-31 13:50:50,035 INFO nemo_evaluator.observability.progress: progress: 612/700 (87.4%) | pass@1=64.5% (395/612) | 0.1/s | 1h11m elapsed | ETA 10m15s | 2430862 tok
+2026-10-31 13:50:50,035 INFO nemo_evaluator.engine.eval_loop: p3032 r0: solver-entry at +0.0s
+2026-10-31 13:51:13,382 INFO nemo_evaluator.engine.eval_loop: p686 r0: solver-entry at +0.0s
+2026-10-31 13:51:15,000 INFO nemo_evaluator.engine.eval_loop: p810 r0: solver-entry at +0.0s
+2026-10-31 13:51:30,319 INFO nemo_evaluator.engine.eval_loop: p2869 r0: solver-entry at +0.0s
+2026-10-31 13:51:48,593 INFO nemo_evaluator.engine.eval_loop: p5040 r0: solver-entry at +0.0s
+2026-10-31 13:51:48,818 INFO nemo_evaluator.engine.eval_loop: p8515 r0: solver-entry at +0.0s
+2026-10-31 13:51:54,193 INFO nemo_evaluator.observability.progress: progress: 618/700 (88.3%) | pass@1=64.4% (398/618) | 0.1/s | 1h12m elapsed | ETA 9m36s | 2455066 tok
+2026-10-31 13:51:54,193 INFO nemo_evaluator.engine.eval_loop: p7673 r0: solver-entry at +0.0s
+2026-10-31 13:51:55,475 INFO nemo_evaluator.engine.eval_loop: p2272 r0: solver-entry at +0.0s
+2026-10-31 13:51:58,244 INFO nemo_evaluator.engine.eval_loop: p10116 r0: solver-entry at +0.0s
+2026-10-31 13:51:58,489 INFO nemo_evaluator.engine.eval_loop: p1228 r0: solver-entry at +0.0s
+2026-10-31 13:52:06,696 INFO nemo_evaluator.engine.eval_loop: p8156 r0: solver-entry at +0.0s
+2026-10-31 13:52:07,081 INFO nemo_evaluator.engine.eval_loop: p8352 r0: solver-entry at +0.0s
+2026-10-31 13:52:26,508 INFO nemo_evaluator.engine.eval_loop: p8626 r0: solver-entry at +0.0s
+2026-10-31 13:52:48,421 INFO nemo_evaluator.engine.eval_loop: p2443 r0: solver-entry at +0.0s
+2026-10-31 13:52:51,789 INFO nemo_evaluator.engine.eval_loop: p6347 r0: solver-entry at +0.0s
+2026-10-31 13:52:53,860 INFO nemo_evaluator.engine.eval_loop: p10036 r0: solver-entry at +0.0s
+2026-10-31 13:52:56,633 INFO nemo_evaluator.observability.progress: progress: 628/700 (89.7%) | pass@1=64.2% (403/628) | 0.1/s | 1h13m elapsed | ETA 8m25s | 2496121 tok
+2026-10-31 13:52:56,633 INFO nemo_evaluator.engine.eval_loop: p167 r0: solver-entry at +0.0s
+2026-10-31 13:53:00,711 INFO nemo_evaluator.engine.eval_loop: p8767 r0: solver-entry at +0.0s
+2026-10-31 13:53:02,886 INFO nemo_evaluator.engine.eval_loop: p820 r0: solver-entry at +0.0s
+2026-10-31 13:53:09,124 INFO nemo_evaluator.engine.eval_loop: p780 r0: solver-entry at +0.0s
+2026-10-31 13:53:27,274 INFO nemo_evaluator.engine.eval_loop: p7575 r0: solver-entry at +0.0s
+2026-10-31 13:53:30,549 INFO nemo_evaluator.engine.eval_loop: p4949 r0: solver-entry at +0.0s
+2026-10-31 13:53:34,037 INFO nemo_evaluator.engine.eval_loop: p174 r0: solver-entry at +0.0s
+2026-10-31 13:53:36,651 INFO nemo_evaluator.engine.eval_loop: p3782 r0: solver-entry at +0.0s
+2026-10-31 13:53:41,453 INFO nemo_evaluator.engine.eval_loop: p1232 r0: solver-entry at +0.0s
+2026-10-31 13:53:49,171 INFO nemo_evaluator.engine.eval_loop: p7676 r0: solver-entry at +0.0s
+2026-10-31 13:54:12,216 INFO nemo_evaluator.observability.progress: progress: 638/700 (91.1%) | pass@1=64.6% (412/638) | 0.1/s | 1h14m elapsed | ETA 7m15s | 2516499 tok
+2026-10-31 13:54:12,216 INFO nemo_evaluator.engine.eval_loop: p2389 r0: solver-entry at +0.0s
+2026-10-31 13:54:18,781 INFO nemo_evaluator.engine.eval_loop: p5420 r0: solver-entry at +0.0s
+2026-10-31 13:54:29,317 INFO nemo_evaluator.engine.eval_loop: p6578 r0: solver-entry at +0.0s
+2026-10-31 13:54:37,698 INFO nemo_evaluator.engine.eval_loop: p3460 r0: solver-entry at +0.0s
+2026-10-31 13:54:40,918 INFO nemo_evaluator.engine.eval_loop: p4112 r0: solver-entry at +0.0s
+2026-10-31 13:54:57,030 INFO nemo_evaluator.engine.eval_loop: p1458 r0: solver-entry at +0.0s
+2026-10-31 13:54:58,909 INFO nemo_evaluator.engine.eval_loop: p6930 r0: solver-entry at +0.0s
+2026-10-31 13:55:12,631 INFO nemo_evaluator.observability.progress: progress: 645/700 (92.1%) | pass@1=64.3% (415/645) | 0.1/s | 1h15m elapsed | ETA 6m27s | 2547637 tok
+2026-10-31 13:55:12,631 INFO nemo_evaluator.engine.eval_loop: p9785 r0: solver-entry at +0.0s
+2026-10-31 13:55:16,089 INFO nemo_evaluator.engine.eval_loop: p9177 r0: solver-entry at +0.0s
+2026-10-31 13:55:18,655 INFO nemo_evaluator.engine.eval_loop: p10886 r0: solver-entry at +0.0s
+2026-10-31 13:55:26,905 INFO nemo_evaluator.engine.eval_loop: p10463 r0: solver-entry at +0.0s
+2026-10-31 13:55:33,989 INFO nemo_evaluator.engine.eval_loop: p4037 r0: solver-entry at +0.0s
+2026-10-31 13:55:53,873 INFO nemo_evaluator.engine.eval_loop: p9357 r0: solver-entry at +0.0s
+2026-10-31 13:56:11,943 INFO nemo_evaluator.engine.eval_loop: p658 r0: solver-entry at +0.0s
+2026-10-31 13:56:16,790 INFO nemo_evaluator.observability.progress: progress: 652/700 (93.1%) | pass@1=64.4% (420/652) | 0.1/s | 1h16m elapsed | ETA 5m39s | 2558289 tok
+2026-10-31 13:56:16,790 INFO nemo_evaluator.engine.eval_loop: p1994 r0: solver-entry at +0.0s
+2026-10-31 13:56:20,583 INFO nemo_evaluator.engine.eval_loop: p1319 r0: solver-entry at +0.0s
+2026-10-31 13:56:31,814 INFO nemo_evaluator.engine.eval_loop: p4215 r0: solver-entry at +0.0s
+2026-10-31 13:57:13,320 INFO nemo_evaluator.engine.eval_loop: p8422 r0: solver-entry at +0.0s
+2026-10-31 13:57:13,926 INFO nemo_evaluator.engine.eval_loop: p5359 r0: solver-entry at +0.0s
+2026-10-31 13:57:30,543 INFO nemo_evaluator.observability.progress: progress: 657/700 (93.9%) | pass@1=64.4% (423/657) | 0.1/s | 1h18m elapsed | ETA 5m06s | 2574390 tok
+2026-10-31 13:57:30,544 INFO nemo_evaluator.engine.eval_loop: p10019 r0: solver-entry at +0.0s
+2026-10-31 13:57:33,949 INFO nemo_evaluator.engine.eval_loop: p6651 r0: solver-entry at +0.0s
+2026-10-31 13:57:43,015 INFO nemo_evaluator.engine.eval_loop: p992 r0: solver-entry at +0.0s
+2026-10-31 13:57:52,422 INFO nemo_evaluator.engine.eval_loop: p7260 r0: solver-entry at +0.0s
+2026-10-31 13:58:05,896 INFO nemo_evaluator.engine.eval_loop: p9376 r0: solver-entry at +0.0s
+2026-10-31 13:58:21,599 INFO nemo_evaluator.engine.eval_loop: p6331 r0: solver-entry at +0.0s
+2026-10-31 13:58:33,802 INFO nemo_evaluator.observability.progress: progress: 663/700 (94.7%) | pass@1=64.6% (428/663) | 0.1/s | 1h19m elapsed | ETA 4m24s | 2597140 tok
+2026-10-31 13:58:33,803 INFO nemo_evaluator.engine.eval_loop: p11549 r0: solver-entry at +0.0s
+2026-10-31 13:58:49,760 INFO nemo_evaluator.engine.eval_loop: p4022 r0: solver-entry at +0.0s
+2026-10-31 13:59:21,732 INFO nemo_evaluator.engine.eval_loop: p4263 r0: solver-entry at +0.0s
+2026-10-31 13:59:25,343 INFO nemo_evaluator.engine.eval_loop: p635 r0: solver-entry at +0.0s
+2026-10-31 13:59:37,180 INFO nemo_evaluator.observability.progress: progress: 667/700 (95.3%) | pass@1=64.6% (431/667) | 0.1/s | 1h20m elapsed | ETA 3m57s | 2616957 tok
+2026-10-31 13:59:37,180 INFO nemo_evaluator.engine.eval_loop: p8879 r0: solver-entry at +0.0s
+2026-10-31 13:59:44,539 INFO nemo_evaluator.engine.eval_loop: p8781 r0: solver-entry at +0.0s
+2026-10-31 14:00:11,041 INFO nemo_evaluator.engine.eval_loop: p5347 r0: solver-entry at +0.0s
+2026-10-31 14:00:20,051 INFO nemo_evaluator.engine.eval_loop: p6953 r0: solver-entry at +0.0s
+2026-10-31 14:00:37,360 INFO nemo_evaluator.observability.progress: progress: 671/700 (95.9%) | pass@1=64.5% (433/671) | 0.1/s | 1h21m elapsed | ETA 3m30s | 2640445 tok
+2026-10-31 14:00:37,360 INFO nemo_evaluator.engine.eval_loop: p11399 r0: solver-entry at +0.0s
+2026-10-31 14:00:42,890 INFO nemo_evaluator.engine.eval_loop: p7018 r0: solver-entry at +0.0s
+2026-10-31 14:00:47,561 INFO nemo_evaluator.engine.eval_loop: p10822 r0: solver-entry at +0.0s
+2026-10-31 14:00:55,821 INFO nemo_evaluator.engine.eval_loop: p4333 r0: solver-entry at +0.0s
+2026-10-31 14:01:08,852 INFO nemo_evaluator.engine.eval_loop: p4574 r0: solver-entry at +0.0s
+2026-10-31 14:01:14,950 INFO nemo_evaluator.engine.eval_loop: p4622 r0: solver-entry at +0.0s
+2026-10-31 14:01:42,367 INFO nemo_evaluator.observability.progress: progress: 677/700 (96.7%) | pass@1=64.7% (438/677) | 0.1/s | 1h22m elapsed | ETA 2m47s | 2664057 tok
+2026-10-31 14:01:42,367 INFO nemo_evaluator.engine.eval_loop: p10104 r0: solver-entry at +0.0s
+2026-10-31 14:02:03,743 INFO nemo_evaluator.engine.eval_loop: p10398 r0: solver-entry at +0.0s
+2026-10-31 14:02:16,741 INFO nemo_evaluator.engine.eval_loop: p3488 r0: solver-entry at +0.0s
+2026-10-31 14:02:25,029 INFO nemo_evaluator.engine.eval_loop: p7097 r0: solver-entry at +0.0s
+2026-10-31 14:02:30,588 INFO nemo_evaluator.engine.eval_loop: p2357 r0: solver-entry at +0.0s
+2026-10-31 14:02:44,578 INFO nemo_evaluator.observability.progress: progress: 682/700 (97.4%) | pass@1=64.7% (441/682) | 0.1/s | 1h23m elapsed | ETA 2m11s | 2699141 tok
+2026-10-31 14:02:44,578 INFO nemo_evaluator.engine.eval_loop: p618 r0: solver-entry at +0.0s
+2026-10-31 14:03:17,089 INFO nemo_evaluator.engine.eval_loop: p10145 r0: solver-entry at +0.0s
+2026-10-31 14:03:20,207 INFO nemo_evaluator.engine.eval_loop: p4912 r0: solver-entry at +0.0s
+2026-10-31 14:03:20,961 INFO nemo_evaluator.engine.eval_loop: p284 r0: solver-entry at +0.0s
+2026-10-31 14:03:34,840 INFO nemo_evaluator.engine.eval_loop: p8511 r0: solver-entry at +0.0s
+2026-10-31 14:03:40,183 INFO nemo_evaluator.engine.eval_loop: p6518 r0: solver-entry at +0.0s
+2026-10-31 14:03:47,265 INFO nemo_evaluator.observability.progress: progress: 688/700 (98.3%) | pass@1=64.8% (446/688) | 0.1/s | 1h24m elapsed | ETA 1m28s | 2719865 tok
+2026-10-31 14:03:47,265 INFO nemo_evaluator.engine.eval_loop: p5260 r0: solver-entry at +0.0s
+2026-10-31 14:04:04,871 INFO nemo_evaluator.engine.eval_loop: p7702 r0: solver-entry at +0.0s
+2026-10-31 14:04:06,624 INFO nemo_evaluator.engine.eval_loop: p10821 r0: solver-entry at +0.0s
+2026-10-31 14:04:25,140 INFO nemo_evaluator.engine.eval_loop: p6665 r0: solver-entry at +0.0s
+2026-10-31 14:04:34,661 INFO nemo_evaluator.engine.eval_loop: p1678 r0: solver-entry at +0.0s
+2026-10-31 14:04:49,633 INFO nemo_evaluator.observability.progress: progress: 695/700 (99.3%) | pass@1=64.7% (450/695) | 0.1/s | 1h25m elapsed | ETA 36s | 2738281 tok
+2026-10-31 14:06:53,417 INFO nemo_evaluator.observability.progress: progress: 698/700 (99.7%) | pass@1=64.5% (450/698) | 0.1/s | 1h27m elapsed | ETA 15s | 2768506 tok
+2026-10-31 14:07:56,539 INFO nemo_evaluator.observability.progress: progress: 699/700 (99.9%) | pass@1=64.4% (450/699) | 0.1/s | 1h28m elapsed | ETA 7s | 2788600 tok
+2026-10-31 15:56:51,099 INFO nemo_evaluator.observability.progress: progress: 700/700 (100.0%) | pass@1=64.4% (451/700) | 0.1/s | 3h17m elapsed | ETA — | 3050742 tok
+2026-10-31 15:56:51,169 INFO nemo_evaluator.observability.progress: Done 11842.9s | pass@1=64.4% (451/700) | 3,050,742 tok
+2026-10-31 15:56:52,697 WARNING nemo_evaluator.orchestration.artifact_access: Artifact access may be blocked because parent directories lack a+x: /home/<host>. Grant execute permission on these directories so other cluster users can traverse to attempt-1; read permission is not required for traversal when artifact paths are known.

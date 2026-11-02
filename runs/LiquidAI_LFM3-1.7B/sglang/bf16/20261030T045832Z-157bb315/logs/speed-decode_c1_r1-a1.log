@@ -1,0 +1,91 @@
+benchmark_args=Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=8000, ready_check_timeout_sec=60, dataset_name='random', dataset_path='/sma-run/speed/sglang-random-dataset.json', dataset_offset=0, agentic_max_turns=None, speed_bench_category=None, speed_bench_output_len=512, model='/model', served_model_name=None, tokenizer='/model', num_prompts=32, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=128, random_output_len=512, random_range_ratio=1.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=1, output_file='/sma-run/speed/cells/decode_c1_r1/attempt-1/bench.json', output_details=True, goodput=None, print_requests=False, disable_tqdm=False, disable_stream=False, return_logprob=False, top_logprobs_num=0, token_ids_logprob=None, logprob_start_len=-1, return_routed_experts=False, cache_report=False, seed=0, disable_ignore_eos=False, temperature=0.0, top_p=1.0, extra_request_body=None, apply_chat_template=False, profile=False, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_start_step=None, profile_steps=None, profile_num_steps=None, profile_by_stage=False, profile_stages=None, profile_output_dir=None, profile_prefix=None, lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, flush_cache_timeout=60.0, warmup_requests=1, tokenize_prompt=True, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, gsp_group_distribution='uniform', gsp_zipf_alpha=None, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', fake_prefill=False, tag=None, header=None, rust_client=False, rust_worker_threads=None)
+Waiting up to 60s for http://127.0.0.1:8000/v1/models to become ready...
+Server ready in 0.0s.
+Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=8000, ready_check_timeout_sec=60, dataset_name='random', dataset_path='/sma-run/speed/sglang-random-dataset.json', dataset_offset=0, agentic_max_turns=None, speed_bench_category=None, speed_bench_output_len=512, model='/model', served_model_name=None, tokenizer='/model', num_prompts=32, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=128, random_output_len=512, random_range_ratio=1.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=1, output_file='/sma-run/speed/cells/decode_c1_r1/attempt-1/bench.json', output_details=True, goodput=None, print_requests=False, disable_tqdm=False, disable_stream=False, return_logprob=False, top_logprobs_num=0, token_ids_logprob=None, logprob_start_len=-1, return_routed_experts=False, cache_report=False, seed=0, disable_ignore_eos=False, temperature=0.0, top_p=1.0, extra_request_body=None, apply_chat_template=False, profile=False, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_start_step=None, profile_steps=None, profile_num_steps=None, profile_by_stage=False, profile_stages=None, profile_output_dir=None, profile_prefix=None, lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, flush_cache_timeout=60.0, warmup_requests=1, tokenize_prompt=True, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, gsp_group_distribution='uniform', gsp_zipf_alpha=None, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', fake_prefill=False, tag=None, header=None, rust_client=False, rust_worker_threads=None)
+
+#Input tokens: 4096
+#Output tokens: 16384
+Starting warmup with 1 sequences...
+Warmup completed with 1 sequences. Starting main benchmark run...
+
+============ Serving Benchmark Result ============
+Backend:                                 sglang    
+Traffic request rate:                    inf       
+Max request concurrency:                 1         
+Successful requests:                     32        
+Benchmark duration (s):                  317.28    
+Total input tokens:                      4096      
+Total input text tokens:                 4096      
+Total generated tokens:                  16384     
+Total generated tokens (retokenized):    14880     
+Request throughput (req/s):              0.10      
+Input token throughput (tok/s):          12.91     
+Output token throughput (tok/s):         51.64     
+Peak output token throughput (tok/s):    53.00     
+Peak concurrent requests:                2         
+Total token throughput (tok/s):          64.55     
+Concurrency:                             1.00      
+----------------End-to-End Latency----------------
+Mean E2E Latency (ms):                   9914.27   
+Median E2E Latency (ms):                 9914.92   
+P90 E2E Latency (ms):                    9921.56   
+P95 E2E Latency (ms):                    9924.70   
+P99 E2E Latency (ms):                    9929.15   
+---------------Time to First Token----------------
+Mean TTFT (ms):                          27.50     
+Median TTFT (ms):                        27.20     
+P90 TTFT (ms):                           28.54     
+P95 TTFT (ms):                           29.11     
+P99 TTFT (ms):                           31.93     
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          19.35     
+Median TPOT (ms):                        19.35     
+P90 TPOT (ms):                           19.36     
+P95 TPOT (ms):                           19.37     
+P99 TPOT (ms):                           19.38     
+---------------Inter-Token Latency----------------
+Mean ITL (ms):                           19.35     
+Median ITL (ms):                         19.22     
+P90 ITL (ms):                            20.36     
+P95 ITL (ms):                            20.90     
+P99 ITL (ms):                            22.49     
+Max ITL (ms):                            33.25     
+==================================================
+
+/sgl-workspace/sglang/python/sglang/bench_serving.py:13: FutureWarning: `sglang.bench_serving` is deprecated and will be removed in a future release; use `sglang.benchmark.serving` instead (e.g. `python -m sglang.benchmark.serving`).
+  warnings.warn(
+
+  0%|          | 0/32 [00:00<?, ?it/s]
+  3%|▎         | 1/32 [00:09<05:07,  9.90s/it]
+  6%|▋         | 2/32 [00:19<04:56,  9.90s/it]
+  9%|▉         | 3/32 [00:29<04:47,  9.90s/it]
+ 12%|█▎        | 4/32 [00:39<04:37,  9.90s/it]
+ 16%|█▌        | 5/32 [00:49<04:27,  9.90s/it]
+ 19%|█▉        | 6/32 [00:59<04:17,  9.91s/it]
+ 22%|██▏       | 7/32 [01:09<04:07,  9.91s/it]
+ 25%|██▌       | 8/32 [01:19<03:57,  9.91s/it]
+ 28%|██▊       | 9/32 [01:29<03:47,  9.91s/it]
+ 31%|███▏      | 10/32 [01:39<03:37,  9.91s/it]
+ 34%|███▍      | 11/32 [01:48<03:28,  9.91s/it]
+ 38%|███▊      | 12/32 [01:58<03:18,  9.91s/it]
+ 41%|████      | 13/32 [02:08<03:08,  9.91s/it]
+ 44%|████▍     | 14/32 [02:18<02:58,  9.91s/it]
+ 47%|████▋     | 15/32 [02:28<02:48,  9.91s/it]
+ 50%|█████     | 16/32 [02:38<02:38,  9.92s/it]
+ 53%|█████▎    | 17/32 [02:48<02:28,  9.92s/it]
+ 56%|█████▋    | 18/32 [02:58<02:18,  9.92s/it]
+ 59%|█████▉    | 19/32 [03:08<02:08,  9.92s/it]
+ 62%|██████▎   | 20/32 [03:18<01:59,  9.92s/it]
+ 66%|██████▌   | 21/32 [03:28<01:49,  9.92s/it]
+ 69%|██████▉   | 22/32 [03:38<01:39,  9.92s/it]
+ 72%|███████▏  | 23/32 [03:48<01:29,  9.92s/it]
+ 75%|███████▌  | 24/32 [03:57<01:19,  9.92s/it]
+ 78%|███████▊  | 25/32 [04:07<01:09,  9.92s/it]
+ 81%|████████▏ | 26/32 [04:17<00:59,  9.92s/it]
+ 84%|████████▍ | 27/32 [04:27<00:49,  9.92s/it]
+ 88%|████████▊ | 28/32 [04:37<00:39,  9.92s/it]
+ 91%|█████████ | 29/32 [04:47<00:29,  9.92s/it]
+ 94%|█████████▍| 30/32 [04:57<00:19,  9.92s/it]
+ 97%|█████████▋| 31/32 [05:07<00:09,  9.92s/it]
+100%|██████████| 32/32 [05:17<00:00,  9.92s/it]
+100%|██████████| 32/32 [05:17<00:00,  9.91s/it]

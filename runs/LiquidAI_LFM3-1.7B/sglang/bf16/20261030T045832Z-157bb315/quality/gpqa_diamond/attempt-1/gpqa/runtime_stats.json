@@ -1,0 +1,20 @@
+{
+  "total_steps": 198,
+  "total_tokens": 1282006,
+  "total_prompt_tokens": 50431,
+  "total_completion_tokens": 1231575,
+  "total_reasoning_tokens": 0,
+  "elapsed_seconds": 3865.46,
+  "latency_percentiles_ms": {
+    "p50": 109439.2,
+    "p90": 302180.29,
+    "p99": 520754.4
+  },
+  "tokens_per_second": 331.66,
+  "steps_per_second": 0.05,
+  "model_errors": 0,
+  "total_retries": 0,
+  "finish_reason_counts": {
+    "stop": 198
+  }
+}

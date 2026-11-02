@@ -1,0 +1,57 @@
+{
+  "architecture": "lfm3",
+  "architectures": [
+    "Lfm3ForCausalLM"
+  ],
+  "batch_invariant_reason": null,
+  "batch_invariant_supported": true,
+  "dtype": "bfloat16",
+  "experts_per_tok": null,
+  "file_hashes": {
+    "config.json": "sha256:5185e01ebcdc0133a8ae3ad96a0eb429a4db6dcc1e9d30a2c85a89d96acefb25",
+    "hf_quant_config.json": "sha256:3352b4c17c8fc40760b18c1b5eff351beb7f81597455ed38003597e86c684393",
+    "model.safetensors": "sha256:386de2dd415909869ad7d72b734783b687f0d41f7dbbc519d9ae4257883a4ba2"
+  },
+  "file_sizes": {
+    ".gitattributes": 1570,
+    "LICENSE": 10574,
+    "README.md": 2881,
+    "chat_template.jinja": 12129,
+    "config.json": 2916,
+    "configuration_lfm3.py": 13875,
+    "generation_config.json": 241,
+    "hf_quant_config.json": 1058,
+    "model.safetensors": 1829744600,
+    "modeling_lfm3.py": 36115,
+    "special_tokens_map.json": 92,
+    "tokenizer.json": 17908635,
+    "tokenizer_config.json": 1545
+  },
+  "gguf": null,
+  "is_moe": false,
+  "num_experts": null,
+  "params_active": 1233349520,
+  "params_active_b": 1.2,
+  "params_method": "dense: active = total, embeddings included, from safetensors shapes",
+  "params_total": 1233349520,
+  "params_total_b": 1.2,
+  "quant_detail": "nvfp4 via hf_quant_config.json",
+  "quant_detected": "nvfp4",
+  "quant_flag": "nvfp4",
+  "quant_label": "nvfp4",
+  "quant_producer": "modelopt 0.0.1.dev1+g4c1f81382",
+  "repo": "LiquidAI/LFM3-1.7B-NVFP4",
+  "revision_requested": null,
+  "revision_sha": "5f8f594ffc22400b02a11e00e2d9393a9371c161",
+  "size_class": "1-3B",
+  "snapshot_path": "/data/models/sma/hf/LiquidAI_LFM3-1.7B-NVFP4/5f8f594ffc22400b02a11e00e2d9393a9371c161",
+  "sources": {
+    "hf_quant_config": "nvfp4",
+    "kv_cache_quant_algo": null,
+    "quant_method": null,
+    "quantization_config": "nvfp4"
+  },
+  "tokenizer_fingerprint": "sha256:7e226e34bface23ccf6e495d157bf77186c1c30a7659880e1a8994db528c3701",
+  "warnings": [],
+  "weights_bytes": 1829744600
+}

@@ -1,0 +1,36 @@
+{
+  "argv": [
+    "docker",
+    "run",
+    "--rm",
+    "--name",
+    "sma-20261030T045832Z-157bb315-quality-livecodebench",
+    "--network",
+    "host",
+    "--user",
+    "1000:1000",
+    "-e",
+    "HOME=/tmp",
+    "-e",
+    "NEMO_EVALUATOR_TELEMETRY_LEVEL=0",
+    "-e",
+    "HF_HOME=/hf-home",
+    "-v",
+    "/home/<host>/github/sma/runs/LiquidAI_LFM3-1.7B/sglang/bf16/20261030T045832Z-157bb315/quality/livecodebench/attempt-4:/results",
+    "-v",
+    "/home/<host>/github/sma/runs/LiquidAI_LFM3-1.7B/sglang/bf16/20261030T045832Z-157bb315/quality/livecodebench/run_config.yaml:/config/run_config.yaml:ro",
+    "-v",
+    "/data/models/sma/hf/eval-factory:/hf-home",
+    "nvcr.io/nvidia/eval-factory/livecodebench:26.03@sha256:ccfeb5fd91c1c6ec5045c8372bdb4b667d5b6cc6b4d5d203ff4ba3be69e3a87b",
+    "sh",
+    "-c",
+    "exec $(command -v nemo-evaluator >/dev/null 2>&1 && echo nemo-evaluator || echo eval-factory) run_eval --run_config /config/run_config.yaml"
+  ],
+  "concurrency": 8,
+  "image": "nvcr.io/nvidia/eval-factory/livecodebench:26.03@sha256:ccfeb5fd91c1c6ec5045c8372bdb4b667d5b6cc6b4d5d203ff4ba3be69e3a87b",
+  "sampling": {
+    "source": "thinking off: greedy",
+    "temperature": 0.0,
+    "top_p": 1.0
+  }
+}

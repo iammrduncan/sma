@@ -1,7 +1,10 @@
 {
   "idle_until_cool": {
-    "note": "no telemetry recorder",
-    "reached": null
+    "elapsed_s": 0.001,
+    "end_c": 47.0,
+    "reached": true,
+    "start_c": 47.0,
+    "target_c": 55
   },
   "page_cache": {
     "attempted": true,

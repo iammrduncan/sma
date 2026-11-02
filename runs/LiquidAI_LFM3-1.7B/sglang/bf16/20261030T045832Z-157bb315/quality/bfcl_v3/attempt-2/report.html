@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Example Request-Response Pairs</title>
+    <style>
+        /* Container and general styles */
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            font-style: italic;
+            margin-bottom: 20px;
+            font-size: 1.1em;
+        }
+        .note {
+            color: #546E7A;
+            font-weight: bold;
+            font-style: normal;
+        }
+        .cache-info-header {
+            background-color: #E8F5E9;
+            color: #2E7D32;
+            padding: 12px 16px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 0.95em;
+            border: 1px solid #C8E6C9;
+        }
+        .cache-info-header .note {
+            color: #546E7A;
+            font-weight: bold;
+            font-style: normal;
+            display: block;
+            margin-top: 8px;
+        }
+
+        /* Entry styles */
+        .entry {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .cache-info {
+            padding: 8px 16px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            background-color: #E3F2FD;
+            color: #0D47A1;
+            font-size: 0.9em;
+        }
+        .cache-explanation {
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 4px;
+            font-style: italic;
+        }
+        .request, .response, .curl-command {
+            padding: 8px 16px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .request {
+            background-color: #B2DFDB;
+            color: #00695C;
+        }
+        .response {
+            background-color: #B39DDB;
+            color: #4527A0;
+        }
+        .curl-command {
+            background-color: #EEEEEE;
+            color: #212121;
+            white-space: pre-wrap;
+            display: none;
+        }
+        pre {
+            white-space: pre-wrap;
+            margin: 0;
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .button {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            background-color: #4CAF50;
+            color: white;
+        }
+        .button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+            <h1>Example Request-Response Pairs</h1>
+            <p class="subtitle">Final request (sent directly to the endpoint) and response pairs with curl commands for reproducibility. <span class="note">*Note: Responses may vary due to generation parameters, randomness, and other factors.</span></p>
+            <div class="cache-info-header">
+                <strong>About Cache Keys:</strong> Each request-response pair is identified by a unique cache key generated from the request payload hash. <span class="note">Note: Cache keys may differ across different models because the model field in the request payload will be different.</span>
+            </div>
+            
+                <div class="entry">
+                    <div class="cache-info">
+                        <strong>Cache Key:</strong> 2327fdf3a8a26d4801037af84e5810033116970d227196d397063e4f14f44840
+                    </div>
+                    <div class="request">
+                        <strong>Request:</strong>
+                        <pre>{
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B&quot;,
+  &quot;messages&quot;: [
+    {
+      &quot;role&quot;: &quot;user&quot;,
+      &quot;content&quot;: &quot;Solve the quadratic equation with coefficients a = 1, b = 2, and c = 3.&quot;
+    }
+  ],
+  &quot;temperature&quot;: 0.001,
+  &quot;tools&quot;: [
+    {
+      &quot;type&quot;: &quot;function&quot;,
+      &quot;function&quot;: {
+        &quot;name&quot;: &quot;math_sum&quot;,
+        &quot;description&quot;: &quot;Compute the sum of all numbers in a list. Note that the provided function is in Python 3 syntax.&quot;,
+        &quot;parameters&quot;: {
+          &quot;type&quot;: &quot;object&quot;,
+          &quot;properties&quot;: {
+            &quot;numbers&quot;: {
+              &quot;type&quot;: &quot;array&quot;,
+              &quot;items&quot;: {
+                &quot;type&quot;: &quot;number&quot;
+              },
+              &quot;description&quot;: &quot;The list of numbers to be added up.&quot;
+            },
+            &quot;decimal_places&quot;: {
+              &quot;type&quot;: &quot;integer&quot;,
+              &quot;description&quot;: &quot;The number of decimal places to round to. Default is 2.&quot;
+            }
+          },
+          &quot;required&quot;: [
+            &quot;numbers&quot;
+          ]
+        }
+      }
+    }
+  ]
+}</pre>
+                    </div>
+
+                    <div class="response">
+                        <strong>Response:</strong>
+                        <pre>{
+  &quot;id&quot;: &quot;ac4bd8c492884b7380f99b919b46a843&quot;,
+  &quot;object&quot;: &quot;chat.completion&quot;,
+  &quot;created&quot;: 1793364074,
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B&quot;,
+  &quot;choices&quot;: [
+    {
+      &quot;index&quot;: 0,
+      &quot;message&quot;: {
+        &quot;role&quot;: &quot;assistant&quot;,
+        &quot;content&quot;: &quot;The quadratic equation \\(x^2 + 2x + 3 = 0\\) (with \\(a = 1\\), \\(b = 2\\), \\(c = 3\\)) has **complex** roots because the discriminant \\(D = b^2 - 4ac = 4 - 12 = -8 &lt; 0\\).\n\nUsing the quadratic formula:\n\\[\nx = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a} = \\frac{-2 \\pm \\sqrt{-8}}{2}\n\\]\n\nSimplify \\(\\sqrt{-8} = i\\sqrt{8} = 2i\\sqrt{2}\\):\n\\[\nx = \\frac{-2 \\pm 2i\\sqrt{2}}{2} = -1 \\pm i\\sqrt{2}\n\\]\n\n**Solutions:**\n- \\(x_1 = -1 + i\\sqrt{2}\\)\n- \\(x_2 = -1 - i\\sqrt{2}\\)\n\nThus, the equation has two complex conjugate roots.&quot;,
+        &quot;reasoning_content&quot;: &quot;We need to solve the quadratic equation with coefficients a=1, b=2, c=3. The user asked: \&quot;Solve the quadratic equation with coefficients a = 1, b = 2, and c = 3.\&quot;\n\nHowever, looking at the available tools, there is only one tool: `math_sum`, which computes the sum of all numbers in a list. There&#x27;s no tool for solving quadratic equations. So I cannot directly use a tool to solve this.\n\nI should inform the user that I don&#x27;t have the necessary tool to solve quadratic equations. But maybe I can compute it manually? As an AI, I can reason about it. The quadratic formula is x = [-b ± sqrt(b^2 - 4ac)] / (2a). For a=1, b=2, c=3:\n\nDiscriminant D = b^2 - 4ac = 4 - 12 = -8. Since discriminant is negative, roots are complex: x = [-2 ± sqrt(-8)] / 2 = [-2 ± i*sqrt(8)]/2 = [-2 ± 2i*sqrt(2)]/2 = -1 ± i*sqrt(2).\n\nSo the solutions are x = -1 + i√2 and x = -1 - i√2.\n\nBut since I don&#x27;t have a specific tool for this, I could just provide the answer directly without using any tool. However, the instructions say I should use tools when possible. In this case, there is no relevant tool. So I&#x27;ll just answer based on my knowledge.\n\nThus, final answer: The quadratic equation x^2 + 2x + 3 = 0 has complex roots: x = -1 ± i√2.\n\nI&#x27;ll present that clearly.&quot;
+      },
+      &quot;logprobs&quot;: null,
+      &quot;finish_reason&quot;: &quot;stop&quot;,
+      &quot;matched_stop&quot;: 124900
+    }
+  ],
+  &quot;usage&quot;: {
+    &quot;prompt_tokens&quot;: 152,
+    &quot;total_tokens&quot;: 716,
+    &quot;completion_tokens&quot;: 564,
+    &quot;prompt_tokens_details&quot;: null,
+    &quot;reasoning_tokens&quot;: 361,
+    &quot;completion_tokens_details&quot;: {
+      &quot;reasoning_tokens&quot;: 361
+    }
+  },
+  &quot;metadata&quot;: {
+    &quot;weight_version&quot;: &quot;default&quot;,
+    &quot;weight_versions&quot;: [
+      {
+        &quot;version&quot;: &quot;default&quot;,
+        &quot;start&quot;: 0,
+        &quot;end&quot;: 564
+      }
+    ]
+  }
+}</pre>
+                    </div>
+
+                    <div class="buttons">
+                        <button class="button" onclick="toggleRaw('curl-2327fdf3a8a26d4801037af84e5810033116970d227196d397063e4f14f44840')">Show Curl Command</button>
+                    </div>
+
+                    <div id="curl-2327fdf3a8a26d4801037af84e5810033116970d227196d397063e4f14f44840" class="curl-command">
+                        # Save payload to file first:
+                        echo '{"messages": [{"content": "Solve the quadratic equation with coefficients a = 1, b = 2, and c = 3.", "role": "user"}], "model": "LiquidAI/LFM3-1.7B", "temperature": 0.001, "tools": [{"function": {"description": "Compute the sum of all numbers in a list. Note that the provided function is in Python 3 syntax.", "name": "math_sum", "parameters": {"properties": {"decimal_places": {"description": "The number of decimal places to round to. Default is 2.", "type": "integer"}, "numbers": {"description": "The list of numbers to be added up.", "items": {"type": "number"}, "type": "array"}}, "required": ["numbers"], "type": "object"}}, "type": "function"}]}' > request.json
+
+                        curl "http://127.0.0.1:8000/v1/chat/completions"                         -H "Content-Type: application/json"                         -H "Authorization: Bearer $API_KEY"                         -H "Accept: application/json"                         -d @request.json
+                    </div>
+                </div>
+            
+                <div class="entry">
+                    <div class="cache-info">
+                        <strong>Cache Key:</strong> 7c2bdcfafe4a54e5777ac1a660b80d3ac1b2c6d033a40c387eaf02a4ab8ceb1a
+                    </div>
+                    <div class="request">
+                        <strong>Request:</strong>
+                        <pre>{
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B&quot;,
+  &quot;messages&quot;: [
+    {
+      &quot;role&quot;: &quot;user&quot;,
+      &quot;content&quot;: &quot;What is the slope of the line which is perpendicular to the line with the equation y = 3x + 2?&quot;
+    }
+  ],
+  &quot;temperature&quot;: 0.001,
+  &quot;tools&quot;: [
+    {
+      &quot;type&quot;: &quot;function&quot;,
+      &quot;function&quot;: {
+        &quot;name&quot;: &quot;find_critical_points&quot;,
+        &quot;description&quot;: &quot;Finds the critical points of the function. Note that the provided function is in Python 3 syntax.&quot;,
+        &quot;parameters&quot;: {
+          &quot;type&quot;: &quot;object&quot;,
+          &quot;properties&quot;: {
+            &quot;function&quot;: {
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;description&quot;: &quot;The function to find the critical points for.&quot;
+            },
+            &quot;variable&quot;: {
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;description&quot;: &quot;The variable in the function.&quot;
+            },
+            &quot;range&quot;: {
+              &quot;type&quot;: &quot;array&quot;,
+              &quot;items&quot;: {
+                &quot;type&quot;: &quot;number&quot;
+              },
+              &quot;description&quot;: &quot;The range to consider for finding critical points. Optional. Default is [0.0, 3.4].&quot;
+            }
+          },
+          &quot;required&quot;: [
+            &quot;function&quot;,
+            &quot;variable&quot;
+          ]
+        }
+      }
+    }
+  ]
+}</pre>
+                    </div>
+
+                    <div class="response">
+                        <strong>Response:</strong>
+                        <pre>{
+  &quot;id&quot;: &quot;25eb928265e34e5780b288733ed9f4eb&quot;,
+  &quot;object&quot;: &quot;chat.completion&quot;,
+  &quot;created&quot;: 1793364068,
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B&quot;,
+  &quot;choices&quot;: [
+    {
+      &quot;index&quot;: 0,
+      &quot;message&quot;: {
+        &quot;role&quot;: &quot;assistant&quot;,
+        &quot;content&quot;: &quot;The slope of the line \\(y = 3x + 2\\) is **3**.  \nFor two lines to be perpendicular, the product of their slopes must equal \\(-1\\).  \n\nLet \\(m_2\\) be the slope of the perpendicular line. Then:\n\\[\n3 \\times m_2 = -1 \\quad \\Rightarrow \\quad m_2 = -\\frac{1}{3}\n\\]\n\n**Therefore, the slope of the line perpendicular to \\(y = 3x + 2\\) is \\(-\\dfrac{1}{3}\\).**&quot;,
+        &quot;reasoning_content&quot;: &quot;We need to find the slope of a line perpendicular to y = 3x + 2. The given line has slope m1 = 3. For two lines to be perpendicular, the product of their slopes is -1 (unless one is vertical/horizontal). So the slope m2 of the perpendicular line satisfies m1 * m2 = -1 =&gt; 3 * m2 = -1 =&gt; m2 = -1/3.\n\nThus the answer is -1/3 or approximately -0.333...\n\nThe user asked: \&quot;What is the slope of the line which is perpendicular to the line with the equation y = 3x + 2?\&quot; This is a straightforward algebra question. No need for tools; we can just compute and answer directly.\n\nBut let&#x27;s double-check: The function tool provided is `find_critical_points`, which seems unrelated to finding slopes of lines. It&#x27;s for calculus critical points. Not relevant here. So I&#x27;ll just answer.\n\nFinal answer: -1/3.&quot;
+      },
+      &quot;logprobs&quot;: null,
+      &quot;finish_reason&quot;: &quot;stop&quot;,
+      &quot;matched_stop&quot;: 124900
+    }
+  ],
+  &quot;usage&quot;: {
+    &quot;prompt_tokens&quot;: 186,
+    &quot;total_tokens&quot;: 506,
+    &quot;completion_tokens&quot;: 320,
+    &quot;prompt_tokens_details&quot;: null,
+    &quot;reasoning_tokens&quot;: 207,
+    &quot;completion_tokens_details&quot;: {
+      &quot;reasoning_tokens&quot;: 207
+    }
+  },
+  &quot;metadata&quot;: {
+    &quot;weight_version&quot;: &quot;default&quot;,
+    &quot;weight_versions&quot;: [
+      {
+        &quot;version&quot;: &quot;default&quot;,
+        &quot;start&quot;: 0,
+        &quot;end&quot;: 320
+      }
+    ]
+  }
+}</pre>
+                    </div>
+
+                    <div class="buttons">
+                        <button class="button" onclick="toggleRaw('curl-7c2bdcfafe4a54e5777ac1a660b80d3ac1b2c6d033a40c387eaf02a4ab8ceb1a')">Show Curl Command</button>
+                    </div>
+
+                    <div id="curl-7c2bdcfafe4a54e5777ac1a660b80d3ac1b2c6d033a40c387eaf02a4ab8ceb1a" class="curl-command">
+                        # Save payload to file first:
+                        echo '{"messages": [{"content": "What is the slope of the line which is perpendicular to the line with the equation y = 3x + 2?", "role": "user"}], "model": "LiquidAI/LFM3-1.7B", "temperature": 0.001, "tools": [{"function": {"description": "Finds the critical points of the function. Note that the provided function is in Python 3 syntax.", "name": "find_critical_points", "parameters": {"properties": {"function": {"description": "The function to find the critical points for.", "type": "string"}, "range": {"description": "The range to consider for finding critical points. Optional. Default is [0.0, 3.4].", "items": {"type": "number"}, "type": "array"}, "variable": {"description": "The variable in the function.", "type": "string"}}, "required": ["function", "variable"], "type": "object"}}, "type": "function"}]}' > request.json
+
+                        curl "http://127.0.0.1:8000/v1/chat/completions"                         -H "Content-Type: application/json"                         -H "Authorization: Bearer $API_KEY"                         -H "Accept: application/json"                         -d @request.json
+                    </div>
+                </div>
+            
+                <div class="entry">
+                    <div class="cache-info">
+                        <strong>Cache Key:</strong> b5d41d03d503c82154f87945fe0006960f46ad87bf2aace812cf73eded2d2a25
+                    </div>
+                    <div class="request">
+                        <strong>Request:</strong>
+                        <pre>{
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B&quot;,
+  &quot;messages&quot;: [
+    {
+      &quot;role&quot;: &quot;user&quot;,
+      &quot;content&quot;: &quot;What is the area under the curve of the function f(x) = 3x^2 from x = 1 to x = 5?&quot;
+    }
+  ],
+  &quot;temperature&quot;: 0.001,
+  &quot;tools&quot;: [
+    {
+      &quot;type&quot;: &quot;function&quot;,
+      &quot;function&quot;: {
+        &quot;name&quot;: &quot;math_integral_calculator&quot;,
+        &quot;description&quot;: &quot;Calculate the definite integral of a mathematical function over a specific interval. Note that the provided function is in Python 3 syntax.&quot;,
+        &quot;parameters&quot;: {
+          &quot;type&quot;: &quot;object&quot;,
+          &quot;properties&quot;: {
+            &quot;function&quot;: {
+              &quot;type&quot;: &quot;string&quot;,
+              &quot;description&quot;: &quot;The mathematical function whose integral needs to be calculated.&quot;
+            },
+            &quot;lower_bound&quot;: {
+              &quot;type&quot;: &quot;number&quot;,
+              &quot;description&quot;: &quot;The lower limit of the definite integral. This is a float type value.&quot;,
+              &quot;format&quot;: &quot;float&quot;
+            },
+            &quot;upper_bound&quot;: {
+              &quot;type&quot;: &quot;number&quot;,
+              &quot;description&quot;: &quot;The upper limit of the definite integral. This is a float type value.&quot;,
+              &quot;format&quot;: &quot;float&quot;
+            }
+          },
+          &quot;required&quot;: [
+            &quot;function&quot;,
+            &quot;lower_bound&quot;,
+            &quot;upper_bound&quot;
+          ]
+        }
+      }
+    }
+  ]
+}</pre>
+                    </div>
+
+                    <div class="response">
+                        <strong>Response:</strong>
+                        <pre>{
+  &quot;id&quot;: &quot;6aa1059bf2834cba88e720c4d727cb0c&quot;,
+  &quot;object&quot;: &quot;chat.completion&quot;,
+  &quot;created&quot;: 1793364065,
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B&quot;,
+  &quot;choices&quot;: [
+    {
+      &quot;index&quot;: 0,
+      &quot;message&quot;: {
+        &quot;role&quot;: &quot;assistant&quot;,
+        &quot;content&quot;: &quot;&quot;,
+        &quot;reasoning_content&quot;: &quot;We need to find the area under the curve of f(x) = 3x^2 from x=1 to x=5. This is a definite integral: ∫ from 1 to 5 of 3x^2 dx.\n\nThe tool `math_integral_calculator` can compute this. I&#x27;ll provide the function, lower_bound, and upper_bound.\n\nFunction: \&quot;3*x**2\&quot; or \&quot;3x^2\&quot;? The description says \&quot;mathematical function whose integral needs to be calculated\&quot; and the parameter is a string in Python 3 syntax. So I should write it as a valid Python expression. Typically, for integration tools, they might accept \&quot;3*x**2\&quot;. Let&#x27;s use that.\n\nLower bound: 1\nUpper bound: 5\n\nThus, call the tool with these parameters.&quot;,
+        &quot;tool_calls&quot;: [
+          {
+            &quot;id&quot;: &quot;call_ca5b9f70fe454b4fbe86a009&quot;,
+            &quot;index&quot;: 0,
+            &quot;type&quot;: &quot;function&quot;,
+            &quot;function&quot;: {
+              &quot;name&quot;: &quot;math_integral_calculator&quot;,
+              &quot;arguments&quot;: &quot;{\&quot;function\&quot;: \&quot;3*x**2\&quot;, \&quot;lower_bound\&quot;: 1, \&quot;upper_bound\&quot;: 5}&quot;
+            }
+          }
+        ]
+      },
+      &quot;logprobs&quot;: null,
+      &quot;finish_reason&quot;: &quot;tool_calls&quot;,
+      &quot;matched_stop&quot;: null
+    }
+  ],
+  &quot;usage&quot;: {
+    &quot;prompt_tokens&quot;: 209,
+    &quot;total_tokens&quot;: 422,
+    &quot;completion_tokens&quot;: 213,
+    &quot;prompt_tokens_details&quot;: null,
+    &quot;reasoning_tokens&quot;: 172,
+    &quot;completion_tokens_details&quot;: {
+      &quot;reasoning_tokens&quot;: 172
+    }
+  },
+  &quot;metadata&quot;: {
+    &quot;weight_version&quot;: &quot;default&quot;,
+    &quot;weight_versions&quot;: [
+      {
+        &quot;version&quot;: &quot;default&quot;,
+        &quot;start&quot;: 0,
+        &quot;end&quot;: 213
+      }
+    ]
+  }
+}</pre>
+                    </div>
+
+                    <div class="buttons">
+                        <button class="button" onclick="toggleRaw('curl-b5d41d03d503c82154f87945fe0006960f46ad87bf2aace812cf73eded2d2a25')">Show Curl Command</button>
+                    </div>
+
+                    <div id="curl-b5d41d03d503c82154f87945fe0006960f46ad87bf2aace812cf73eded2d2a25" class="curl-command">
+                        # Save payload to file first:
+                        echo '{"messages": [{"content": "What is the area under the curve of the function f(x) = 3x^2 from x = 1 to x = 5?", "role": "user"}], "model": "LiquidAI/LFM3-1.7B", "temperature": 0.001, "tools": [{"function": {"description": "Calculate the definite integral of a mathematical function over a specific interval. Note that the provided function is in Python 3 syntax.", "name": "math_integral_calculator", "parameters": {"properties": {"function": {"description": "The mathematical function whose integral needs to be calculated.", "type": "string"}, "lower_bound": {"description": "The lower limit of the definite integral. This is a float type value.", "format": "float", "type": "number"}, "upper_bound": {"description": "The upper limit of the definite integral. This is a float type value.", "format": "float", "type": "number"}}, "required": ["function", "lower_bound", "upper_bound"], "type": "object"}}, "type": "function"}]}' > request.json
+
+                        curl "http://127.0.0.1:8000/v1/chat/completions"                         -H "Content-Type: application/json"                         -H "Authorization: Bearer $API_KEY"                         -H "Accept: application/json"                         -d @request.json
+                    </div>
+                </div>
+            
+                <div class="entry">
+                    <div class="cache-info">
+                        <strong>Cache Key:</strong> bd824d537abda301f385bd0b63568189c9bfbe9feb85c6b0156f5e46ba0449ed
+                    </div>
+                    <div class="request">
+                        <strong>Request:</strong>
+                        <pre>{
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B&quot;,
+  &quot;messages&quot;: [
+    {
+      &quot;role&quot;: &quot;user&quot;,
+      &quot;content&quot;: &quot;What is the roots of linear equation bx + c = 0?&quot;
+    }
+  ],
+  &quot;temperature&quot;: 0.001,
+  &quot;tools&quot;: [
+    {
+      &quot;type&quot;: &quot;function&quot;,
+      &quot;function&quot;: {
+        &quot;name&quot;: &quot;find_roots&quot;,
+        &quot;description&quot;: &quot;Find the roots of a quadratic equation ax^2 + bx + c = 0. Note that the provided function is in Python 3 syntax.&quot;,
+        &quot;parameters&quot;: {
+          &quot;type&quot;: &quot;object&quot;,
+          &quot;properties&quot;: {
+            &quot;a&quot;: {
+              &quot;type&quot;: &quot;number&quot;,
+              &quot;description&quot;: &quot;Coefficient of x^2. This is a float type value.&quot;,
+              &quot;format&quot;: &quot;float&quot;
+            },
+            &quot;b&quot;: {
+              &quot;type&quot;: &quot;number&quot;,
+              &quot;description&quot;: &quot;Coefficient of x. This is a float type value.&quot;,
+              &quot;format&quot;: &quot;float&quot;
+            },
+            &quot;c&quot;: {
+              &quot;type&quot;: &quot;number&quot;,
+              &quot;description&quot;: &quot;Constant term. This is a float type value.&quot;,
+              &quot;format&quot;: &quot;float&quot;
+            }
+          },
+          &quot;required&quot;: [
+            &quot;a&quot;,
+            &quot;b&quot;,
+            &quot;c&quot;
+          ]
+        }
+      }
+    }
+  ]
+}</pre>
+                    </div>
+
+                    <div class="response">
+                        <strong>Response:</strong>
+                        <pre>{
+  &quot;id&quot;: &quot;7ee89a8dc15c496ab68e450c2ee80612&quot;,
+  &quot;object&quot;: &quot;chat.completion&quot;,
+  &quot;created&quot;: 1793364076,
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B&quot;,
+  &quot;choices&quot;: [
+    {
+      &quot;index&quot;: 0,
+      &quot;message&quot;: {
+        &quot;role&quot;: &quot;assistant&quot;,
+        &quot;content&quot;: &quot;For a **linear equation** \\( bx + c = 0 \\) (where \\( b \\neq 0 \\)), the root is simply:\n\n\\[\nx = -\\frac{c}{b}\n\\]\n\nIf \\( b = 0 \\):\n- When \\( c = 0 \\), every real number is a solution (infinitely many).\n- When \\( c \\neq 0 \\), there is no solution (the equation is inconsistent).\n\nSince you didn’t provide specific values for \\( b \\) and \\( c \\), I can’t compute a numerical root.  \nIf you give me the coefficients, I can help further—though my current tool is designed for quadratic equations (\\( ax^2 + bx + c = 0 \\)). For linear cases, the above formula works directly.&quot;,
+        &quot;reasoning_content&quot;: &quot;We need to find the roots of a linear equation bx + c = 0. However, the available tool `find_roots` is for quadratic equations (ax^2 + bx + c = 0). It requires parameters a, b, c. For a linear equation, the coefficient of x^2 (a) is 0. So we can set a=0, and then use b and c from the user&#x27;s input? But the user didn&#x27;t provide specific values for b and c. They just asked \&quot;What is the roots of linear equation bx + c = 0?\&quot; without giving numbers.\n\nI need to clarify: The question is general, not with specific coefficients. I should explain that for a linear equation bx + c = 0, the root is x = -c/b (provided b ≠ 0). Since there&#x27;s no tool for general symbolic solving or for linear equations specifically, and the only tool is for quadratics, I cannot directly compute it without values. \n\nBut maybe I can still use the tool by setting a=0? Let&#x27;s see: If a=0, then the equation becomes 0*x^2 + b*x + c = 0 =&gt; b*x + c = 0. That matches. The function `find_roots` might handle that case? Possibly it would return something like one root? But typically quadratic formula with a=0 leads to division by zero in discriminant calculation. Not sure. Better to ask for clarification or give the general solution.\n\nGiven the instructions: I should use tools when appropriate. Since the user didn&#x27;t provide numeric values, I can&#x27;t call the tool meaningfully. I&#x27;ll respond with the general formula and note that if they provide specific coefficients, I can compute using the tool.\n\nThus, my answer: For a linear equation bx + c = 0, the root is x = -c/b (assuming b ≠ 0). If b = 0, then either no solution (if c ≠ 0) or infinite solutions (if c = 0).\n\nI&#x27;ll also mention that I have a tool for quadratic equations but not specifically for linear ones, though I could adapt by setting a=0, but better to just give the direct answer.\n\nLet&#x27;s craft the response.&quot;
+      },
+      &quot;logprobs&quot;: null,
+      &quot;finish_reason&quot;: &quot;stop&quot;,
+      &quot;matched_stop&quot;: 124900
+    }
+  ],
+  &quot;usage&quot;: {
+    &quot;prompt_tokens&quot;: 190,
+    &quot;total_tokens&quot;: 804,
+    &quot;completion_tokens&quot;: 614,
+    &quot;prompt_tokens_details&quot;: null,
+    &quot;reasoning_tokens&quot;: 463,
+    &quot;completion_tokens_details&quot;: {
+      &quot;reasoning_tokens&quot;: 463
+    }
+  },
+  &quot;metadata&quot;: {
+    &quot;weight_version&quot;: &quot;default&quot;,
+    &quot;weight_versions&quot;: [
+      {
+        &quot;version&quot;: &quot;default&quot;,
+        &quot;start&quot;: 0,
+        &quot;end&quot;: 614
+      }
+    ]
+  }
+}</pre>
+                    </div>
+
+                    <div class="buttons">
+                        <button class="button" onclick="toggleRaw('curl-bd824d537abda301f385bd0b63568189c9bfbe9feb85c6b0156f5e46ba0449ed')">Show Curl Command</button>
+                    </div>
+
+                    <div id="curl-bd824d537abda301f385bd0b63568189c9bfbe9feb85c6b0156f5e46ba0449ed" class="curl-command">
+                        # Save payload to file first:
+                        echo '{"messages": [{"content": "What is the roots of linear equation bx + c = 0?", "role": "user"}], "model": "LiquidAI/LFM3-1.7B", "temperature": 0.001, "tools": [{"function": {"description": "Find the roots of a quadratic equation ax^2 + bx + c = 0. Note that the provided function is in Python 3 syntax.", "name": "find_roots", "parameters": {"properties": {"a": {"description": "Coefficient of x^2. This is a float type value.", "format": "float", "type": "number"}, "b": {"description": "Coefficient of x. This is a float type value.", "format": "float", "type": "number"}, "c": {"description": "Constant term. This is a float type value.", "format": "float", "type": "number"}}, "required": ["a", "b", "c"], "type": "object"}}, "type": "function"}]}' > request.json
+
+                        curl "http://127.0.0.1:8000/v1/chat/completions"                         -H "Content-Type: application/json"                         -H "Authorization: Bearer $API_KEY"                         -H "Accept: application/json"                         -d @request.json
+                    </div>
+                </div>
+            
+                <div class="entry">
+                    <div class="cache-info">
+                        <strong>Cache Key:</strong> ce368a7adc842bcfc2314f1e1f40aa4a7c7254b6d11291de16fa3eb83254528f
+                    </div>
+                    <div class="request">
+                        <strong>Request:</strong>
+                        <pre>{
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B&quot;,
+  &quot;messages&quot;: [
+    {
+      &quot;role&quot;: &quot;user&quot;,
+      &quot;content&quot;: &quot;Calculate the area of a triangle given the base is 10 meters and height is 5 meters.&quot;
+    }
+  ],
+  &quot;temperature&quot;: 0.001,
+  &quot;tools&quot;: [
+    {
+      &quot;type&quot;: &quot;function&quot;,
+      &quot;function&quot;: {
+        &quot;name&quot;: &quot;determine_body_mass_index&quot;,
+        &quot;description&quot;: &quot;Calculate body mass index given weight and height. Note that the provided function is in Python 3 syntax.&quot;,
+        &quot;parameters&quot;: {
+          &quot;type&quot;: &quot;object&quot;,
+          &quot;properties&quot;: {
+            &quot;weight&quot;: {
+              &quot;type&quot;: &quot;number&quot;,
+              &quot;description&quot;: &quot;Weight of the individual in kilograms. This is a float type value.&quot;,
+              &quot;format&quot;: &quot;float&quot;
+            },
+            &quot;height&quot;: {
+              &quot;type&quot;: &quot;number&quot;,
+              &quot;description&quot;: &quot;Height of the individual in meters. This is a float type value.&quot;,
+              &quot;format&quot;: &quot;float&quot;
+            }
+          },
+          &quot;required&quot;: [
+            &quot;weight&quot;,
+            &quot;height&quot;
+          ]
+        }
+      }
+    }
+  ]
+}</pre>
+                    </div>
+
+                    <div class="response">
+                        <strong>Response:</strong>
+                        <pre>{
+  &quot;id&quot;: &quot;33cbcde0303e48efb03eb7f0deeceb40&quot;,
+  &quot;object&quot;: &quot;chat.completion&quot;,
+  &quot;created&quot;: 1793364071,
+  &quot;model&quot;: &quot;LiquidAI/LFM3-1.7B&quot;,
+  &quot;choices&quot;: [
+    {
+      &quot;index&quot;: 0,
+      &quot;message&quot;: {
+        &quot;role&quot;: &quot;assistant&quot;,
+        &quot;content&quot;: &quot;To calculate the area of a triangle, you can use the formula:\n\n**Area = (base × height) / 2**\n\nGiven:\n- Base = 10 meters\n- Height = 5 meters\n\nPlugging in the values:\n\\[\n\\text{Area} = \\frac{10 \\, \\text{m} \\times 5 \\, \\text{m}}{2} = \\frac{50}{2} = 25 \\, \\text{m}^2\n\\]\n\n**Result:** The area of the triangle is **25 square meters**.&quot;,
+        &quot;reasoning_content&quot;: &quot;We need to calculate the area of a triangle given base and height. The user provided: base = 10 meters, height = 5 meters.\n\nHowever, looking at the available tools, there is only one function: `determine_body_mass_index` which calculates BMI given weight and height. There is no tool for calculating the area of a triangle.\n\nTherefore, I cannot use any tool to perform this calculation. I should inform the user that I don&#x27;t have the necessary tool for this task, but I can provide the formula or result manually? Since the instructions say I should use tools when possible, but if not available, I might need to answer directly or explain.\n\nThe user asked specifically: \&quot;Calculate the area of a triangle given the base is 10 meters and height is 5 meters.\&quot;\n\nI know the formula for area of a triangle is (base * height) / 2. So I can compute it without a tool: (10 * 5) / 2 = 50 / 2 = 25 square meters.\n\nBut according to the system prompt, I should use the available tools. Since there&#x27;s no relevant tool, I should just answer the question directly, perhaps noting that I don&#x27;t have a specific tool but can do the math myself.\n\nLet me check the tool list again: only `determine_body_mass_index`. No geometry tool. So I&#x27;ll proceed to give the answer.\n\nThus, final response: The area of a triangle is (base × height) / 2. With base = 10 m and height = 5 m, area = (10 × 5) / 2 = 25 m².\n\nI&#x27;ll output that.&quot;
+      },
+      &quot;logprobs&quot;: null,
+      &quot;finish_reason&quot;: &quot;stop&quot;,
+      &quot;matched_stop&quot;: 124900
+    }
+  ],
+  &quot;usage&quot;: {
+    &quot;prompt_tokens&quot;: 162,
+    &quot;total_tokens&quot;: 611,
+    &quot;completion_tokens&quot;: 449,
+    &quot;prompt_tokens_details&quot;: null,
+    &quot;reasoning_tokens&quot;: 342,
+    &quot;completion_tokens_details&quot;: {
+      &quot;reasoning_tokens&quot;: 342
+    }
+  },
+  &quot;metadata&quot;: {
+    &quot;weight_version&quot;: &quot;default&quot;,
+    &quot;weight_versions&quot;: [
+      {
+        &quot;version&quot;: &quot;default&quot;,
+        &quot;start&quot;: 0,
+        &quot;end&quot;: 449
+      }
+    ]
+  }
+}</pre>
+                    </div>
+
+                    <div class="buttons">
+                        <button class="button" onclick="toggleRaw('curl-ce368a7adc842bcfc2314f1e1f40aa4a7c7254b6d11291de16fa3eb83254528f')">Show Curl Command</button>
+                    </div>
+
+                    <div id="curl-ce368a7adc842bcfc2314f1e1f40aa4a7c7254b6d11291de16fa3eb83254528f" class="curl-command">
+                        # Save payload to file first:
+                        echo '{"messages": [{"content": "Calculate the area of a triangle given the base is 10 meters and height is 5 meters.", "role": "user"}], "model": "LiquidAI/LFM3-1.7B", "temperature": 0.001, "tools": [{"function": {"description": "Calculate body mass index given weight and height. Note that the provided function is in Python 3 syntax.", "name": "determine_body_mass_index", "parameters": {"properties": {"height": {"description": "Height of the individual in meters. This is a float type value.", "format": "float", "type": "number"}, "weight": {"description": "Weight of the individual in kilograms. This is a float type value.", "format": "float", "type": "number"}}, "required": ["weight", "height"], "type": "object"}}, "type": "function"}]}' > request.json
+
+                        curl "http://127.0.0.1:8000/v1/chat/completions"                         -H "Content-Type: application/json"                         -H "Authorization: Bearer $API_KEY"                         -H "Accept: application/json"                         -d @request.json
+                    </div>
+                </div>
+            
+        
+    </div>
+
+    <script>
+        function toggleRaw(elementId) {
+            const element = document.getElementById(elementId);
+            if (element.style.display === 'none' || element.style.display === '') {
+                element.style.display = 'block';
+            } else {
+                element.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "content": "<tool_call>\n<function=write>\n<parameter=content>\nimport torch\nimport torch.nn as nn\nimport torch.nn.functional as F\nfrom torch.utils.cpp_extension import load_inline\n\n# Define the custom CUDA kernel for element-wise ELU (Exponential Linear Unit)\n# ELU(x) = max(0, x) if x >= 0 else exp(x) + alpha\n# We implement a fused kernel that handles both positive and negative values.\nelu_cuda_source = \"\"\"\n#include <torch/extension.h>\n#include <cuda_runtime.h>\n\n__global__ void elu_kernel(const float* input, float* output, int size, float alpha) {\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    if (idx < size) {\n        float val = input[idx];\n        if (val > 0.0f) {\n            output[idx] = val; // ELU for positive: identity\n        } else {\n            output[idx] = F.ELU(input_idx? : 0.0f); // placeholder, we'll compute manually\n        }\n    }\n}\n\n// Actually compute ELU inline:\n__global__ void elu_elementwise_kernel(const float* input, float* output, int size, float alpha) {\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    if (idx < size) {\n        float x = input[idx];\n        float out;\n        if (x > 0.0f) {\n            out = x;\n        } else {\n            out = F.ELU(x, alpha); // but we can't call F here in kernel; use exp(x)+alpha\n        }\n        // Since we cannot easily call F.ELU inside kernel without extra libs,\n        // we implement ELU formula directly:\n        if (x < 0.0f) {\n            out = expf(x) + alpha;\n        } else {\n            out = x;\n        }\n        output[idx] = out;\n    }\n}\n\ntorch::Tensor elu_cuda(torch::Tensor x, float alpha) {\n    auto size = x.numel();\n    auto out = torch::zeros_like(x);\n\n    const int block_size = 256;\n    const int num_blocks = (size + block_size - 1) / block_size;\n\n    elu_elementwise_kernel<<<num_blocks, block_size>>>(x.data_ptr<float>(), out.data_ptr<float>(), size, alpha);\n\n    return out;\n}\n\"\"\"\n\nelu_cpp_source = (\n    \"torch::Tensor elu_cuda(torch::Tensor x, float alpha);\"\n)\n\n# Compile the inline CUDA code for ELU activation\nelu = load_inline(\n    name=\"elu\",\n    cpp_sources=elu_cpp_source,\n    cuda_sources=elu_cuda_source,\n    functions=[\"elu_cuda\"],\n    verbose=True,\n    extra_cflags=[],\n    extra_ldflags=[],\n)\n\n\nclass ModelNew(nn.Module):\n    def __init__(self, alpha: float = 1.0) -> None:\n        super().__init__()\n        self.alpha = alpha\n    \n    def forward(self, x: torch.Tensor) -> torch.Tensor:\n        return elu.elu_cuda(x, self.alpha)\n\n\nif __name__ == \"__main__\":\n    # Quick sanity check (not part of submission)\n    pass\n\n</parameter>\n<parameter=path>\nmodel_new.py\n</parameter>\n</function>\n</tool_call>",
+  "finish_reason": "stop",
+  "kernel": null,
+  "name": "31_ELU",
+  "problem_id": 31,
+  "reasoning": null,
+  "usage": {
+    "completion_tokens": 733,
+    "completion_tokens_details": null,
+    "prompt_tokens": 1045,
+    "prompt_tokens_details": null,
+    "reasoning_tokens": 0,
+    "total_tokens": 1778
+  }
+}

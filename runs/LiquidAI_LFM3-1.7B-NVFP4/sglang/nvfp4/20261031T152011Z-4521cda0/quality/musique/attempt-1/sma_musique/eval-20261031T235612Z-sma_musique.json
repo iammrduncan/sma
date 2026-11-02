@@ -1,0 +1,110 @@
+{
+  "run_id": "eval-20261031T235612Z-sma_musique",
+  "config_hash": "sha256:60b0df688caf15e8c74aa07a6bab8a5d98278f48c02e772ac89e02e5a5449b11",
+  "sdk_version": "0.3.0",
+  "timestamp": "2026-10-31T23:56:12.273108+00:00",
+  "config": {
+    "benchmark": "sma_musique",
+    "model": "LiquidAI/LFM3-1.7B-NVFP4",
+    "base_url": "http://127.0.0.1:45329",
+    "repeats": 1,
+    "max_problems": 100,
+    "scorers": null,
+    "_sandbox_config": "capture_cmd=None verify_timeout=600.0 stateful=False type='none'",
+    "shuffle_seed": 0,
+    "shuffle": {
+      "seed": 0,
+      "applied": true,
+      "ds_full_size": 2417,
+      "ds_effective_size": 100
+    }
+  },
+  "benchmark": {
+    "name": "sma_musique",
+    "samples": 100,
+    "repeats": 1,
+    "scores": {
+      "mean_reward": {
+        "value": 0.2672,
+        "ci_lower": 0.1909,
+        "ci_upper": 0.3511
+      },
+      "summary": {
+        "mean": 0.2672173828183484,
+        "std": 0.4094152558193739,
+        "min": 0.0,
+        "max": 1.0,
+        "median": 0.008900454575400223,
+        "n": 100
+      },
+      "breakdowns": {
+        "exact_match": [
+          {
+            "group": "False",
+            "n": 79,
+            "mean_reward": 0.0724,
+            "ci_lower": 0.0365,
+            "ci_upper": 0.1131
+          },
+          {
+            "group": "True",
+            "n": 21,
+            "mean_reward": 1.0,
+            "ci_lower": 1.0,
+            "ci_upper": 1.0
+          }
+        ]
+      },
+      "runtime": {
+        "total_steps": 100,
+        "total_tokens": 834460,
+        "total_prompt_tokens": 257744,
+        "total_completion_tokens": 576716,
+        "total_reasoning_tokens": 0,
+        "elapsed_seconds": 8233.63,
+        "latency_percentiles_ms": {
+          "p50": 23150.74,
+          "p90": 140553.57,
+          "p99": 480131.46
+        },
+        "tokens_per_second": 101.35,
+        "steps_per_second": 0.01,
+        "model_errors": 0,
+        "total_retries": 0,
+        "finish_reason_counts": {
+          "stop": 99,
+          "length": 1
+        }
+      },
+      "failures": {
+        "total_steps": 100,
+        "total_failures": 8,
+        "failure_rate": 0.08,
+        "categories": {
+          "refusal": {
+            "count": 8,
+            "percentage": 0.08,
+            "exemplars": [
+              {
+                "problem_idx": 585,
+                "repeat": 0,
+                "error": "refusal"
+              },
+              {
+                "problem_idx": 879,
+                "repeat": 0,
+                "error": "refusal"
+              },
+              {
+                "problem_idx": 502,
+                "repeat": 0,
+                "error": "refusal"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "n_results": 100
+}

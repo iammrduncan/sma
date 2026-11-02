@@ -16,7 +16,7 @@
     "-e",
     "HF_HOME=/hf-home",
     "-v",
-    "/home/<host>/github/sma/runs/LiquidAI_LFM3-1.7B/sglang/bf16/20261030T045832Z-157bb315/quality/bfcl_v3/attempt-1:/results",
+    "/home/<host>/github/sma/runs/LiquidAI_LFM3-1.7B/sglang/bf16/20261030T045832Z-157bb315/quality/bfcl_v3/attempt-2:/results",
     "-v",
     "/home/<host>/github/sma/runs/LiquidAI_LFM3-1.7B/sglang/bf16/20261030T045832Z-157bb315/quality/bfcl_v3/run_config.yaml:/config/run_config.yaml:ro",
     "-v",

@@ -1,7 +1,39 @@
 {
-  "error": "nel is not on PATH. Install the quality extra (`uv sync --extra quality`) or set quality.executable.",
-  "primary_metric": null,
-  "primary_score": null,
-  "scorer": "not run",
+  "answers_cut_off": 0,
+  "bench": "gpqa",
+  "bundle": "attempt-1/gpqa/eval-20261030T122349Z-gpqa.json",
+  "categories": {
+    "Biology": {
+      "mean_reward": 0.4211,
+      "n": 19
+    },
+    "Chemistry": {
+      "mean_reward": 0.5484,
+      "n": 93
+    },
+    "Physics": {
+      "mean_reward": 0.7907,
+      "n": 86
+    }
+  },
+  "ci_lower": 0.5707,
+  "ci_upper": 0.7071,
+  "concurrency": 8,
+  "context_per_stream": 262144,
+  "dataset_size": 198,
+  "error": null,
+  "failures": 2,
+  "limit": null,
+  "measures": null,
+  "n": 198,
+  "pass_at_1_failures_as_wrong": null,
+  "primary_metric": "pass@1",
+  "primary_score": 0.6414,
+  "repeats": 1,
+  "scorer": "nemo-evaluator 0.3.0",
+  "scorer_shares": {
+    "correct": 0.6414141414141414
+  },
+  "shuffle_seed": 0,
   "suite": "gpqa_diamond"
 }

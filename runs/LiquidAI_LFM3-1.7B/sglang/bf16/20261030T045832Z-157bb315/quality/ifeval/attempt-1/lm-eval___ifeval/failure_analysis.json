@@ -1,0 +1,39 @@
+{
+  "total_steps": 541,
+  "total_failures": 8,
+  "failure_rate": 0.0148,
+  "categories": {
+    "refusal": {
+      "count": 7,
+      "percentage": 0.0129,
+      "exemplars": [
+        {
+          "problem_idx": 169,
+          "repeat": 0,
+          "error": "refusal"
+        },
+        {
+          "problem_idx": 5,
+          "repeat": 0,
+          "error": "refusal"
+        },
+        {
+          "problem_idx": 396,
+          "repeat": 0,
+          "error": "refusal"
+        }
+      ]
+    },
+    "empty_response": {
+      "count": 1,
+      "percentage": 0.0018,
+      "exemplars": [
+        {
+          "problem_idx": 370,
+          "repeat": 0,
+          "error": "empty_response"
+        }
+      ]
+    }
+  }
+}

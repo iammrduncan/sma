@@ -1,0 +1,8 @@
+{
+  "completed_benchmarks": {
+    "musique.py": {
+      "bundle_path": "attempt-1/sma_musique"
+    }
+  },
+  "failed_benchmarks": {}
+}

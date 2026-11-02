@@ -1,0 +1,919 @@
+Loaded 105 problems
+Files: /results/cache/LiquidAI_LFM3-1.7B_Scenario.codegeneration_release_v6_1_.json, /results/LiquidAI_LFM3-1.7B_Scenario.codegeneration_release_v6_1__eval_all.json do not exist, starting from scratch
+
+  0% 0/1 [00:00<?, ?it/s]
+100% 1/1 [3:42:01<00:00, 13321.48s/it]
+100% 1/1 [3:42:01<00:00, 13321.48s/it]
+Evaluating 105...
+
+  0% 0/105 [00:00<?, ?it/s]
+  3% 3/105 [00:00<00:04, 20.98it/s]
+  6% 6/105 [00:02<00:42,  2.35it/s]
+  8% 8/105 [00:02<00:34,  2.82it/s]
+  9% 9/105 [00:07<02:00,  1.25s/it]
+ 10% 11/105 [00:07<01:17,  1.21it/s]
+ 13% 14/105 [00:10<01:25,  1.07it/s]
+ 14% 15/105 [00:29<06:00,  4.01s/it]
+ 16% 17/105 [00:29<03:58,  2.71s/it]
+ 17% 18/105 [05:20<1:23:57, 57.90s/it]
+ 19% 20/105 [06:09<1:05:22, 46.15s/it]
+ 21% 22/105 [06:12<42:59, 31.08s/it]  
+ 23% 24/105 [06:12<28:24, 21.04s/it]
+ 24% 25/105 [06:13<23:00, 17.25s/it]
+ 25% 26/105 [06:13<17:59, 13.66s/it]
+ 27% 28/105 [06:14<11:00,  8.58s/it]
+ 29% 30/105 [06:21<08:29,  6.79s/it]
+ 30% 31/105 [06:21<06:44,  5.47s/it]
+ 30% 32/105 [06:21<05:12,  4.28s/it]
+ 33% 35/105 [06:21<02:35,  2.22s/it]
+ 35% 37/105 [06:21<01:44,  1.54s/it]
+ 37% 39/105 [06:21<01:10,  1.07s/it]
+ 39% 41/105 [06:21<00:48,  1.31it/s]
+ 41% 43/105 [06:22<00:34,  1.81it/s]
+ 42% 44/105 [06:38<00:33,  1.81it/s]
+ 43% 45/105 [09:32<29:23, 29.39s/it]
+ 45% 47/105 [09:33<19:50, 20.53s/it]
+ 47% 49/105 [09:33<13:23, 14.36s/it]
+ 49% 51/105 [09:33<09:02, 10.05s/it]
+ 50% 53/105 [09:33<06:06,  7.05s/it]
+ 52% 55/105 [09:33<04:07,  4.95s/it]
+ 54% 57/105 [09:34<02:48,  3.51s/it]
+ 56% 59/105 [09:34<01:55,  2.52s/it]
+ 58% 61/105 [09:34<01:18,  1.79s/it]
+ 60% 63/105 [09:36<01:04,  1.53s/it]
+ 61% 64/105 [09:36<00:53,  1.29s/it]
+ 63% 66/105 [17:37<52:59, 81.52s/it]
+ 65% 68/105 [17:37<34:00, 55.14s/it]
+ 67% 70/105 [17:38<22:00, 37.74s/it]
+ 69% 72/105 [17:38<14:18, 26.01s/it]
+ 70% 74/105 [17:38<09:18, 18.03s/it]
+ 72% 76/105 [17:38<06:03, 12.54s/it]
+ 74% 78/105 [17:38<03:56,  8.75s/it]
+ 76% 80/105 [17:38<02:32,  6.12s/it]
+ 78% 82/105 [17:38<01:38,  4.29s/it]
+ 81% 85/105 [17:39<00:52,  2.62s/it]
+ 84% 88/105 [17:39<00:28,  1.69s/it]
+ 86% 90/105 [17:58<00:25,  1.69s/it]
+ 87% 91/105 [1:41:27<2:12:55, 569.70s/it]
+ 89% 93/105 [1:41:27<1:26:07, 430.59s/it]
+ 90% 95/105 [1:41:27<53:12, 319.24s/it]  
+ 92% 97/105 [1:41:27<31:05, 233.14s/it]
+ 95% 100/105 [1:41:27<12:18, 147.75s/it]
+ 96% 101/105 [1:41:38<09:50, 147.75s/it]timeout occured: alarm went off
+
+ 97% 102/105 [4:00:10<59:17, 1185.95s/it]timeout occured: alarm went off
+
+ 98% 103/105 [4:00:29<33:27, 1003.95s/it]
+ 99% 104/105 [4:09:36<15:20, 920.72s/it] 
+100% 105/105 [4:17:41<00:00, 830.58s/it]
+100% 105/105 [4:17:41<00:00, 147.25s/it]
+metrics: {'pass@1': np.float64(0.580952380952381), 'pass@1_stderr': 0.04838216375282526}
+Saved evaluation metrics to /results/LiquidAI_LFM3-1.7B_Scenario.codegeneration_release_v6_1__eval.json
+Saved detailed evaluation results to /results/LiquidAI_LFM3-1.7B_Scenario.codegeneration_release_v6_1__eval_all.json
+
+[I 2026-10-31T03:05:37.650] Centralized logging configured (console only) console_level=INFO log_dir=none (NEMO_EVALUATOR_LOG_DIR not set) logger=nemo_evaluator.logging.utils
+[I 2026-10-31T03:05:37.668] Total harness packages discovered: 1 logger=nemo_evaluator.core.input
+[I 2026-10-31T03:05:37.675] Total harness packages discovered: 1 logger=nemo_evaluator.core.input
+[I 2026-10-31T03:05:37.683] User-invoked config: 
+command: "{% if target.api_endpoint.api_key_name is not none %}\n  export API_KEY=${{target.api_endpoint.api_key_name}}\
+  \ && \n{% endif %} livecodebench --model {{target.api_endpoint.model_id}} \\\n \
+  \           --scenario {{config.params.task}} \\\n            --release_version\
+  \ {{config.params.extra.release_version}} \\\n            --url {{target.api_endpoint.url}}\
+  \ \\\n            --temperature {{config.params.temperature}} \\\n            --top_p\
+  \ {{config.params.top_p}} \\\n            --evaluate \\\n            --codegen_n\
+  \ {{config.params.extra.n_samples}} \\\n            --use_cache \\\n           \
+  \ --cache_batch_size {{config.params.extra.cache_batch_size}} \\\n            --num_process_evaluate\
+  \ {{config.params.extra.num_process_evaluate}} \\\n            --n {{config.params.extra.n_samples}}\
+  \ \\\n            --max_tokens {{config.params.max_new_tokens}} \\\n           \
+  \ --out_dir {{config.output_dir}} \\\n            --multiprocess {{config.params.parallelism}}\
+  \ \\\n            --max_retries {{config.params.max_retries}} \\\n            --timeout\
+  \ {{config.params.request_timeout}}{% if config.params.extra.start_date is not none\
+  \ %} --start_date {{config.params.extra.start_date}} {% endif %} {% if config.params.extra.end_date\
+  \ is not none %} --end_date {{config.params.extra.end_date}} {% endif %} {% if config.params.extra.support_system_role\
+  \ %} --support_system_role {% endif %} {% if config.params.limit_samples is not\
+  \ none %} --first_n {{config.params.limit_samples}}{% endif %}{% if config.params.extra.cot_code_execution\
+  \ == true %} --cot_code_execution {% endif %}{% if config.params.extra.args is defined\
+  \ %} {{ config.params.extra.args }} {% endif %}\n"
+config:
+  output_dir: /results
+  params:
+    extra:
+      cache_batch_size: 105
+      cot_code_execution: false
+      end_date: '2025-05-01'
+      n_samples: 1
+      num_process_evaluate: 5
+      release_version: release_v6
+      start_date: '2025-02-15'
+      support_system_role: false
+    limit_samples: null
+    max_new_tokens: 258048
+    max_retries: 5
+    parallelism: 8
+    request_timeout: 14400
+    task: codegeneration
+    temperature: 0.0
+    top_p: 1.0
+  required_capabilities: null
+  supported_endpoint_types:
+  - chat
+  type: codegeneration_release_v6
+framework_name: livecodebench
+pkg_name: livecodebench
+target:
+  api_endpoint:
+    adapter_config:
+      discovery:
+        dirs: []
+        modules: []
+      endpoint_type: chat
+      interceptors:
+      - config:
+          cache_dir: /results/cache
+          max_saved_requests: 5
+          max_saved_responses: 5
+          reuse_cached_responses: true
+          save_requests: true
+          save_responses: true
+        enabled: true
+        name: caching
+      - config: {}
+        enabled: true
+        name: endpoint
+      - config:
+          cache_dir: /results/response_stats_cache
+          logging_aggregated_stats_interval: 100
+        enabled: true
+        name: response_stats
+      log_failed_requests: false
+      mode: server
+      post_eval_hooks:
+      - config:
+          html_report_size: 5
+          report_types:
+          - html
+          - json
+        enabled: true
+        name: post_eval_report
+    api_key: null
+    api_key_name: null
+    model_id: LiquidAI/LFM3-1.7B
+    stream: null
+    type: chat
+    url: http://127.0.0.1:8000/v1/chat/completions
+ logger=nemo_evaluator.core.input
+[I 2026-10-31T03:05:37.684] Total harness packages discovered: 1 logger=nemo_evaluator.core.input
+[I 2026-10-31T03:05:37.696] Total harness packages discovered: 1 logger=nemo_evaluator.core.input
+[I 2026-10-31T03:05:37.705] User-invoked config: 
+command: "{% if target.api_endpoint.api_key_name is not none %}\n  export API_KEY=${{target.api_endpoint.api_key_name}}\
+  \ && \n{% endif %} livecodebench --model {{target.api_endpoint.model_id}} \\\n \
+  \           --scenario {{config.params.task}} \\\n            --release_version\
+  \ {{config.params.extra.release_version}} \\\n            --url {{target.api_endpoint.url}}\
+  \ \\\n            --temperature {{config.params.temperature}} \\\n            --top_p\
+  \ {{config.params.top_p}} \\\n            --evaluate \\\n            --codegen_n\
+  \ {{config.params.extra.n_samples}} \\\n            --use_cache \\\n           \
+  \ --cache_batch_size {{config.params.extra.cache_batch_size}} \\\n            --num_process_evaluate\
+  \ {{config.params.extra.num_process_evaluate}} \\\n            --n {{config.params.extra.n_samples}}\
+  \ \\\n            --max_tokens {{config.params.max_new_tokens}} \\\n           \
+  \ --out_dir {{config.output_dir}} \\\n            --multiprocess {{config.params.parallelism}}\
+  \ \\\n            --max_retries {{config.params.max_retries}} \\\n            --timeout\
+  \ {{config.params.request_timeout}}{% if config.params.extra.start_date is not none\
+  \ %} --start_date {{config.params.extra.start_date}} {% endif %} {% if config.params.extra.end_date\
+  \ is not none %} --end_date {{config.params.extra.end_date}} {% endif %} {% if config.params.extra.support_system_role\
+  \ %} --support_system_role {% endif %} {% if config.params.limit_samples is not\
+  \ none %} --first_n {{config.params.limit_samples}}{% endif %}{% if config.params.extra.cot_code_execution\
+  \ == true %} --cot_code_execution {% endif %}{% if config.params.extra.args is defined\
+  \ %} {{ config.params.extra.args }} {% endif %}\n"
+config:
+  output_dir: /results
+  params:
+    extra:
+      cache_batch_size: 105
+      cot_code_execution: false
+      end_date: '2025-05-01'
+      n_samples: 1
+      num_process_evaluate: 5
+      release_version: release_v6
+      start_date: '2025-02-15'
+      support_system_role: false
+    limit_samples: null
+    max_new_tokens: 258048
+    max_retries: 5
+    parallelism: 8
+    request_timeout: 14400
+    task: codegeneration
+    temperature: 0.0
+    top_p: 1.0
+  required_capabilities: null
+  supported_endpoint_types:
+  - chat
+  type: codegeneration_release_v6
+framework_name: livecodebench
+pkg_name: livecodebench
+target:
+  api_endpoint:
+    adapter_config:
+      discovery:
+        dirs: []
+        modules: []
+      endpoint_type: chat
+      interceptors:
+      - config:
+          cache_dir: /results/cache
+          max_saved_requests: 5
+          max_saved_responses: 5
+          reuse_cached_responses: true
+          save_requests: true
+          save_responses: true
+        enabled: true
+        name: caching
+      - config: {}
+        enabled: true
+        name: endpoint
+      - config:
+          cache_dir: /results/response_stats_cache
+          logging_aggregated_stats_interval: 100
+        enabled: true
+        name: response_stats
+      log_failed_requests: false
+      mode: server
+      post_eval_hooks:
+      - config:
+          html_report_size: 5
+          report_types:
+          - html
+          - json
+        enabled: true
+        name: post_eval_report
+    api_key: null
+    api_key_name: null
+    model_id: LiquidAI/LFM3-1.7B
+    stream: null
+    type: chat
+    url: http://127.0.0.1:8000/v1/chat/completions
+ logger=nemo_evaluator.core.input
+[I 2026-10-31T03:05:37.706] Using caching interceptor cache_dir: /results/cache logger=nemo_evaluator.core.evaluate
+[I 2026-10-31T03:05:37.849] Centralized logging configured (console only) console_level=INFO log_dir=none (NEMO_EVALUATOR_LOG_DIR not set) logger=nemo_evaluator.logging.utils
+[I 2026-10-31T03:05:37.865] Centralized logging configured (console only) console_level=INFO log_dir=none (NEMO_EVALUATOR_LOG_DIR not set) logger=nemo_evaluator.logging.utils
+[I 2026-10-31T03:05:37.865] File logging setup completed (uses NEMO_EVALUATOR_LOG_DIR environment variable if set) logger=nemo_evaluator.adapters.server
+[I 2026-10-31T03:05:37.866] Successfully imported module: nemo_evaluator.adapters.interceptors logger=nemo_evaluator.adapters.registry
+[I 2026-10-31T03:05:37.867] Successfully imported module: nemo_evaluator.adapters.reports logger=nemo_evaluator.adapters.registry
+[I 2026-10-31T03:05:37.957] Caching interceptor initialized cache_dir=/results/cache reuse_cached_responses=True save_requests=True save_responses=True max_saved_requests=5 max_saved_responses=None logger=CachingInterceptor
+[I 2026-10-31T03:05:37.957] Endpoint interceptor initialized logger=EndpointInterceptor
+[I 2026-10-31T03:05:37.989] No cached interceptor state found logger=ResponseStatsInterceptor
+[I 2026-10-31T03:05:37.993] Response stats interceptor initialized collect_token_stats=True collect_finish_reasons=True collect_tool_calls=True stats_file_saving_interval=100 save_individuals=True cache_dir=/results/response_stats_cache logging_aggregated_stats_interval=100 logger=ResponseStatsInterceptor
+[I 2026-10-31T03:05:37.993] Built interceptor chain interceptors=['CachingInterceptor', 'EndpointInterceptor', 'ResponseStatsInterceptor'] logger=nemo_evaluator.adapters.pipeline
+[I 2026-10-31T03:05:37.998] Built post-eval hooks hooks=['PostEvalReportHook', 'ResponseStatsInterceptor'] logger=nemo_evaluator.adapters.pipeline
+[I 2026-10-31T03:05:37.998] Using interceptors interceptors=['caching', 'endpoint', 'response_stats'] logger=nemo_evaluator.adapters.server
+[I 2026-10-31T03:05:37.998] Using post-eval hooks hooks=['post_eval_report'] logger=nemo_evaluator.adapters.server
+[I 2026-10-31T03:05:37.998] Starting adapter server with default logging logger=nemo_evaluator.adapters.server
+[I 2026-10-31T03:05:37.999] [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://localhost:3825
+[I 2026-10-31T03:05:37.999] [33mPress CTRL+C to quit[0m
+[I 2026-10-31T03:05:38.110] Adapter server started on localhost:3825 logger=nemo_evaluator.adapters.server
+[I 2026-10-31T03:05:38.113] Running command:  livecodebench --model LiquidAI/LFM3-1.7B \
+            --scenario codegeneration \
+            --release_version release_v6 \
+            --url http://localhost:3825 \
+            --temperature 0.0 \
+            --top_p 1.0 \
+            --evaluate \
+            --codegen_n 1 \
+            --use_cache \
+            --cache_batch_size 105 \
+            --num_process_evaluate 5 \
+            --n 1 \
+            --max_tokens 258048 \
+            --out_dir /results \
+            --multiprocess 8 \
+            --max_retries 5 \
+            --timeout 14400 --start_date 2025-02-15   --end_date 2025-05-01    logger=nemo_evaluator.core.utils
+[I 2026-10-31T03:05:38.114] Temporary directory created at: /tmp/tmp0cu44r7j logger=nemo_evaluator.core.utils
+[I 2026-10-31T03:05:38.114] Script file created: /tmp/tmp0cu44r7j/5632cd2523972d262090ba6b98f38dbe0ed6b185.sh logger=nemo_evaluator.core.utils
+[I 2026-10-31T03:05:38.114] Command written to script file. logger=nemo_evaluator.core.utils
+[I 2026-10-31T03:05:38.114] Subprocess started. logger=nemo_evaluator.core.utils
+[I 2026-10-31T03:05:40.470] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=ffa0d2cc-2843-41dd-900f-a7a66afcbbb2 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:05:40.528] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=d4246d80-e309-4660-aabd-e77e423f947b model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:05:40.556] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=1231246d-98cd-4974-a2c2-9213933585bf model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:05:40.560] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=e6ca96b9-8dd0-4d48-8768-3134769ae911 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:05:40.564] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=b726d628-7c67-4606-9247-d669658f28dc model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:05:40.582] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=9f45c1e4-227c-4b5d-b2a5-0bde12b40912 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:05:40.583] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=9f45c1e4-227c-4b5d-b2a5-0bde12b40912 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:05:40.583] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=b0a922c8-d9fa-4830-b740-95ca2b196ae6 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:05:40.584] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=b0a922c8-d9fa-4830-b740-95ca2b196ae6 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:05:40.588] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=79ed5ae2-06c1-402f-99c8-000cc2361af6 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:05:40.589] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=79ed5ae2-06c1-402f-99c8-000cc2361af6 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:07:02.726] Cached successful response cache_key=8f155f56... logger=CachingInterceptor request_id=9f45c1e4-227c-4b5d-b2a5-0bde12b40912 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:07:02.726] Request completed status_code=200 path= logger=root request_id=9f45c1e4-227c-4b5d-b2a5-0bde12b40912 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:07:02.727] 127.0.0.1 - - [31/Oct/2026 03:07:02] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:07:02.730] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=00ca1bc3-5973-41b0-afbc-f798fd52ae52 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:07:02.731] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=00ca1bc3-5973-41b0-afbc-f798fd52ae52 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:07:40.889] Cached successful response cache_key=981e9aa4... logger=CachingInterceptor request_id=1231246d-98cd-4974-a2c2-9213933585bf model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:07:40.889] Request completed status_code=200 path= logger=root request_id=1231246d-98cd-4974-a2c2-9213933585bf model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:07:40.889] 127.0.0.1 - - [31/Oct/2026 03:07:40] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:07:40.892] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=ec74edbc-efdc-4bc1-a234-1224b58d8a63 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:07:40.892] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=ec74edbc-efdc-4bc1-a234-1224b58d8a63 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:07:50.780] Cached successful response cache_key=b3c5b9c4... logger=CachingInterceptor request_id=d4246d80-e309-4660-aabd-e77e423f947b model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:07:50.780] Request completed status_code=200 path= logger=root request_id=d4246d80-e309-4660-aabd-e77e423f947b model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:07:50.781] 127.0.0.1 - - [31/Oct/2026 03:07:50] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:07:50.784] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=c6e5c863-3fa4-46f7-a64c-17fed703e035 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:07:50.784] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=c6e5c863-3fa4-46f7-a64c-17fed703e035 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:14:25.735] Cached successful response cache_key=327130ec... logger=CachingInterceptor request_id=b726d628-7c67-4606-9247-d669658f28dc model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:14:25.735] Request completed status_code=200 path= logger=root request_id=b726d628-7c67-4606-9247-d669658f28dc model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:14:25.735] 127.0.0.1 - - [31/Oct/2026 03:14:25] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:14:25.739] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=0a9eef32-81a0-4e0a-906f-455d69949f14 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:14:25.739] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=0a9eef32-81a0-4e0a-906f-455d69949f14 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:14:29.291] Cached successful response cache_key=c588be93... logger=CachingInterceptor request_id=00ca1bc3-5973-41b0-afbc-f798fd52ae52 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:14:29.291] Request completed status_code=200 path= logger=root request_id=00ca1bc3-5973-41b0-afbc-f798fd52ae52 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:14:29.292] 127.0.0.1 - - [31/Oct/2026 03:14:29] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:14:29.295] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=515ef094-6cf2-4885-a05e-58762886d08b model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:14:29.296] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=515ef094-6cf2-4885-a05e-58762886d08b model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:15:37.724] Cached successful response cache_key=5b573b4b... logger=CachingInterceptor request_id=ec74edbc-efdc-4bc1-a234-1224b58d8a63 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:15:37.724] Request completed status_code=200 path= logger=root request_id=ec74edbc-efdc-4bc1-a234-1224b58d8a63 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:15:37.724] 127.0.0.1 - - [31/Oct/2026 03:15:37] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:15:37.727] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=56a07c1f-0610-4c3a-bb92-4533acb7f0ea model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:15:37.728] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=56a07c1f-0610-4c3a-bb92-4533acb7f0ea model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:16:46.493] Cached successful response cache_key=f3dd6c44... logger=CachingInterceptor request_id=56a07c1f-0610-4c3a-bb92-4533acb7f0ea model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:16:46.493] Request completed status_code=200 path= logger=root request_id=56a07c1f-0610-4c3a-bb92-4533acb7f0ea model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:16:46.494] 127.0.0.1 - - [31/Oct/2026 03:16:46] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:16:46.496] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=b9615d05-0abf-41a3-882a-dc55fec81f1b model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:16:46.497] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=b9615d05-0abf-41a3-882a-dc55fec81f1b model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:18:24.158] Cached successful response cache_key=02ef73e1... logger=CachingInterceptor request_id=79ed5ae2-06c1-402f-99c8-000cc2361af6 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:18:24.159] Request completed status_code=200 path= logger=root request_id=79ed5ae2-06c1-402f-99c8-000cc2361af6 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:18:24.159] 127.0.0.1 - - [31/Oct/2026 03:18:24] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:18:24.162] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=0e996b0c-f32b-4dbc-96cd-ba9813ddc942 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:18:24.162] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=0e996b0c-f32b-4dbc-96cd-ba9813ddc942 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:19:40.521] Cached successful response cache_key=03d32181... logger=CachingInterceptor request_id=ffa0d2cc-2843-41dd-900f-a7a66afcbbb2 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:19:40.521] Request completed status_code=200 path= logger=root request_id=ffa0d2cc-2843-41dd-900f-a7a66afcbbb2 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:19:40.522] 127.0.0.1 - - [31/Oct/2026 03:19:40] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:19:40.525] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=dc4d4ad4-fd15-437e-94ce-9368ff6bcbab model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:19:40.526] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=dc4d4ad4-fd15-437e-94ce-9368ff6bcbab model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:22:17.302] Cached successful response cache_key=f35ca2db... logger=CachingInterceptor request_id=b0a922c8-d9fa-4830-b740-95ca2b196ae6 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:22:17.302] Request completed status_code=200 path= logger=root request_id=b0a922c8-d9fa-4830-b740-95ca2b196ae6 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:22:17.303] 127.0.0.1 - - [31/Oct/2026 03:22:17] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:22:17.306] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=be58da62-b59c-48ac-86d0-224ad1e0255c model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:22:17.306] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=be58da62-b59c-48ac-86d0-224ad1e0255c model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:22:40.907] Cached successful response cache_key=23f7e9c8... logger=CachingInterceptor request_id=0a9eef32-81a0-4e0a-906f-455d69949f14 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:22:40.907] Request completed status_code=200 path= logger=root request_id=0a9eef32-81a0-4e0a-906f-455d69949f14 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:22:40.908] 127.0.0.1 - - [31/Oct/2026 03:22:40] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:22:40.910] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=ae4ddc1c-7036-4e37-9dd2-7eab13c8c473 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:22:40.911] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=ae4ddc1c-7036-4e37-9dd2-7eab13c8c473 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:24:36.091] Cached successful response cache_key=8ca5fc6a... logger=CachingInterceptor request_id=dc4d4ad4-fd15-437e-94ce-9368ff6bcbab model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:24:36.091] Request completed status_code=200 path= logger=root request_id=dc4d4ad4-fd15-437e-94ce-9368ff6bcbab model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:24:36.092] 127.0.0.1 - - [31/Oct/2026 03:24:36] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:24:36.094] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=ea5fc5ff-0e1f-4d4f-991c-1db188875ee9 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:24:36.094] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=ea5fc5ff-0e1f-4d4f-991c-1db188875ee9 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:25:13.262] Cached successful response cache_key=ff8af1c4... logger=CachingInterceptor request_id=515ef094-6cf2-4885-a05e-58762886d08b model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:25:13.262] Request completed status_code=200 path= logger=root request_id=515ef094-6cf2-4885-a05e-58762886d08b model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:25:13.262] 127.0.0.1 - - [31/Oct/2026 03:25:13] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:25:13.265] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=744a5a0d-2040-4ab7-b753-f0999c8042df model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:25:13.265] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=744a5a0d-2040-4ab7-b753-f0999c8042df model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:25:15.911] Cached successful response cache_key=d551d95a... logger=CachingInterceptor request_id=ea5fc5ff-0e1f-4d4f-991c-1db188875ee9 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:25:15.911] Request completed status_code=200 path= logger=root request_id=ea5fc5ff-0e1f-4d4f-991c-1db188875ee9 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:25:15.912] 127.0.0.1 - - [31/Oct/2026 03:25:15] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:25:15.914] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=ada2cf6f-920d-4d19-a2cf-facd3fc6f626 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:25:15.914] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=ada2cf6f-920d-4d19-a2cf-facd3fc6f626 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:25:22.705] Cached successful response cache_key=a539ef0b... logger=CachingInterceptor request_id=e6ca96b9-8dd0-4d48-8768-3134769ae911 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:25:22.705] Request completed status_code=200 path= logger=root request_id=e6ca96b9-8dd0-4d48-8768-3134769ae911 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:25:22.706] 127.0.0.1 - - [31/Oct/2026 03:25:22] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:25:22.709] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=03694aea-dbd9-4d25-8399-238b104a17a4 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:25:22.709] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=03694aea-dbd9-4d25-8399-238b104a17a4 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:37:01.059] Cached successful response cache_key=640367c3... logger=CachingInterceptor request_id=ada2cf6f-920d-4d19-a2cf-facd3fc6f626 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:37:01.059] Request completed status_code=200 path= logger=root request_id=ada2cf6f-920d-4d19-a2cf-facd3fc6f626 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:37:01.060] 127.0.0.1 - - [31/Oct/2026 03:37:01] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:37:01.064] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=9e98b299-c912-4eb3-abea-8ad27c14daf9 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:37:01.064] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=9e98b299-c912-4eb3-abea-8ad27c14daf9 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:37:38.751] Cached successful response cache_key=a3150043... logger=CachingInterceptor request_id=744a5a0d-2040-4ab7-b753-f0999c8042df model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:37:38.751] Request completed status_code=200 path= logger=root request_id=744a5a0d-2040-4ab7-b753-f0999c8042df model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:37:38.751] 127.0.0.1 - - [31/Oct/2026 03:37:38] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:37:38.754] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=12d62f77-bc6a-4c0b-bbc8-c2c97bf4ac4e model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:37:38.754] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=12d62f77-bc6a-4c0b-bbc8-c2c97bf4ac4e model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:37:59.845] Cached successful response cache_key=52b10ed3... logger=CachingInterceptor request_id=ae4ddc1c-7036-4e37-9dd2-7eab13c8c473 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:37:59.846] Request completed status_code=200 path= logger=root request_id=ae4ddc1c-7036-4e37-9dd2-7eab13c8c473 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:37:59.846] 127.0.0.1 - - [31/Oct/2026 03:37:59] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:37:59.849] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=259c259a-3955-40d2-84f3-7039dd98d972 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:37:59.849] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=259c259a-3955-40d2-84f3-7039dd98d972 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:38:57.657] Cached successful response cache_key=1648ba46... logger=CachingInterceptor request_id=b9615d05-0abf-41a3-882a-dc55fec81f1b model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:38:57.658] Request completed status_code=200 path= logger=root request_id=b9615d05-0abf-41a3-882a-dc55fec81f1b model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:38:57.658] 127.0.0.1 - - [31/Oct/2026 03:38:57] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:38:57.661] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=f3232b62-e2e6-4b18-8aa4-a5b298a26b0f model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:38:57.661] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=f3232b62-e2e6-4b18-8aa4-a5b298a26b0f model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:40:28.593] Cached successful response cache_key=d22d682a... logger=CachingInterceptor request_id=be58da62-b59c-48ac-86d0-224ad1e0255c model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:40:28.593] Request completed status_code=200 path= logger=root request_id=be58da62-b59c-48ac-86d0-224ad1e0255c model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:40:28.593] 127.0.0.1 - - [31/Oct/2026 03:40:28] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:40:28.596] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=35d2a474-8729-4c91-837a-72dcdefc6dd4 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:40:28.596] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=35d2a474-8729-4c91-837a-72dcdefc6dd4 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:42:33.955] Cached successful response cache_key=6b0a80a1... logger=CachingInterceptor request_id=12d62f77-bc6a-4c0b-bbc8-c2c97bf4ac4e model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:42:33.955] Request completed status_code=200 path= logger=root request_id=12d62f77-bc6a-4c0b-bbc8-c2c97bf4ac4e model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:42:33.956] 127.0.0.1 - - [31/Oct/2026 03:42:33] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:42:33.959] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=0a1e5ed2-00a4-4c60-a9c1-ca111f109f41 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:42:33.959] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=0a1e5ed2-00a4-4c60-a9c1-ca111f109f41 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:43:27.243] Cached successful response cache_key=42eccf7b... logger=CachingInterceptor request_id=0e996b0c-f32b-4dbc-96cd-ba9813ddc942 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:43:27.244] Request completed status_code=200 path= logger=root request_id=0e996b0c-f32b-4dbc-96cd-ba9813ddc942 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:43:27.244] 127.0.0.1 - - [31/Oct/2026 03:43:27] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:43:27.248] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=85479693-d596-4763-b26e-6b6b82028883 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:43:27.248] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=85479693-d596-4763-b26e-6b6b82028883 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:44:26.920] Cached successful response cache_key=3cb1675f... logger=CachingInterceptor request_id=f3232b62-e2e6-4b18-8aa4-a5b298a26b0f model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:44:26.920] Request completed status_code=200 path= logger=root request_id=f3232b62-e2e6-4b18-8aa4-a5b298a26b0f model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:44:26.920] 127.0.0.1 - - [31/Oct/2026 03:44:26] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:44:26.922] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=5e205112-4571-433f-af68-32026808ce96 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:44:26.923] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=5e205112-4571-433f-af68-32026808ce96 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:47:16.245] Cached successful response cache_key=b3e8350f... logger=CachingInterceptor request_id=85479693-d596-4763-b26e-6b6b82028883 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:47:16.245] Request completed status_code=200 path= logger=root request_id=85479693-d596-4763-b26e-6b6b82028883 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:47:16.245] 127.0.0.1 - - [31/Oct/2026 03:47:16] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:47:16.248] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=4becf6b6-09ff-4c71-9cea-2b2ead241c9e model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:47:16.249] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=4becf6b6-09ff-4c71-9cea-2b2ead241c9e model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:47:23.987] Cached successful response cache_key=55c5b59d... logger=CachingInterceptor request_id=259c259a-3955-40d2-84f3-7039dd98d972 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:47:23.987] Request completed status_code=200 path= logger=root request_id=259c259a-3955-40d2-84f3-7039dd98d972 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:47:23.988] 127.0.0.1 - - [31/Oct/2026 03:47:23] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:47:23.991] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=1e2e5f1a-cd99-4bbd-8e07-6ca70acc0edd model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:47:23.991] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=1e2e5f1a-cd99-4bbd-8e07-6ca70acc0edd model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:48:07.780] Cached successful response cache_key=bbaedc94... logger=CachingInterceptor request_id=03694aea-dbd9-4d25-8399-238b104a17a4 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:48:07.781] Request completed status_code=200 path= logger=root request_id=03694aea-dbd9-4d25-8399-238b104a17a4 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:48:07.781] 127.0.0.1 - - [31/Oct/2026 03:48:07] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:48:07.784] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=7ea9fb58-1ebd-4391-a4fa-2e0339372ef4 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:48:07.784] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=7ea9fb58-1ebd-4391-a4fa-2e0339372ef4 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:50:59.997] Cached successful response cache_key=7e29702a... logger=CachingInterceptor request_id=7ea9fb58-1ebd-4391-a4fa-2e0339372ef4 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:50:59.997] Request completed status_code=200 path= logger=root request_id=7ea9fb58-1ebd-4391-a4fa-2e0339372ef4 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:50:59.997] 127.0.0.1 - - [31/Oct/2026 03:50:59] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:51:00.000] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=8e017968-3477-4085-bdee-f1fb4ab3bd30 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:51:00.000] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=8e017968-3477-4085-bdee-f1fb4ab3bd30 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:52:19.453] Cached successful response cache_key=42dff398... logger=CachingInterceptor request_id=1e2e5f1a-cd99-4bbd-8e07-6ca70acc0edd model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:52:19.453] Request completed status_code=200 path= logger=root request_id=1e2e5f1a-cd99-4bbd-8e07-6ca70acc0edd model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:52:19.453] 127.0.0.1 - - [31/Oct/2026 03:52:19] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:52:19.456] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=42c1bdb8-42b8-4f38-90ea-29386b6acf07 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:52:19.456] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=42c1bdb8-42b8-4f38-90ea-29386b6acf07 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:55:25.235] Cached successful response cache_key=ecd5c07e... logger=CachingInterceptor request_id=42c1bdb8-42b8-4f38-90ea-29386b6acf07 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:55:25.235] Request completed status_code=200 path= logger=root request_id=42c1bdb8-42b8-4f38-90ea-29386b6acf07 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:55:25.236] 127.0.0.1 - - [31/Oct/2026 03:55:25] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:55:25.239] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=dd939076-b67f-4d91-af6e-3ba7f54bfbd1 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:55:25.239] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=dd939076-b67f-4d91-af6e-3ba7f54bfbd1 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:56:21.396] Cached successful response cache_key=f7b07156... logger=CachingInterceptor request_id=dd939076-b67f-4d91-af6e-3ba7f54bfbd1 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:56:21.396] Request completed status_code=200 path= logger=root request_id=dd939076-b67f-4d91-af6e-3ba7f54bfbd1 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:56:21.397] 127.0.0.1 - - [31/Oct/2026 03:56:21] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:56:21.400] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=0838d9ec-b079-4c1a-a5a7-4d734f64d1c1 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:56:21.400] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=0838d9ec-b079-4c1a-a5a7-4d734f64d1c1 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:57:06.736] Cached successful response cache_key=194304f6... logger=CachingInterceptor request_id=0838d9ec-b079-4c1a-a5a7-4d734f64d1c1 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:57:06.736] Request completed status_code=200 path= logger=root request_id=0838d9ec-b079-4c1a-a5a7-4d734f64d1c1 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:57:06.737] 127.0.0.1 - - [31/Oct/2026 03:57:06] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:57:06.740] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=317fdea3-5605-4f33-82c0-c6b368036586 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:57:06.740] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=317fdea3-5605-4f33-82c0-c6b368036586 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:58:11.609] Cached successful response cache_key=22c4addc... logger=CachingInterceptor request_id=0a1e5ed2-00a4-4c60-a9c1-ca111f109f41 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:58:11.609] Request completed status_code=200 path= logger=root request_id=0a1e5ed2-00a4-4c60-a9c1-ca111f109f41 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:58:11.610] 127.0.0.1 - - [31/Oct/2026 03:58:11] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:58:11.611] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=ccc18ad9-afbb-4ed7-8bfe-cf83e448eee0 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:58:11.612] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=ccc18ad9-afbb-4ed7-8bfe-cf83e448eee0 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:58:57.628] Cached successful response cache_key=5cda3473... logger=CachingInterceptor request_id=9e98b299-c912-4eb3-abea-8ad27c14daf9 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:58:57.628] Request completed status_code=200 path= logger=root request_id=9e98b299-c912-4eb3-abea-8ad27c14daf9 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T03:58:57.629] 127.0.0.1 - - [31/Oct/2026 03:58:57] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T03:58:57.632] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=4707f155-acc9-4e9c-b3e4-0a7692a31b4f model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T03:58:57.632] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=4707f155-acc9-4e9c-b3e4-0a7692a31b4f model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:00:20.391] Cached successful response cache_key=9f9eff30... logger=CachingInterceptor request_id=ccc18ad9-afbb-4ed7-8bfe-cf83e448eee0 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:00:20.391] Request completed status_code=200 path= logger=root request_id=ccc18ad9-afbb-4ed7-8bfe-cf83e448eee0 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:00:20.392] 127.0.0.1 - - [31/Oct/2026 04:00:20] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:00:20.395] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=76fb0dc5-7939-4e1c-8d3c-6c99f3a7e8b3 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:00:20.395] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=76fb0dc5-7939-4e1c-8d3c-6c99f3a7e8b3 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:00:34.104] Cached successful response cache_key=7431ee9d... logger=CachingInterceptor request_id=4707f155-acc9-4e9c-b3e4-0a7692a31b4f model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:00:34.104] Request completed status_code=200 path= logger=root request_id=4707f155-acc9-4e9c-b3e4-0a7692a31b4f model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:00:34.104] 127.0.0.1 - - [31/Oct/2026 04:00:34] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:00:34.107] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=55319ddc-ba0b-4dc8-993c-af6f311b4ce2 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:00:34.107] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=55319ddc-ba0b-4dc8-993c-af6f311b4ce2 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:01:26.016] Cached successful response cache_key=c8c56c5d... logger=CachingInterceptor request_id=317fdea3-5605-4f33-82c0-c6b368036586 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:01:26.016] Request completed status_code=200 path= logger=root request_id=317fdea3-5605-4f33-82c0-c6b368036586 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:01:26.016] 127.0.0.1 - - [31/Oct/2026 04:01:26] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:01:26.019] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=41cf2605-ae67-4692-a6d4-e0a256ad9c87 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:01:26.019] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=41cf2605-ae67-4692-a6d4-e0a256ad9c87 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:02:32.978] Cached successful response cache_key=e010bc38... logger=CachingInterceptor request_id=5e205112-4571-433f-af68-32026808ce96 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:02:32.979] Request completed status_code=200 path= logger=root request_id=5e205112-4571-433f-af68-32026808ce96 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:02:32.979] 127.0.0.1 - - [31/Oct/2026 04:02:32] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:02:32.982] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=c418426a-a458-4d4a-ba58-3c58174c02f9 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:02:32.982] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=c418426a-a458-4d4a-ba58-3c58174c02f9 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:02:48.796] Cached successful response cache_key=84fc888b... logger=CachingInterceptor request_id=4becf6b6-09ff-4c71-9cea-2b2ead241c9e model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:02:48.796] Request completed status_code=200 path= logger=root request_id=4becf6b6-09ff-4c71-9cea-2b2ead241c9e model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:02:48.797] 127.0.0.1 - - [31/Oct/2026 04:02:48] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:02:48.800] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=5db668a2-5402-4f92-98d8-b9486035ef14 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:02:48.800] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=5db668a2-5402-4f92-98d8-b9486035ef14 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:03:14.999] Cached successful response cache_key=06684990... logger=CachingInterceptor request_id=c418426a-a458-4d4a-ba58-3c58174c02f9 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:03:14.999] Request completed status_code=200 path= logger=root request_id=c418426a-a458-4d4a-ba58-3c58174c02f9 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:03:15.000] 127.0.0.1 - - [31/Oct/2026 04:03:15] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:03:15.003] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=aaf391c6-0cde-441c-b718-4b3bfdd13c86 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:03:15.004] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=aaf391c6-0cde-441c-b718-4b3bfdd13c86 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:04:02.055] Cached successful response cache_key=4d4ad18f... logger=CachingInterceptor request_id=5db668a2-5402-4f92-98d8-b9486035ef14 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:04:02.055] Request completed status_code=200 path= logger=root request_id=5db668a2-5402-4f92-98d8-b9486035ef14 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:04:02.055] 127.0.0.1 - - [31/Oct/2026 04:04:02] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:04:02.058] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=f97deff9-f5a9-4eac-9649-b193a84a61f2 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:04:02.058] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=f97deff9-f5a9-4eac-9649-b193a84a61f2 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:06:49.118] Cached successful response cache_key=df200743... logger=CachingInterceptor request_id=76fb0dc5-7939-4e1c-8d3c-6c99f3a7e8b3 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:06:49.118] Request completed status_code=200 path= logger=root request_id=76fb0dc5-7939-4e1c-8d3c-6c99f3a7e8b3 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:06:49.118] 127.0.0.1 - - [31/Oct/2026 04:06:49] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:06:49.121] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=3d26f392-9f6d-4f88-afaf-006efaabefd0 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:06:49.121] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=3d26f392-9f6d-4f88-afaf-006efaabefd0 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:07:43.352] Cached successful response cache_key=1c79a74e... logger=CachingInterceptor request_id=8e017968-3477-4085-bdee-f1fb4ab3bd30 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:07:43.352] Request completed status_code=200 path= logger=root request_id=8e017968-3477-4085-bdee-f1fb4ab3bd30 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:07:43.352] 127.0.0.1 - - [31/Oct/2026 04:07:43] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:07:43.355] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=a174ea5b-d585-4434-b6af-bfb5ae5354a9 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:07:43.356] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=a174ea5b-d585-4434-b6af-bfb5ae5354a9 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:09:05.043] Cached successful response cache_key=97e66150... logger=CachingInterceptor request_id=35d2a474-8729-4c91-837a-72dcdefc6dd4 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:09:05.043] Request completed status_code=200 path= logger=root request_id=35d2a474-8729-4c91-837a-72dcdefc6dd4 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:09:05.043] 127.0.0.1 - - [31/Oct/2026 04:09:05] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:09:05.045] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=575b7a07-c6c7-4ddc-aa81-0dfeb3f89a89 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:09:05.045] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=575b7a07-c6c7-4ddc-aa81-0dfeb3f89a89 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:12:29.143] Cached successful response cache_key=6ca33616... logger=CachingInterceptor request_id=41cf2605-ae67-4692-a6d4-e0a256ad9c87 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:12:29.143] Request completed status_code=200 path= logger=root request_id=41cf2605-ae67-4692-a6d4-e0a256ad9c87 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:12:29.143] 127.0.0.1 - - [31/Oct/2026 04:12:29] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:12:29.146] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=a4f6207f-c46e-4a46-adf7-97fc5c5f9e8a model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:12:29.147] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=a4f6207f-c46e-4a46-adf7-97fc5c5f9e8a model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:13:24.003] Cached successful response cache_key=1e6c180c... logger=CachingInterceptor request_id=a4f6207f-c46e-4a46-adf7-97fc5c5f9e8a model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:13:24.004] Request completed status_code=200 path= logger=root request_id=a4f6207f-c46e-4a46-adf7-97fc5c5f9e8a model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:13:24.004] 127.0.0.1 - - [31/Oct/2026 04:13:24] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:13:24.007] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=a6258b7c-75b2-464c-8f41-6a2a813cb64a model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:13:24.007] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=a6258b7c-75b2-464c-8f41-6a2a813cb64a model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:16:00.871] Cached successful response cache_key=883f9d73... logger=CachingInterceptor request_id=f97deff9-f5a9-4eac-9649-b193a84a61f2 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:16:00.871] Request completed status_code=200 path= logger=root request_id=f97deff9-f5a9-4eac-9649-b193a84a61f2 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:16:00.872] 127.0.0.1 - - [31/Oct/2026 04:16:00] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:16:00.874] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=aa20aa10-d007-4cfe-9c3a-04d8d77f20cd model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:16:00.874] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=aa20aa10-d007-4cfe-9c3a-04d8d77f20cd model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:19:50.164] Cached successful response cache_key=d345569f... logger=CachingInterceptor request_id=aa20aa10-d007-4cfe-9c3a-04d8d77f20cd model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:19:50.164] Request completed status_code=200 path= logger=root request_id=aa20aa10-d007-4cfe-9c3a-04d8d77f20cd model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:19:50.164] 127.0.0.1 - - [31/Oct/2026 04:19:50] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:19:50.167] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=af1b7f16-5f4a-473f-a639-a2bb6d556ced model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:19:50.167] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=af1b7f16-5f4a-473f-a639-a2bb6d556ced model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:20:19.685] Cached successful response cache_key=3f507f80... logger=CachingInterceptor request_id=55319ddc-ba0b-4dc8-993c-af6f311b4ce2 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:20:19.685] Request completed status_code=200 path= logger=root request_id=55319ddc-ba0b-4dc8-993c-af6f311b4ce2 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:20:19.685] 127.0.0.1 - - [31/Oct/2026 04:20:19] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:20:19.689] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=ed3ad74b-a0cd-4e86-a417-6544623a813a model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:20:19.689] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=ed3ad74b-a0cd-4e86-a417-6544623a813a model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:22:43.050] Cached successful response cache_key=f3609e59... logger=CachingInterceptor request_id=a6258b7c-75b2-464c-8f41-6a2a813cb64a model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:22:43.050] Request completed status_code=200 path= logger=root request_id=a6258b7c-75b2-464c-8f41-6a2a813cb64a model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:22:43.050] 127.0.0.1 - - [31/Oct/2026 04:22:43] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:22:43.053] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=c2ad04a7-c71e-472a-87ff-a97c05e3341c model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:22:43.053] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=c2ad04a7-c71e-472a-87ff-a97c05e3341c model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:23:13.222] Cached successful response cache_key=f3d75be8... logger=CachingInterceptor request_id=3d26f392-9f6d-4f88-afaf-006efaabefd0 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:23:13.223] Request completed status_code=200 path= logger=root request_id=3d26f392-9f6d-4f88-afaf-006efaabefd0 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:23:13.223] 127.0.0.1 - - [31/Oct/2026 04:23:13] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:23:13.227] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=da49d0b5-2eeb-4d4d-8991-42353417a398 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:23:13.227] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=da49d0b5-2eeb-4d4d-8991-42353417a398 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:23:52.797] Cached successful response cache_key=08f81fc8... logger=CachingInterceptor request_id=c2ad04a7-c71e-472a-87ff-a97c05e3341c model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:23:52.797] Request completed status_code=200 path= logger=root request_id=c2ad04a7-c71e-472a-87ff-a97c05e3341c model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:23:52.798] 127.0.0.1 - - [31/Oct/2026 04:23:52] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:23:52.801] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=31a5a071-f7fd-4af8-92f1-b45c640833d3 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:23:52.801] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=31a5a071-f7fd-4af8-92f1-b45c640833d3 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:24:11.079] Cached successful response cache_key=1ef5b81e... logger=CachingInterceptor request_id=aaf391c6-0cde-441c-b718-4b3bfdd13c86 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:24:11.079] Request completed status_code=200 path= logger=root request_id=aaf391c6-0cde-441c-b718-4b3bfdd13c86 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:24:11.079] 127.0.0.1 - - [31/Oct/2026 04:24:11] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:24:11.082] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=eeab8c66-39f3-4566-bd5a-9553617cbd1d model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:24:11.082] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=eeab8c66-39f3-4566-bd5a-9553617cbd1d model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:25:46.929] Cached successful response cache_key=3969d8e0... logger=CachingInterceptor request_id=da49d0b5-2eeb-4d4d-8991-42353417a398 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:25:46.929] Request completed status_code=200 path= logger=root request_id=da49d0b5-2eeb-4d4d-8991-42353417a398 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:25:46.929] 127.0.0.1 - - [31/Oct/2026 04:25:46] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:25:46.933] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=d95e4266-bbee-4ec6-9eb3-30f64008c41f model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:25:46.933] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=d95e4266-bbee-4ec6-9eb3-30f64008c41f model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:31:19.845] Cached successful response cache_key=bd93a1e7... logger=CachingInterceptor request_id=eeab8c66-39f3-4566-bd5a-9553617cbd1d model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:31:19.845] Request completed status_code=200 path= logger=root request_id=eeab8c66-39f3-4566-bd5a-9553617cbd1d model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:31:19.845] 127.0.0.1 - - [31/Oct/2026 04:31:19] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:31:19.848] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=c5edd468-e33a-4c75-8f73-cecaa870801c model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:31:19.848] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=c5edd468-e33a-4c75-8f73-cecaa870801c model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:32:28.970] Cached successful response cache_key=343ff905... logger=CachingInterceptor request_id=a174ea5b-d585-4434-b6af-bfb5ae5354a9 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:32:28.970] Request completed status_code=200 path= logger=root request_id=a174ea5b-d585-4434-b6af-bfb5ae5354a9 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:32:28.971] 127.0.0.1 - - [31/Oct/2026 04:32:28] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:32:28.974] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=f7d48336-0563-4e87-9b03-d5331a652cdd model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:32:28.974] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=f7d48336-0563-4e87-9b03-d5331a652cdd model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:33:29.465] Cached successful response cache_key=f107759f... logger=CachingInterceptor request_id=af1b7f16-5f4a-473f-a639-a2bb6d556ced model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:33:29.465] Request completed status_code=200 path= logger=root request_id=af1b7f16-5f4a-473f-a639-a2bb6d556ced model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:33:29.465] 127.0.0.1 - - [31/Oct/2026 04:33:29] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:33:29.468] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=b428f457-3945-4e96-a643-8d77dc54c53d model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:33:29.468] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=b428f457-3945-4e96-a643-8d77dc54c53d model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:33:50.226] Cached successful response cache_key=c2a7160b... logger=CachingInterceptor request_id=31a5a071-f7fd-4af8-92f1-b45c640833d3 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:33:50.226] Request completed status_code=200 path= logger=root request_id=31a5a071-f7fd-4af8-92f1-b45c640833d3 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:33:50.226] 127.0.0.1 - - [31/Oct/2026 04:33:50] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:33:50.229] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=16443cb1-d293-4a3c-9f5c-0fd97404eb85 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:33:50.229] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=16443cb1-d293-4a3c-9f5c-0fd97404eb85 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:34:25.094] Cached successful response cache_key=40707515... logger=CachingInterceptor request_id=b428f457-3945-4e96-a643-8d77dc54c53d model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:34:25.094] Request completed status_code=200 path= logger=root request_id=b428f457-3945-4e96-a643-8d77dc54c53d model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:34:25.094] 127.0.0.1 - - [31/Oct/2026 04:34:25] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:34:25.096] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=07d75b77-751f-49a3-8b94-c14c0bc9aad5 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:34:25.097] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=07d75b77-751f-49a3-8b94-c14c0bc9aad5 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:42:11.025] Cached successful response cache_key=f6ea14b5... logger=CachingInterceptor request_id=07d75b77-751f-49a3-8b94-c14c0bc9aad5 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:42:11.025] Request completed status_code=200 path= logger=root request_id=07d75b77-751f-49a3-8b94-c14c0bc9aad5 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:42:11.025] 127.0.0.1 - - [31/Oct/2026 04:42:11] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:42:11.029] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=e50d7082-0759-4396-bda1-ddc291bed0dc model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:42:11.029] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=e50d7082-0759-4396-bda1-ddc291bed0dc model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:42:13.512] Cached successful response cache_key=63b525a5... logger=CachingInterceptor request_id=575b7a07-c6c7-4ddc-aa81-0dfeb3f89a89 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:42:13.512] Request completed status_code=200 path= logger=root request_id=575b7a07-c6c7-4ddc-aa81-0dfeb3f89a89 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:42:13.512] 127.0.0.1 - - [31/Oct/2026 04:42:13] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:42:13.514] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=eadbfe68-6851-4c17-9653-c7cf756668da model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:42:13.515] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=eadbfe68-6851-4c17-9653-c7cf756668da model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:42:17.363] Cached successful response cache_key=aa364843... logger=CachingInterceptor request_id=ed3ad74b-a0cd-4e86-a417-6544623a813a model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:42:17.363] Request completed status_code=200 path= logger=root request_id=ed3ad74b-a0cd-4e86-a417-6544623a813a model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:42:17.363] 127.0.0.1 - - [31/Oct/2026 04:42:17] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:42:17.367] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=c679ff66-7047-47df-938c-2c0c248e22d4 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:42:17.367] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=c679ff66-7047-47df-938c-2c0c248e22d4 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:44:57.127] Cached successful response cache_key=2a6ffc11... logger=CachingInterceptor request_id=16443cb1-d293-4a3c-9f5c-0fd97404eb85 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:44:57.127] Request completed status_code=200 path= logger=root request_id=16443cb1-d293-4a3c-9f5c-0fd97404eb85 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:44:57.127] 127.0.0.1 - - [31/Oct/2026 04:44:57] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:44:57.130] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=0dc45d7f-d9d3-4009-b3fa-55646c95411a model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:44:57.130] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=0dc45d7f-d9d3-4009-b3fa-55646c95411a model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:46:01.916] Cached successful response cache_key=1d7ecdab... logger=CachingInterceptor request_id=d95e4266-bbee-4ec6-9eb3-30f64008c41f model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:46:01.917] Request completed status_code=200 path= logger=root request_id=d95e4266-bbee-4ec6-9eb3-30f64008c41f model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:46:01.917] 127.0.0.1 - - [31/Oct/2026 04:46:01] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:46:01.919] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=18616356-3087-46c8-bc7a-d8ad38e39994 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:46:01.920] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=18616356-3087-46c8-bc7a-d8ad38e39994 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:50:04.624] Cached successful response cache_key=cac39503... logger=CachingInterceptor request_id=18616356-3087-46c8-bc7a-d8ad38e39994 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:50:04.624] Request completed status_code=200 path= logger=root request_id=18616356-3087-46c8-bc7a-d8ad38e39994 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:50:04.624] 127.0.0.1 - - [31/Oct/2026 04:50:04] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:50:04.627] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=e768e424-716e-43b1-9844-9a41c2b7ba7b model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:50:04.627] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=e768e424-716e-43b1-9844-9a41c2b7ba7b model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:51:42.330] Cached successful response cache_key=d42b66ed... logger=CachingInterceptor request_id=f7d48336-0563-4e87-9b03-d5331a652cdd model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:51:42.330] Request completed status_code=200 path= logger=root request_id=f7d48336-0563-4e87-9b03-d5331a652cdd model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:51:42.331] 127.0.0.1 - - [31/Oct/2026 04:51:42] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:51:42.333] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=2c9fee97-61f3-415c-b5c8-4db27e85349c model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:51:42.334] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=2c9fee97-61f3-415c-b5c8-4db27e85349c model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:52:46.503] Cached successful response cache_key=6c53cda4... logger=CachingInterceptor request_id=e768e424-716e-43b1-9844-9a41c2b7ba7b model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:52:46.503] Request completed status_code=200 path= logger=root request_id=e768e424-716e-43b1-9844-9a41c2b7ba7b model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:52:46.504] 127.0.0.1 - - [31/Oct/2026 04:52:46] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:52:46.507] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=e5403054-2e0e-4f46-92fa-8e43bfd53c26 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:52:46.508] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=e5403054-2e0e-4f46-92fa-8e43bfd53c26 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:55:00.934] Cached successful response cache_key=652f9f4f... logger=CachingInterceptor request_id=2c9fee97-61f3-415c-b5c8-4db27e85349c model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:55:00.934] Request completed status_code=200 path= logger=root request_id=2c9fee97-61f3-415c-b5c8-4db27e85349c model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:55:00.934] 127.0.0.1 - - [31/Oct/2026 04:55:00] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:55:00.937] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=6addbb90-7954-4eef-9d7b-1bf83095d813 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:55:00.937] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=6addbb90-7954-4eef-9d7b-1bf83095d813 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:59:23.064] Cached successful response cache_key=969f41f3... logger=CachingInterceptor request_id=e50d7082-0759-4396-bda1-ddc291bed0dc model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:59:23.065] Request completed status_code=200 path= logger=root request_id=e50d7082-0759-4396-bda1-ddc291bed0dc model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T04:59:23.065] 127.0.0.1 - - [31/Oct/2026 04:59:23] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T04:59:23.068] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=5d475eb2-f5ce-4698-87b4-f571b5fce525 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T04:59:23.068] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=5d475eb2-f5ce-4698-87b4-f571b5fce525 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:03:03.164] Cached successful response cache_key=7d8de64b... logger=CachingInterceptor request_id=c5edd468-e33a-4c75-8f73-cecaa870801c model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:03:03.164] Request completed status_code=200 path= logger=root request_id=c5edd468-e33a-4c75-8f73-cecaa870801c model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:03:03.165] 127.0.0.1 - - [31/Oct/2026 05:03:03] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T05:03:03.168] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=94dfef25-2607-4ae0-88e7-215c8aab14fb model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T05:03:03.168] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=94dfef25-2607-4ae0-88e7-215c8aab14fb model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:03:04.394] Cached successful response cache_key=34158fc8... logger=CachingInterceptor request_id=c679ff66-7047-47df-938c-2c0c248e22d4 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:03:04.394] Request completed status_code=200 path= logger=root request_id=c679ff66-7047-47df-938c-2c0c248e22d4 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:03:04.395] 127.0.0.1 - - [31/Oct/2026 05:03:04] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T05:03:04.398] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=8774c967-4884-4068-be08-5aee32323790 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T05:03:04.398] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=8774c967-4884-4068-be08-5aee32323790 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:04:24.674] Cached successful response cache_key=43189b38... logger=CachingInterceptor request_id=0dc45d7f-d9d3-4009-b3fa-55646c95411a model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:04:24.674] Request completed status_code=200 path= logger=root request_id=0dc45d7f-d9d3-4009-b3fa-55646c95411a model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:04:24.675] 127.0.0.1 - - [31/Oct/2026 05:04:24] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T05:04:24.678] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=f22d904b-e19b-4300-8e30-cf3299a9ed9c model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T05:04:24.678] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=f22d904b-e19b-4300-8e30-cf3299a9ed9c model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:05:00.128] Cached successful response cache_key=6789a081... logger=CachingInterceptor request_id=94dfef25-2607-4ae0-88e7-215c8aab14fb model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:05:00.128] Request completed status_code=200 path= logger=root request_id=94dfef25-2607-4ae0-88e7-215c8aab14fb model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:05:00.128] 127.0.0.1 - - [31/Oct/2026 05:05:00] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T05:05:00.131] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=b6ce006f-b8ef-46ee-9b37-99b31ebf678b model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T05:05:00.131] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=b6ce006f-b8ef-46ee-9b37-99b31ebf678b model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:08:18.086] Cached successful response cache_key=3c508262... logger=CachingInterceptor request_id=8774c967-4884-4068-be08-5aee32323790 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:08:18.086] Request completed status_code=200 path= logger=root request_id=8774c967-4884-4068-be08-5aee32323790 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:08:18.086] 127.0.0.1 - - [31/Oct/2026 05:08:18] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T05:08:18.088] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=0b72bc2a-a4e5-4ec5-aaaa-4f0916417310 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T05:08:18.089] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=0b72bc2a-a4e5-4ec5-aaaa-4f0916417310 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:09:13.592] Cached successful response cache_key=222c2d76... logger=CachingInterceptor request_id=f22d904b-e19b-4300-8e30-cf3299a9ed9c model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:09:13.592] Request completed status_code=200 path= logger=root request_id=f22d904b-e19b-4300-8e30-cf3299a9ed9c model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:09:13.592] 127.0.0.1 - - [31/Oct/2026 05:09:13] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T05:09:13.595] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=2a6c666f-aa0f-4509-8473-35705e95ab5d model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T05:09:13.595] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=2a6c666f-aa0f-4509-8473-35705e95ab5d model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:12:49.449] Cached successful response cache_key=3e17465e... logger=CachingInterceptor request_id=e5403054-2e0e-4f46-92fa-8e43bfd53c26 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:12:49.449] Request completed status_code=200 path= logger=root request_id=e5403054-2e0e-4f46-92fa-8e43bfd53c26 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:12:49.449] 127.0.0.1 - - [31/Oct/2026 05:12:49] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T05:12:49.451] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=cd9f6534-4076-4614-8adf-4d156f1c5adb model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T05:12:49.451] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=cd9f6534-4076-4614-8adf-4d156f1c5adb model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:13:48.628] Cached successful response cache_key=aa0c4857... logger=CachingInterceptor request_id=cd9f6534-4076-4614-8adf-4d156f1c5adb model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:13:48.628] Request completed status_code=200 path= logger=root request_id=cd9f6534-4076-4614-8adf-4d156f1c5adb model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:13:48.628] 127.0.0.1 - - [31/Oct/2026 05:13:48] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T05:13:48.631] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=4da7a437-0133-4b3e-a474-edffbae44225 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T05:13:48.631] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=4da7a437-0133-4b3e-a474-edffbae44225 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:16:46.050] Cached successful response cache_key=56953f4e... logger=CachingInterceptor request_id=eadbfe68-6851-4c17-9653-c7cf756668da model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:16:46.050] Request completed status_code=200 path= logger=root request_id=eadbfe68-6851-4c17-9653-c7cf756668da model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:16:46.050] 127.0.0.1 - - [31/Oct/2026 05:16:46] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T05:16:46.053] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=25495733-a89c-4762-a26d-1b524ff81771 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T05:16:46.053] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=25495733-a89c-4762-a26d-1b524ff81771 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:17:51.699] Cached successful response cache_key=91ec22e2... logger=CachingInterceptor request_id=4da7a437-0133-4b3e-a474-edffbae44225 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:17:51.699] Request completed status_code=200 path= logger=root request_id=4da7a437-0133-4b3e-a474-edffbae44225 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:17:51.699] 127.0.0.1 - - [31/Oct/2026 05:17:51] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T05:17:51.701] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=fd3d46b9-65a9-4651-942c-f98ab0d82a5a model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T05:17:51.701] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=fd3d46b9-65a9-4651-942c-f98ab0d82a5a model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:19:59.853] Cached successful response cache_key=ca489c37... logger=CachingInterceptor request_id=6addbb90-7954-4eef-9d7b-1bf83095d813 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:19:59.853] Request completed status_code=200 path= logger=root request_id=6addbb90-7954-4eef-9d7b-1bf83095d813 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:19:59.853] 127.0.0.1 - - [31/Oct/2026 05:19:59] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T05:19:59.857] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=97d5cdd4-ea38-45cb-8583-71c3b237d754 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T05:19:59.857] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=97d5cdd4-ea38-45cb-8583-71c3b237d754 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:28:02.540] Cached successful response cache_key=29a7e11c... logger=CachingInterceptor request_id=5d475eb2-f5ce-4698-87b4-f571b5fce525 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:28:02.540] Request completed status_code=200 path= logger=root request_id=5d475eb2-f5ce-4698-87b4-f571b5fce525 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:28:02.540] 127.0.0.1 - - [31/Oct/2026 05:28:02] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T05:28:02.543] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=2e355c97-5a79-4b46-97ea-52159ae2fad7 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T05:28:02.543] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=2e355c97-5a79-4b46-97ea-52159ae2fad7 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:28:42.142] Cached successful response cache_key=235670b7... logger=CachingInterceptor request_id=2a6c666f-aa0f-4509-8473-35705e95ab5d model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:28:42.142] Request completed status_code=200 path= logger=root request_id=2a6c666f-aa0f-4509-8473-35705e95ab5d model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:28:42.142] 127.0.0.1 - - [31/Oct/2026 05:28:42] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T05:28:42.145] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=cedb9fed-45ea-4944-a5b2-29f1d10e776f model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T05:28:42.145] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=cedb9fed-45ea-4944-a5b2-29f1d10e776f model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:30:35.181] Cached successful response cache_key=0e7dd0cb... logger=CachingInterceptor request_id=25495733-a89c-4762-a26d-1b524ff81771 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:30:35.181] Request completed status_code=200 path= logger=root request_id=25495733-a89c-4762-a26d-1b524ff81771 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:30:35.181] 127.0.0.1 - - [31/Oct/2026 05:30:35] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T05:30:35.185] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=d3919b37-e8b2-4f86-85ab-4aad1c9589ab model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T05:30:35.185] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=d3919b37-e8b2-4f86-85ab-4aad1c9589ab model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:38:02.708] Cached successful response cache_key=488ec0f2... logger=CachingInterceptor request_id=b6ce006f-b8ef-46ee-9b37-99b31ebf678b model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:38:02.709] Request completed status_code=200 path= logger=root request_id=b6ce006f-b8ef-46ee-9b37-99b31ebf678b model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:38:02.709] 127.0.0.1 - - [31/Oct/2026 05:38:02] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T05:38:02.712] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=9f49ab93-c1d6-4276-be6c-82955c6f41c2 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T05:38:02.712] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=9f49ab93-c1d6-4276-be6c-82955c6f41c2 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:42:59.498] Cached successful response cache_key=b0617dc7... logger=CachingInterceptor request_id=fd3d46b9-65a9-4651-942c-f98ab0d82a5a model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:42:59.498] Request completed status_code=200 path= logger=root request_id=fd3d46b9-65a9-4651-942c-f98ab0d82a5a model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:42:59.498] 127.0.0.1 - - [31/Oct/2026 05:42:59] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T05:42:59.501] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=0438a194-04ee-4be6-9b64-5daa50a1baf3 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T05:42:59.502] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=0438a194-04ee-4be6-9b64-5daa50a1baf3 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:44:59.717] Cached successful response cache_key=b3962b1e... logger=CachingInterceptor request_id=97d5cdd4-ea38-45cb-8583-71c3b237d754 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:44:59.717] Request completed status_code=200 path= logger=root request_id=97d5cdd4-ea38-45cb-8583-71c3b237d754 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:44:59.718] 127.0.0.1 - - [31/Oct/2026 05:44:59] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T05:44:59.720] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=85088f64-ca04-490b-988f-caab847cd4fd model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T05:44:59.720] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=85088f64-ca04-490b-988f-caab847cd4fd model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:50:47.538] Cached successful response cache_key=c4949dab... logger=CachingInterceptor request_id=0b72bc2a-a4e5-4ec5-aaaa-4f0916417310 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:50:47.538] Request completed status_code=200 path= logger=root request_id=0b72bc2a-a4e5-4ec5-aaaa-4f0916417310 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:50:47.539] 127.0.0.1 - - [31/Oct/2026 05:50:47] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T05:50:47.542] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=2b7fd5d9-9413-4c41-b208-02a058db90bc model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T05:50:47.543] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=2b7fd5d9-9413-4c41-b208-02a058db90bc model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:54:26.432] Cached successful response cache_key=31257fdb... logger=CachingInterceptor request_id=2e355c97-5a79-4b46-97ea-52159ae2fad7 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:54:26.432] Request completed status_code=200 path= logger=root request_id=2e355c97-5a79-4b46-97ea-52159ae2fad7 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:54:26.433] 127.0.0.1 - - [31/Oct/2026 05:54:26] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T05:54:26.436] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=c3e7d523-75f2-4866-aa17-1ea6bf22aad0 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T05:54:26.437] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=c3e7d523-75f2-4866-aa17-1ea6bf22aad0 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:56:48.947] Cached successful response cache_key=4b61d16b... logger=CachingInterceptor request_id=cedb9fed-45ea-4944-a5b2-29f1d10e776f model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:56:48.948] Request completed status_code=200 path= logger=root request_id=cedb9fed-45ea-4944-a5b2-29f1d10e776f model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T05:56:48.948] 127.0.0.1 - - [31/Oct/2026 05:56:48] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T05:56:48.951] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=7bef6f75-3ec7-4e6d-86af-6c572c3d1fb7 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T05:56:48.951] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=7bef6f75-3ec7-4e6d-86af-6c572c3d1fb7 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:11:39.033] Cached successful response cache_key=8318a158... logger=CachingInterceptor request_id=d3919b37-e8b2-4f86-85ab-4aad1c9589ab model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:11:39.033] Request completed status_code=200 path= logger=root request_id=d3919b37-e8b2-4f86-85ab-4aad1c9589ab model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:11:39.033] 127.0.0.1 - - [31/Oct/2026 06:11:39] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T06:11:39.035] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=767a513d-060b-47b5-883b-7bb05daf8633 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T06:11:39.035] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=767a513d-060b-47b5-883b-7bb05daf8633 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:11:53.625] Cached successful response cache_key=3c7635af... logger=CachingInterceptor request_id=2b7fd5d9-9413-4c41-b208-02a058db90bc model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:11:53.625] Request completed status_code=200 path= logger=root request_id=2b7fd5d9-9413-4c41-b208-02a058db90bc model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:11:53.625] 127.0.0.1 - - [31/Oct/2026 06:11:53] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T06:11:53.628] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=998d3d95-9b8a-43e1-9faf-8774c0c44036 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T06:11:53.628] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=998d3d95-9b8a-43e1-9faf-8774c0c44036 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:17:13.247] Cached successful response cache_key=86d3f701... logger=CachingInterceptor request_id=c6e5c863-3fa4-46f7-a64c-17fed703e035 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:17:13.247] Request completed status_code=200 path= logger=root request_id=c6e5c863-3fa4-46f7-a64c-17fed703e035 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:17:13.248] 127.0.0.1 - - [31/Oct/2026 06:17:13] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T06:17:13.252] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=366e8cdd-3c74-48cf-91cb-c8fce65a797a model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T06:17:13.253] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=366e8cdd-3c74-48cf-91cb-c8fce65a797a model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:20:12.895] Cached successful response cache_key=01d33df1... logger=CachingInterceptor request_id=85088f64-ca04-490b-988f-caab847cd4fd model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:20:12.895] Request completed status_code=200 path= logger=root request_id=85088f64-ca04-490b-988f-caab847cd4fd model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:20:12.896] 127.0.0.1 - - [31/Oct/2026 06:20:12] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T06:20:12.899] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=2b25c313-c4e8-4bd1-b8bc-77944c481f0f model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T06:20:12.899] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=2b25c313-c4e8-4bd1-b8bc-77944c481f0f model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:23:23.902] Cached successful response cache_key=870ed1fc... logger=CachingInterceptor request_id=0438a194-04ee-4be6-9b64-5daa50a1baf3 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:23:23.902] Request completed status_code=200 path= logger=root request_id=0438a194-04ee-4be6-9b64-5daa50a1baf3 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:23:23.902] 127.0.0.1 - - [31/Oct/2026 06:23:23] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T06:23:23.906] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=4a83e04b-b003-4032-a4fa-01860023900c model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T06:23:23.906] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=4a83e04b-b003-4032-a4fa-01860023900c model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:23:44.030] Cached successful response cache_key=c5ea1677... logger=CachingInterceptor request_id=c3e7d523-75f2-4866-aa17-1ea6bf22aad0 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:23:44.030] Request completed status_code=200 path= logger=root request_id=c3e7d523-75f2-4866-aa17-1ea6bf22aad0 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:23:44.030] 127.0.0.1 - - [31/Oct/2026 06:23:44] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T06:23:44.035] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=2943e304-ae3b-4e06-b242-ac5b43d1f06a model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T06:23:44.035] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=2943e304-ae3b-4e06-b242-ac5b43d1f06a model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:24:08.536] Cached successful response cache_key=01019d44... logger=CachingInterceptor request_id=9f49ab93-c1d6-4276-be6c-82955c6f41c2 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:24:08.536] Request completed status_code=200 path= logger=root request_id=9f49ab93-c1d6-4276-be6c-82955c6f41c2 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:24:08.536] 127.0.0.1 - - [31/Oct/2026 06:24:08] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T06:24:08.540] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=aaaba59c-006f-4083-92c5-15b5ff687268 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T06:24:08.540] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=aaaba59c-006f-4083-92c5-15b5ff687268 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:26:43.469] Cached successful response cache_key=1e50fcd0... logger=CachingInterceptor request_id=7bef6f75-3ec7-4e6d-86af-6c572c3d1fb7 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:26:43.470] Request completed status_code=200 path= logger=root request_id=7bef6f75-3ec7-4e6d-86af-6c572c3d1fb7 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:26:43.470] 127.0.0.1 - - [31/Oct/2026 06:26:43] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T06:26:43.473] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=0ce5ea67-2943-4d92-9e1b-2367d7864351 model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T06:26:43.473] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=0ce5ea67-2943-4d92-9e1b-2367d7864351 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:27:35.977] Cached successful response cache_key=8a422e0f... logger=CachingInterceptor request_id=767a513d-060b-47b5-883b-7bb05daf8633 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:27:35.977] Request completed status_code=200 path= logger=root request_id=767a513d-060b-47b5-883b-7bb05daf8633 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:27:35.977] 127.0.0.1 - - [31/Oct/2026 06:27:35] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T06:27:35.980] Request started path= method=POST url=http://127.0.0.1:8000/v1/chat/completions logger=root request_id=4fb9dd37-e619-430f-ba37-f01d5dfc446d model_name=LiquidAI/LFM3-1.7B
+[W 2026-10-31T06:27:35.980] Maximum cached requests limit reached max_saved_requests=5 logger=CachingInterceptor request_id=4fb9dd37-e619-430f-ba37-f01d5dfc446d model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:32:49.127] Cached successful response cache_key=d91a5a4a... logger=CachingInterceptor request_id=366e8cdd-3c74-48cf-91cb-c8fce65a797a model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:32:49.127] Request completed status_code=200 path= logger=root request_id=366e8cdd-3c74-48cf-91cb-c8fce65a797a model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:32:49.128] 127.0.0.1 - - [31/Oct/2026 06:32:49] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T06:40:01.530] Cached successful response cache_key=aed2e53f... logger=CachingInterceptor request_id=2943e304-ae3b-4e06-b242-ac5b43d1f06a model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:40:01.531] Request completed status_code=200 path= logger=root request_id=2943e304-ae3b-4e06-b242-ac5b43d1f06a model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:40:01.531] 127.0.0.1 - - [31/Oct/2026 06:40:01] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T06:40:08.332]  avg_prompt_tokens=537.01 avg_total_tokens=23680.38 avg_completion_tokens=23143.44 avg_latency_ms=977786.36 max_prompt_tokens=1326 max_total_tokens=258508 max_completion_tokens=258048 max_latency_ms=11362459.12 count=100 successful_count=100 tool_calls_count=0 function_calls_count=0 finish_reason={'stop': 99, 'length': 1} stop_reason={} status_codes={200: 100} inference_time=12867.747985839844 run_id=0 last_request_time=1793428808.3326404 inference_run_times={0: {'run_start': 1793415937.957517, 'first_request_time': 1793415940.5846546, 'last_request_time': 1793428808.3326404, 'inference_time': 12867.747985839844}} logger=ResponseStatsInterceptor request_id=998d3d95-9b8a-43e1-9faf-8774c0c44036 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:40:08.334] Cached successful response cache_key=a1e9198d... logger=CachingInterceptor request_id=998d3d95-9b8a-43e1-9faf-8774c0c44036 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:40:08.334] Request completed status_code=200 path= logger=root request_id=998d3d95-9b8a-43e1-9faf-8774c0c44036 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:40:08.335] 127.0.0.1 - - [31/Oct/2026 06:40:08] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T06:42:49.785] Cached successful response cache_key=7206f3c7... logger=CachingInterceptor request_id=4a83e04b-b003-4032-a4fa-01860023900c model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:42:49.786] Request completed status_code=200 path= logger=root request_id=4a83e04b-b003-4032-a4fa-01860023900c model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:42:49.786] 127.0.0.1 - - [31/Oct/2026 06:42:49] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T06:44:06.931] Cached successful response cache_key=bd6ae28d... logger=CachingInterceptor request_id=4fb9dd37-e619-430f-ba37-f01d5dfc446d model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:44:06.931] Request completed status_code=200 path= logger=root request_id=4fb9dd37-e619-430f-ba37-f01d5dfc446d model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:44:06.931] 127.0.0.1 - - [31/Oct/2026 06:44:06] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T06:45:41.058] Cached successful response cache_key=4f8e7bb9... logger=CachingInterceptor request_id=aaaba59c-006f-4083-92c5-15b5ff687268 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:45:41.058] Request completed status_code=200 path= logger=root request_id=aaaba59c-006f-4083-92c5-15b5ff687268 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:45:41.058] 127.0.0.1 - - [31/Oct/2026 06:45:41] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T06:47:16.983] Cached successful response cache_key=892f888b... logger=CachingInterceptor request_id=0ce5ea67-2943-4d92-9e1b-2367d7864351 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:47:16.983] Request completed status_code=200 path= logger=root request_id=0ce5ea67-2943-4d92-9e1b-2367d7864351 model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:47:16.983] 127.0.0.1 - - [31/Oct/2026 06:47:16] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T06:47:41.228] Cached successful response cache_key=82184efa... logger=CachingInterceptor request_id=2b25c313-c4e8-4bd1-b8bc-77944c481f0f model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:47:41.228] Request completed status_code=200 path= logger=root request_id=2b25c313-c4e8-4bd1-b8bc-77944c481f0f model_name=LiquidAI/LFM3-1.7B
+[I 2026-10-31T06:47:41.228] 127.0.0.1 - - [31/Oct/2026 06:47:41] "POST / HTTP/1.1" 200 -
+[I 2026-10-31T11:05:22.930] Output reading completed. logger=nemo_evaluator.core.utils
+[I 2026-10-31T11:05:22.930] Subprocess finished with return code: 0 logger=nemo_evaluator.core.utils
+[I 2026-10-31T11:05:22.949] Generated HTML report path=/results/report.html logger=root
+[I 2026-10-31T11:05:22.951] Generated JSON report path=/results/report.json logger=root
+[I 2026-10-31T11:05:22.951] Successfully ran post-eval hook: PostEvalReportHook logger=nemo_evaluator.adapters.pipeline
+[I 2026-10-31T11:05:22.951] Writing response statistics to metrics total_responses=105 successful_responses=105 output_dir=/results logger=ResponseStatsInterceptor
+[I 2026-10-31T11:05:22.952] Successfully ran post-eval hook: ResponseStatsInterceptor logger=nemo_evaluator.adapters.pipeline
+[I 2026-10-31T11:05:22.952] Post-eval hooks execution completed logger=nemo_evaluator.adapters.pipeline
+[I 2026-10-31T11:05:22.952] 127.0.0.1 - - [31/Oct/2026 11:05:22] "POST /adapterserver/run-post-hook HTTP/1.1" 200 -
+[I 2026-10-31T11:05:22.953] Successfully ran post-evaluation hooks logger=nemo_evaluator.adapters.server
+[I 2026-10-31T11:05:22.953] Received signal 15, running post-eval hooks before shutdown logger=nemo_evaluator.adapters.server
+[W 2026-10-31T11:05:22.953] Post-eval hooks have already been executed, skipping logger=nemo_evaluator.adapters.pipeline
+[I 2026-10-31T11:05:22.953] Post-eval hooks completed successfully logger=nemo_evaluator.adapters.server
+[I 2026-10-31T11:05:22.953] Adapter server shutting down logger=nemo_evaluator.adapters.server
+[I 2026-10-31T11:05:23.137] Aggregated metrics runtime_seconds=28783.04839324951 inference_time_seconds=13320.64218711853 scoring_time_seconds=15462.406206130981 peak_memory_bytes=51548160 total_runs=1 logger=nemo_evaluator.core.evaluate
+[I 2026-10-31T11:05:23.146] command: " livecodebench --model LiquidAI/LFM3-1.7B \\\n            --scenario codegeneration\
+  \ \\\n            --release_version release_v6 \\\n            --url http://127.0.0.1:8000/v1/chat/completions\
+  \ \\\n            --temperature 0.0 \\\n            --top_p 1.0 \\\n           \
+  \ --evaluate \\\n            --codegen_n 1 \\\n            --use_cache \\\n    \
+  \        --cache_batch_size 105 \\\n            --num_process_evaluate 5 \\\n  \
+  \          --n 1 \\\n            --max_tokens 258048 \\\n            --out_dir /results\
+  \ \\\n            --multiprocess 8 \\\n            --max_retries 5 \\\n        \
+  \    --timeout 14400 --start_date 2025-02-15   --end_date 2025-05-01   "
+config:
+  output_dir: /results
+  params:
+    extra:
+      cache_batch_size: 105
+      cot_code_execution: false
+      end_date: '2025-05-01'
+      n_samples: 1
+      num_process_evaluate: 5
+      release_version: release_v6
+      start_date: '2025-02-15'
+      support_system_role: false
+    max_new_tokens: 258048
+    max_retries: 5
+    parallelism: 8
+    request_timeout: 14400
+    task: codegeneration
+    temperature: 0.0
+    top_p: 1.0
+  supported_endpoint_types:
+  - chat
+  type: codegeneration_release_v6
+git_hash: 83a6bbd46e65be5bceb13b920aa2f90dd73ec155
+results:
+  groups:
+    codegeneration:
+      metrics:
+        pass@1:
+          scores:
+            pass@1:
+              stats:
+                stderr: 0.04838216375282526
+              value: 0.580952380952381
+  tasks:
+    codegeneration:
+      metrics:
+        pass@1:
+          scores:
+            pass@1:
+              stats:
+                stderr: 0.04838216375282526
+              value: 0.580952380952381
+target:
+  api_endpoint:
+    adapter_config:
+      discovery:
+        dirs: []
+        modules: []
+      endpoint_type: chat
+      interceptors:
+      - config:
+          cache_dir: /results/cache
+          max_saved_requests: 5
+          max_saved_responses: 5
+          reuse_cached_responses: true
+          save_requests: true
+          save_responses: true
+        enabled: true
+        name: caching
+      - config: {}
+        enabled: true
+        name: endpoint
+      - config:
+          cache_dir: /results/response_stats_cache
+          logging_aggregated_stats_interval: 100
+        enabled: true
+        name: response_stats
+      log_failed_requests: false
+      mode: server
+      post_eval_hooks:
+      - config:
+          html_report_size: 5
+          report_types:
+          - html
+          - json
+        enabled: true
+        name: post_eval_report
+    model_id: LiquidAI/LFM3-1.7B
+    type: chat
+    url: http://127.0.0.1:8000/v1/chat/completions
+ logger=nemo_evaluator.core.evaluate

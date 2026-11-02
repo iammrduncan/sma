@@ -1,0 +1,34 @@
+{
+  "calibration_error": null,
+  "ci_lower": null,
+  "ci_upper": null,
+  "concurrency": 4,
+  "context_per_stream": 262144,
+  "correct": 0,
+  "error": "100 of 100 questions were asked of a server that was down (every retry failed); not measured. Rerun with `sma resume <run-id> --redo browsecomp_plus`.",
+  "evidence_recall": 0.0016666666666666666,
+  "gold_recall": 0.0,
+  "judge": "ornith-1.5-122b",
+  "judge_parse_errors": 0,
+  "judge_settings": {
+    "concurrency": 1,
+    "extra_body": {
+      "cache_prompt": false,
+      "chat_template_kwargs": {
+        "enable_thinking": false
+      }
+    },
+    "max_tokens": 4096,
+    "temperature": 0.0
+  },
+  "limit": 100,
+  "n": 100,
+  "primary_metric": "accuracy",
+  "primary_score": null,
+  "scorer": "BrowseComp-Plus 04694903 evaluate_run.py grader, judged by ornith-1.5-122b",
+  "search_calls": 1.37,
+  "statuses": {
+    "error": 100
+  },
+  "suite": "browsecomp_plus"
+}

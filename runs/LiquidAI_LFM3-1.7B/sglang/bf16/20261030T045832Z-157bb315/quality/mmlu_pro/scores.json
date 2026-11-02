@@ -1,7 +1,83 @@
 {
-  "error": "nel is not on PATH. Install the quality extra (`uv sync --extra quality`) or set quality.executable.",
-  "primary_metric": null,
-  "primary_score": null,
-  "scorer": "not run",
+  "answers_cut_off": 0,
+  "bench": "mmlu_pro",
+  "bundle": "attempt-1/mmlu_pro/eval-20261030T111919Z-mmlu_pro.json",
+  "categories": {
+    "biology": {
+      "mean_reward": 0.9189,
+      "n": 37
+    },
+    "business": {
+      "mean_reward": 0.64,
+      "n": 50
+    },
+    "chemistry": {
+      "mean_reward": 0.7143,
+      "n": 70
+    },
+    "computer science": {
+      "mean_reward": 0.65,
+      "n": 20
+    },
+    "economics": {
+      "mean_reward": 0.7302,
+      "n": 63
+    },
+    "engineering": {
+      "mean_reward": 0.7083,
+      "n": 48
+    },
+    "health": {
+      "mean_reward": 0.4,
+      "n": 50
+    },
+    "history": {
+      "mean_reward": 0.4545,
+      "n": 22
+    },
+    "law": {
+      "mean_reward": 0.2241,
+      "n": 58
+    },
+    "math": {
+      "mean_reward": 0.8701,
+      "n": 77
+    },
+    "other": {
+      "mean_reward": 0.5102,
+      "n": 49
+    },
+    "philosophy": {
+      "mean_reward": 0.5789,
+      "n": 38
+    },
+    "physics": {
+      "mean_reward": 0.7763,
+      "n": 76
+    },
+    "psychology": {
+      "mean_reward": 0.5952,
+      "n": 42
+    }
+  },
+  "ci_lower": 0.6086,
+  "ci_upper": 0.6771,
+  "concurrency": 8,
+  "context_per_stream": 262144,
+  "dataset_size": 12032,
+  "error": null,
+  "failures": 18,
+  "limit": 700,
+  "measures": null,
+  "n": 700,
+  "pass_at_1_failures_as_wrong": null,
+  "primary_metric": "pass@1",
+  "primary_score": 0.6429,
+  "repeats": 1,
+  "scorer": "nemo-evaluator 0.3.0",
+  "scorer_shares": {
+    "correct": 0.6428571428571429
+  },
+  "shuffle_seed": 0,
   "suite": "mmlu_pro"
 }
