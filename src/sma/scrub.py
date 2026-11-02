@@ -29,6 +29,7 @@ LAB_ENV = (
     "SWE_RUNNER_SSH_KEY",
     "TAILNET_DOMAIN",
     "SMA_JUDGE_URL",
+    "V100_HOST",
 )
 
 

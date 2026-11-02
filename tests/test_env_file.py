@@ -66,3 +66,12 @@ def test_lab_machine_names_from_the_env_file_become_placeholders_in_records(monk
     expected = "POST ${KERNELBENCH_URL}/v1/jobs on ${KERNELBENCH_HOST} in ${TAILNET_DOMAIN} as sma"
     assert scrub_text(text) == expected
     assert scrub_obj({"argv": [text]}) == {"argv": [expected]}
+
+
+def test_the_v100_pods_address_becomes_a_placeholder_in_a_remote_command(monkeypatch) -> None:
+    # The logprobs step stores the SSH command it ran on the pod (LFM3-1.7B's V100 runs named the pod).
+    from sma.scrub import scrub_obj
+
+    monkeypatch.setenv("V100_HOST", "203.0.113.7")
+    argv = ["ssh", "-p", "2222", "sma@203.0.113.7", "cd /work/sma && llama-perplexity -m model.gguf"]
+    assert scrub_obj({"argv": argv})["argv"][3] == "sma@${V100_HOST}"
