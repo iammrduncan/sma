@@ -147,7 +147,38 @@
     }
   ],
   "client_cpus": "5-9",
-  "concurrent_load": [],
+  "concurrent_load": [
+    {
+      "generated_tok_s": 45.15081331522427,
+      "gpu_power_w_mean": 178.4,
+      "gpus": "0",
+      "run_id": "20261101T235000Z-a6786dc0",
+      "slot": "v100-0",
+      "steps": [
+        "browsecomp_plus"
+      ]
+    },
+    {
+      "generated_tok_s": 261.3460653191729,
+      "gpu_power_w_mean": 102.4,
+      "gpus": "2",
+      "run_id": "20261101T235005Z-5bcee869",
+      "slot": "v100-2",
+      "steps": [
+        "quality"
+      ]
+    },
+    {
+      "generated_tok_s": 384.12154249479727,
+      "gpu_power_w_mean": 101.3,
+      "gpus": "3",
+      "run_id": "20261102T094519Z-d1fd9167",
+      "slot": "v100-3",
+      "steps": [
+        "quality"
+      ]
+    }
+  ],
   "decode_formula": "1 / TPOT_seconds at concurrency 1, using the configured percentile",
   "decode_tok_s": 179.19769656046046,
   "derive_stat": "p50",

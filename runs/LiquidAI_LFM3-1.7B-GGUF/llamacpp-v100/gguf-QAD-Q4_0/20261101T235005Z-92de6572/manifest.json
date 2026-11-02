@@ -622,6 +622,23 @@
   "quant_label": "QAD-Q4_0",
   "quant_producer": null,
   "reference_run_id": "20261101T235000Z-a6786dc0",
+  "rescored": [
+    {
+      "at": "2026-11-02T20:32:58Z",
+      "sma_commit": "44d20508ad8c2e02aa55b8f0dd2aca5e98710ead",
+      "sma_dirty": false,
+      "suites": [
+        "ifeval",
+        "gsm8k",
+        "mmlu_pro",
+        "gpqa_diamond",
+        "musique",
+        "bfcl_v3",
+        "livecodebench",
+        "concurrent_load"
+      ]
+    }
+  ],
   "revision_requested": null,
   "revision_sha": "bad5729bba61d076fff20d2548e62526665af215",
   "run_id": "20261101T235005Z-92de6572",
