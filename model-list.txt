@@ -79,15 +79,16 @@ sma queue add-pair --bf16 LiquidAI/LFM3-1.7B --nvfp4 LiquidAI/LFM3-1.7B-NVFP4 --
 sma queue add-pair --bf16 LiquidAI/LFM3-VL-2B --nvfp4 LiquidAI/LFM3-VL-2B-NVFP4 --engine sglang --tool-parser qwen3_coder
 #OPTIONAL sma queue add-pair --gguf LiquidAI/LFM3-VL-2B-GGUF BF16 QAD-Q4_0
 
-# LFM3-Audio-2B and LFM3-Omni-2B. Text and audio in, text and speech out (Omni adds vision). Their GGUF
-#   text model is arch lfm3, 128,000 native; SMA serves the text model only, without the mmproj file.
-#   llama.cpp's LFM3 change names only the 1.7B and VL-2B. Audio and speech are not measured (G4).
-#   Neither repo has a QAD file, so the Q4 leg is plain Q4_0 (the format LiquidAI's speed table uses).
-# No 4-bit safetensors exist for these two, so they run as GGUF on llama.cpp (both GGUFs declare lfm3,
-# 24 blocks, 128,000 native; b11960 has lfm3): BF16, then Q4_0 thinking off and on. Their native BF16 on
-# SGLang is optional; Audio-2B needs an SMA fix first (its config keeps the text model under `lfm`).
-sma queue add-pair --gguf LiquidAI/LFM3-Audio-2B-GGUF BF16 Q4_0
+# LFM3-Omni-2B. Text, images, and audio in, text and speech out. Its GGUF text model is arch lfm3, 128,000
+#   native; SMA serves the text model only, without the mmproj file. llama.cpp's LFM3 change names only the
+#   1.7B and VL-2B. Images (G3), audio, and speech (G4) are not measured. The repo has no QAD file, so the
+#   Q4 leg is plain Q4_0 (the format LiquidAI's speed table uses).
+# No 4-bit safetensors exist, so it runs as GGUF on llama.cpp (24 blocks, 128,000 native; b11960 has lfm3):
+# BF16, then Q4_0 thinking off and on. Its native BF16 on SGLang is optional.
 sma queue add-pair --gguf LiquidAI/LFM3-Omni-2B-GGUF BF16 Q4_0
+
+# LFM3-Audio-2B. Text and audio in, text and speech out. Out of scope (owner, 2026-11-02): SMA measures
+#   text models and models that also take images. Its V100 pair was dropped mid-run. No command.
 
 # d1-2B and d1-Omni-2B are decision models: they return calibrated answers in one forward pass and do
 #   not generate text, so no SMA step applies (G8). No command.
