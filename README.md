@@ -227,7 +227,9 @@ clients, the grading, the records, `sma watch`. llama.cpp is the only engine the
 FP4), from a pinned source build; SMA downloads the GGUF files there from the run's pinned revision, checks
 them against the Spark's hashes, starts `llama-server` over SSH, and forwards its port to `engine.port`. Runs
 sit under `runs/<slug>/llamacpp-v100/`, and the manifest's `serving` names the hardware, the slot, the GPU,
-and the build. KL compares only runs served on the same hardware.
+and the build. A run resumed on another slot names that slot, and the slots before it stay in `serving.earlier`,
+each with when the run left it; before 2026-11-02 such a run named only its first slot. KL compares only runs
+served on the same hardware.
 
 The pod's four GPUs are four slots (`remote.slots`), and `sma worker --slots` runs one leg of a queued job on
 each, many at once (owner decisions 2026-11-01). Each leg takes the first free slot, in queue order; when one

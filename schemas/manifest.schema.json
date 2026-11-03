@@ -85,7 +85,12 @@
         "gpu_names": { "type": "array", "items": { "type": "string" } },
         "gpu_memory": { "type": "array", "items": { "type": "string" } },
         "driver": { "type": ["string", "null"] },
-        "build": { "type": "object" }
+        "build": { "type": "object" },
+        "earlier": {
+          "description": "Slots a resumed run's servers ran on before this one (a leg the dispatcher retried on another slot), oldest first, each with the time the run left it.",
+          "type": "array",
+          "items": { "type": "object", "required": ["until"], "properties": { "until": { "type": "string" } } }
+        }
       }
     },
     "config_history": {

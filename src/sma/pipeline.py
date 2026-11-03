@@ -2300,9 +2300,15 @@ def _start_server(ctx: Ctx, mode: str) -> None:
 
 def _record_start(ctx: Ctx, mode: str, spec: StartSpec, backend: str | None, fallback: bool) -> None:
     engine = ctx.manifest["engine"]
-    if ctx.cfg.remote.enabled and not ctx.manifest.get("serving"):
-        # Where the server ran, by kind and chip (never by name): the GPUs, the driver, and the build.
-        ctx.manifest["serving"] = ctx.services.runtime.facts()
+    recorded = ctx.manifest.get("serving") or {}
+    if ctx.cfg.remote.enabled and (not recorded or (recorded.get("slot"), recorded.get("gpus")) != (ctx.cfg.remote.slot, ctx.cfg.remote.gpus)):
+        # Where the server ran, by kind and chip (never by name): the GPUs, the driver, and the build. A leg the
+        # dispatcher retries on another slot records that slot; the ones before stay under "earlier", each with
+        # when the run left it (LFM3-VL-2B F16's speed retry ran on v100-1 and recorded v100-3).
+        facts = ctx.services.runtime.facts()
+        if recorded:
+            facts["earlier"] = [*recorded.pop("earlier", []), {**recorded, "until": utc_now()}]
+        ctx.manifest["serving"] = facts
     if backend:
         engine["moe_backend_used"] = backend
         engine["moe_backend_fallback"] = fallback

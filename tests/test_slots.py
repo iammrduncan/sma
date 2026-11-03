@@ -766,6 +766,28 @@ def test_a_run_on_a_slot_refuses_a_server_another_run_left_on_its_gpu(tmp_path: 
         _guard_containers(ctx)
 
 
+def test_a_run_resumed_on_another_slot_records_that_slot_and_keeps_the_first(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # LFM3-VL-2B F16's speed retry ran on v100-1, and its record said v100-3: serving was recorded once.
+    from sma import pipeline
+    from sma.pipeline import Ctx, StartSpec, _record_start
+
+    monkeypatch.setattr(pipeline, "publish", lambda *args: None)
+
+    def facts(cfg: Any):
+        return lambda: {"hardware": "v100", "slot": cfg.remote.slot, "gpus": cfg.remote.gpus}
+
+    manifest: dict[str, Any] = {"run_id": "me", "engine": {"name": "llamacpp"}, "quant_flag": "gguf", "warnings": []}
+    for slot in ("v100-3", "v100-3", "v100-1"):
+        cfg = slot_config(_cfg(tmp_path), slot)
+        runtime = SimpleNamespace(facts=facts(cfg), logs=lambda name: "")
+        ctx = Ctx(cfg=cfg, services=SimpleNamespace(runtime=runtime), run_dir=tmp_path, manifest=manifest)
+        ctx.followers["quality"] = object()  # No server log to write here.
+        _record_start(ctx, "quality", StartSpec(name="sma-me-quality", docker_argv=[], env={}, serve_argv=[], port=8001, mode="quality"), None, False)
+    serving = manifest["serving"]
+    assert (serving["slot"], serving["gpus"]) == ("v100-1", "1")
+    assert [(row["slot"], row["gpus"]) for row in serving["earlier"]] == [("v100-3", "3")] and serving["earlier"][0]["until"]
+
+
 def test_each_slot_has_its_own_ssh_connection_to_the_serving_machine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # sshd allows 10 sessions per connection; four runs' log followers and telemetry on one would hit it.
     from sma.remote import remote_runner
