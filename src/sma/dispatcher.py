@@ -13,6 +13,7 @@ the most: that leg goes back to the queue, resumable; a second stop fails it for
 
 from __future__ import annotations
 
+import json
 import os
 import signal
 import sys
@@ -578,6 +579,56 @@ class Dispatcher:
             "pid": os.getpid(), "updated": utc_now(), "host_alias": self.cfg.host_alias, "slots": slots,
             "memory_guard": self.last_guard, "stopping": self.stopping,
         })  # fmt: skip
+
+
+def dispatcher_alive(cfg: Config) -> bool:
+    """Whether this config's dispatcher is running, by the pid in its state file."""
+    try:
+        pid = int(json.loads(state_path(cfg).read_text(encoding="utf-8"))["pid"])
+        cmdline = Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+    return b"--slots" in cmdline
+
+
+def _stop_unit(pid: int) -> None:
+    if unit_alive(pid):
+        _signal(pid, signal.SIGTERM)
+
+
+def drop_held_job(
+    cfg: Config, job_id: str, *, stop: Callable[[int], None] = _stop_unit, sleep: Callable[[float], None] = time.sleep,
+    clock: Callable[[], float] = time.monotonic,
+) -> dict[str, Any]:  # fmt: skip
+    """Take a job the running dispatcher holds off the queue, and leave its other slots running. Each leg not done
+    is marked failed for good, so nothing starts it again, and its unit gets SIGTERM: it tears down its server as on
+    a dispatcher stop, and its run stays resumable by hand. The dispatcher then closes the job, and it moves to
+    removed/. Until then its file stays where the dispatcher reads it: a job that vanished would stop the dispatcher."""
+    queue = JobQueue(cfg.queue_path())
+    note = f"Dropped from the queue at {utc_now()} (sma queue drop)."
+    units: list[int] = []
+
+    def _mark(job: dict[str, Any]) -> None:
+        for leg in job.get("legs") or []:
+            if leg.get("status") == "done":
+                continue
+            if leg.get("status") == "running" and leg.get("pid"):
+                units.append(int(leg["pid"]))
+            attempts = max(int(leg.get("attempts") or 0), cfg.queue.max_attempts)
+            leg.update(status="failed", error=note, not_before=None, attempts=attempts)
+
+    queue.update(job_id, _mark)
+    for pid in units:
+        stop(pid)
+    deadline = clock() + STOP_WAIT_S + 3 * cfg.queue.poll_s
+    while (queue.read(job_id) or {}).get("state") == "claimed":
+        if clock() > deadline:
+            raise SmaError(
+                f"{job_id}'s legs are marked failed and its units were stopped, but the dispatcher has not closed the job. "
+                f"Run sma queue drop {job_id} again once it has."
+            )
+        sleep(1.0)
+    return queue.drop(job_id, stale_s=cfg.queue.stale_claim_s)
 
 
 def run_dispatcher(cfg: Config, *, config_path: Path | None, runs_dir: str | None) -> None:

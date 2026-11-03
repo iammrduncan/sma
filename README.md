@@ -211,7 +211,7 @@ sma queue reclaim          # return a claim whose heartbeat is stale (--older-th
 sma queue remove <job-id>  # take a pending job that has not started off the queue (kept in removed/)
 sma queue unpin <job-id>
 sma queue reassign <job-id> --host gpu-host-2
-sma queue drop <job-id>    # take a job off the queue even if it started (its worker must be gone); its runs stay resumable
+sma queue drop <job-id>    # take a job off the queue even if it started (its worker must be gone, or be --config's dispatcher); its runs stay resumable
 sma worker --once
 sma worker --slots --config sma-v100.yaml   # one run per GPU slot of a serving machine (below)
 ```

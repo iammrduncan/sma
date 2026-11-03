@@ -466,6 +466,33 @@ def test_drop_takes_a_started_job_off_the_queue_and_refuses_one_a_live_worker_ho
         queue.drop(job["job_id"], stale_s=0)
 
 
+def test_dropping_a_job_the_dispatcher_runs_stops_only_its_units(tmp_path: Path) -> None:
+    # 2026-11-02: LFM3-Audio-2B left the roster while its three legs ran beside a VL leg. drop refused a job with
+    # a live heartbeat, and stopping the dispatcher would have stopped the VL run too.
+    from sma.dispatcher import drop_held_job
+
+    dispatcher, queue, launcher, _ = _dispatcher(tmp_path)
+    audio = _pair_job(queue, "LiquidAI/LFM3-Audio-2B-GGUF", "Q4_0")
+    vision = _pair_job(queue, "LiquidAI/LFM3-VL-2B-GGUF")
+    dispatcher.recover()
+    dispatcher.tick()
+    assert [unit[:2] for unit in launcher.started] == [(audio["job_id"], 0), (audio["job_id"], 1), (audio["job_id"], 2), (vision["job_id"], 0)]
+    handles = {handle.pid: handle for handle in launcher.handles.values()}
+
+    def stop(pid: int) -> None:
+        handles[pid].terminate()  # A unit stopped by SIGTERM records no outcome.
+
+    dropped = drop_held_job(dispatcher.cfg, audio["job_id"], stop=stop, sleep=lambda _s: dispatcher.tick())
+    assert dropped["removed_from"] == "failed" and queue.read(audio["job_id"]) is None
+    assert all(leg["error"].startswith("Dropped from the queue") for leg in dropped["legs"])
+    assert [launcher.handles[(audio["job_id"], leg)].signals for leg in range(3)] == [["TERM"]] * 3
+    assert launcher.handles[(vision["job_id"], 0)].signals == []
+    # The freed slots go to the next job; the dropped legs never start again.
+    assert [unit[:2] for unit in launcher.started[4:]] == [(vision["job_id"], 1), (vision["job_id"], 2)]
+    dispatcher.tick()
+    assert len(launcher.started) == 6 and queue.read(vision["job_id"])["state"] == "claimed"
+
+
 # Turns: the speed steps (FifoLock).
 
 

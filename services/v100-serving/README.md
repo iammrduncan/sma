@@ -72,6 +72,11 @@ soon as one ends, the next unit starts on that slot.
 - **Retries.** A leg that fails, ends with failed steps, or whose process dies goes back to the queue and
   resumes its own run on whatever slot is free, up to `queue.max_attempts`, after `queue.retry_backoff_s`.
   The run's `serving` then names the new slot, and the earlier ones stay in `serving.earlier`.
+- **Dropping a job it runs.** `sma queue drop JOB --config <yaml>` marks each leg of the job that is not done
+  failed for good, so nothing starts it again, and sends its units SIGTERM: each tears down its server, as
+  on a dispatcher stop, and its run stays resumable by hand. The other slots keep running. Once the
+  dispatcher has closed the job, it moves to the queue's `removed/` folder. Until then its file stays where
+  the running dispatcher reads it.
 - **A slot whose server fails to start twice in a row** is marked down and skipped until the dispatcher
   restarts.
 - **Restart.** The dispatcher's claim id is `dispatcher-<host_alias>`, so a restarted dispatcher knows its jobs.

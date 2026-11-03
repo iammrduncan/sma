@@ -210,7 +210,8 @@ def _parser() -> argparse.ArgumentParser:
 
     qdrop = qsub.add_parser(
         "drop",
-        help="Take a job off the queue even if it has started (its worker must be gone). Its runs stay resumable by hand.",
+        help="Take a job off the queue even if it has started: its worker must be gone, or be the dispatcher of "
+        "--config, which stops only that job's units. Its runs stay resumable by hand.",
     )
     qdrop.add_argument("job_id")
     _add_common(qdrop)
@@ -829,8 +830,17 @@ def _cmd_queue_remove(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_drop(args: argparse.Namespace) -> int:
+    from sma.dispatcher import dispatcher_alive, dispatcher_id, drop_held_job
+
     cfg = _cfg(args)
-    job = JobQueue(cfg.queue_path()).drop(args.job_id, stale_s=cfg.queue.stale_claim_s)
+    queue = JobQueue(cfg.queue_path())
+    held = queue.read(args.job_id) or {}
+    claim = held.get("claim") if isinstance(held.get("claim"), dict) else {}
+    if held.get("state") == "claimed" and claim.get("worker_id") == dispatcher_id(cfg) and dispatcher_alive(cfg):
+        print(f"{args.job_id} is on this config's dispatcher: stopping its units; its other slots keep running")
+        job = drop_held_job(cfg, args.job_id)
+    else:
+        job = queue.drop(args.job_id, stale_s=cfg.queue.stale_claim_s)
     runs = [leg["run_id"] for leg in job["legs"] if leg.get("run_id")]
     print(f"{job['job_id']} dropped ({job['removed_from']}): {', '.join(_leg_name(leg) for leg in job['legs'])}")
     for run_id in runs:
