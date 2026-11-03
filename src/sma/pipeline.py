@@ -1968,11 +1968,13 @@ def _bench_tokenizer(ctx: Ctx, image: str, gguf: dict[str, Any]) -> dict[str, An
     """Which tokenizer vLLM's bench client loads for a GGUF, recorded as engine.bench_tokenizer.
 
     The GGUF's own, unless the bench image's transformers cannot read its architecture (lfm3 on the
-    pinned image's transformers 5.6). Then the tokenizer of the source model the GGUF names, at a pinned
-    commit, if every token and merge matches the GGUF's. The bench only builds prompts of set lengths and
-    counts tokens with it; llama-server tokenizes with the GGUF.
+    pinned image's transformers 5.6). Then, at a pinned commit, the first tokenizer whose every token and
+    merge matches the GGUF's: the source model the GGUF names, then the model its repo's name says it was
+    converted from. LFM3-VL-2B's GGUF names LFM3-1.7B-Base, which has two audio tokens where the VL model
+    has padding; LFM3-Audio-2B's names none; each one's own repo matches. The bench only builds prompts of
+    set lengths and counts tokens with it; llama-server tokenizes with the GGUF.
     """
-    from sma.gguf import base_model_repo, read_header_file, tokenizer_mismatch
+    from sma.gguf import base_model_repo, read_header_file, tokenizer_mismatch, unconverted_repo
 
     architecture = gguf.get("architecture")
     readable = ctx.services.runtime.gguf_architectures(image)
@@ -1981,20 +1983,27 @@ def _bench_tokenizer(ctx: Ctx, image: str, gguf: dict[str, Any]) -> dict[str, An
     assert ctx.snapshot is not None
     metadata = read_header_file(ctx.snapshot / str(gguf.get("model_file"))).metadata
     reason = f"the bench image's transformers cannot read GGUF architecture {architecture}"
-    repo = base_model_repo(metadata)
-    if repo is None:
+    candidates = [name for name in (base_model_repo(metadata), unconverted_repo(str(ctx.manifest.get("model_repo") or ""))) if name]
+    if not candidates:
         raise SmaError(
-            f"Speed cannot run: {reason}, and the GGUF names no source model (general.base_model.0.repo_url) "
-            "whose tokenizer could stand in."
+            f"Speed cannot run: {reason}, the GGUF names no source model (general.base_model.0.repo_url), and its "
+            "repo's name does not end in -GGUF, so no tokenizer can stand in."
         )
-    folder, sha = ctx.services.fetcher.tokenizer_snapshot(repo)
-    try:
-        tokenizer_json = json.loads((folder / "tokenizer.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        raise SmaError(f"Speed cannot run: {reason}, and {repo} has no readable tokenizer.json ({exc}).") from exc
-    problem = tokenizer_mismatch(metadata, tokenizer_json)
-    if problem:
-        raise SmaError(f"Speed cannot run: {reason}, and {repo}'s tokenizer does not match the GGUF's: {problem}.")
+    problems = []
+    for repo in dict.fromkeys(candidates):
+        try:
+            folder, sha = ctx.services.fetcher.tokenizer_snapshot(repo)
+            tokenizer_json = json.loads((folder / "tokenizer.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError, SmaError) as exc:
+            problems.append(f"{repo} has no readable tokenizer.json ({exc})")
+            continue
+        problem = tokenizer_mismatch(metadata, tokenizer_json)
+        if problem:
+            problems.append(f"{repo}'s tokenizer does not match the GGUF's: {problem}")
+            continue
+        break
+    else:
+        raise SmaError(f"Speed cannot run: {reason}, and no tokenizer can stand in: {'; '.join(problems)}.")
     ctx.bench_tokenizer_dir = folder
     log_event("bench_tokenizer", run_id=ctx.run_id, repo=repo, revision_sha=sha)
     return {

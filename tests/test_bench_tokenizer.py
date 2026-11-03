@@ -113,6 +113,42 @@ def test_speed_refuses_a_source_tokenizer_that_does_not_match(tmp_path: Path) ->
     assert (steps["kernelbench_results"]["status"], steps["browsecomp_plus_results"]["status"]) == ("done", "done")
 
 
+def test_the_models_own_repo_stands_in_when_the_named_source_does_not_match(tmp_path: Path) -> None:
+    # LFM3-VL-2B's GGUF names LFM3-1.7B-Base, whose two audio tokens are padding in the VL model, so speed
+    # failed; LiquidAI/LFM3-VL-2B, the repo the GGUF was converted from, matches it token for token.
+    from sma.gguf import unconverted_repo
+
+    assert unconverted_repo("LiquidAI/LFM3-VL-2B-GGUF") == "LiquidAI/LFM3-VL-2B"
+    assert unconverted_repo("Org/model_gguf") == "Org/model"
+    assert unconverted_repo("Qwen/Qwen3-8B") is None
+    cfg = make_config(tmp_path)
+    services, fetcher = _services(tmp_path, cfg, _tokenizer_json({"a": 0, "b": 1, "ba": 2}))
+    own = tmp_path / "own-tokenizer"
+    own.mkdir()
+    (own / "tokenizer.json").write_text(json.dumps(_tokenizer_json()))
+    fetcher.tokenizers["example/tiny"] = own
+    run_id = execute(RunSpec(repo="example/tiny-GGUF", quant_flag="gguf", gguf="BF16"), cfg, services)
+    run_dir = next(Path(cfg.runs_dir).glob(f"*/*/*/{run_id}"))
+    engine = json.loads((run_dir / "manifest.json").read_text())["engine"]
+    assert (engine["bench_tokenizer"]["repo"], engine["bench_tokenizer"]["revision"]) == ("example/tiny", "b" * 40)
+    benches = [call for call in services.bencher.calls if "bench serve" in call]
+    assert benches and all(f"{own}:/bench-tokenizer:ro" in call for call in benches)
+    assert fetcher.tokenizer_requests[:2] == [(SOURCE, None), ("example/tiny", None)]
+
+
+def test_speed_names_every_tokenizer_it_tried(tmp_path: Path) -> None:
+    from sma.errors import RunIncomplete
+
+    cfg = make_config(tmp_path)
+    services, _fetcher = _services(tmp_path, cfg, _tokenizer_json({"a": 0, "b": 1, "ba": 2}))
+    with pytest.raises(RunIncomplete, match="these failed: speed"):
+        execute(RunSpec(repo="example/tiny-GGUF", quant_flag="gguf", gguf="BF16"), cfg, services)
+    run_dir = next(Path(cfg.runs_dir).glob("*/*/*/*"))
+    error = json.loads((run_dir / "manifest.json").read_text())["steps"]["speed"]["error"]
+    assert f"no tokenizer can stand in: {SOURCE}'s tokenizer does not match the GGUF's: 1 token ids differ" in error
+    assert "example/tiny has no readable tokenizer.json (no tokenizer fixture for example/tiny)" in error
+
+
 def test_a_gguf_the_bench_reads_keeps_its_own_tokenizer(tmp_path: Path) -> None:
     cfg = make_config(tmp_path)
     services, fetcher = _services(tmp_path, cfg, None)

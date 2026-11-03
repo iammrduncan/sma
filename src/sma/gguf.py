@@ -503,6 +503,12 @@ def base_model_repo(metadata: dict[str, Any]) -> str | None:
     return match.group(1) if match else None
 
 
+def unconverted_repo(gguf_repo: str) -> str | None:
+    """The repo a GGUF repo's name says it was converted from: LiquidAI/LFM3-VL-2B-GGUF gives LiquidAI/LFM3-VL-2B."""
+    match = re.fullmatch(r"(.+?)[-_]gguf", gguf_repo, flags=re.IGNORECASE)
+    return match.group(1) if match else None
+
+
 # llama.cpp's token type for an id no text maps to: the vocabulary padded to the embedding size.
 _UNUSED_TOKEN = 5
 
