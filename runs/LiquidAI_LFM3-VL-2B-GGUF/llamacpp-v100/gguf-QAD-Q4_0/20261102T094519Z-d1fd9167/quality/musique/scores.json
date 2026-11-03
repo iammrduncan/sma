@@ -1,0 +1,26 @@
+{
+  "answers_cut_off": 0,
+  "bench": "sma:musique",
+  "bundle": "attempt-1/sma_musique/eval-20261102T162445Z-sma_musique.json",
+  "categories": null,
+  "ci_lower": 0.2914,
+  "ci_upper": 0.4682,
+  "concurrency": 8,
+  "context_per_stream": 65536,
+  "dataset_size": 2417,
+  "error": null,
+  "failures": 0,
+  "limit": 100,
+  "measures": null,
+  "n": 100,
+  "pass_at_1_failures_as_wrong": null,
+  "primary_metric": "answer_f1",
+  "primary_score": 0.378,
+  "repeats": 1,
+  "scorer": "nemo-evaluator 0.3.0",
+  "scorer_shares": {
+    "exact_match": 0.3
+  },
+  "shuffle_seed": 0,
+  "suite": "musique"
+}

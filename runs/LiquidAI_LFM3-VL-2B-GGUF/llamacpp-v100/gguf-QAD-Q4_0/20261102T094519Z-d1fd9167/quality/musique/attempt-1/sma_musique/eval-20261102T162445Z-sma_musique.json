@@ -1,0 +1,87 @@
+{
+  "run_id": "eval-20261102T162445Z-sma_musique",
+  "config_hash": "sha256:8cfc13435017b6049ce40a7f9b48abda502f16baad199769c287c7f130f46c4d",
+  "sdk_version": "0.3.0",
+  "timestamp": "2026-11-02T16:24:45.934455+00:00",
+  "config": {
+    "benchmark": "sma_musique",
+    "model": "LiquidAI/LFM3-VL-2B-GGUF",
+    "base_url": "http://127.0.0.1:40609",
+    "repeats": 1,
+    "max_problems": 100,
+    "scorers": null,
+    "_sandbox_config": "capture_cmd=None verify_timeout=600.0 stateful=False type='none'",
+    "shuffle_seed": 0,
+    "shuffle": {
+      "seed": 0,
+      "applied": true,
+      "ds_full_size": 2417,
+      "ds_effective_size": 100
+    }
+  },
+  "benchmark": {
+    "name": "sma_musique",
+    "samples": 100,
+    "repeats": 1,
+    "scores": {
+      "mean_reward": {
+        "value": 0.378,
+        "ci_lower": 0.2914,
+        "ci_upper": 0.4682
+      },
+      "summary": {
+        "mean": 0.37803798353000223,
+        "std": 0.4516796694805616,
+        "min": 0.0,
+        "max": 1.0,
+        "median": 0.0,
+        "n": 100
+      },
+      "breakdowns": {
+        "exact_match": [
+          {
+            "group": "False",
+            "n": 70,
+            "mean_reward": 0.1115,
+            "ci_lower": 0.0601,
+            "ci_upper": 0.1678
+          },
+          {
+            "group": "True",
+            "n": 30,
+            "mean_reward": 1.0,
+            "ci_lower": 1.0,
+            "ci_upper": 1.0
+          }
+        ]
+      },
+      "runtime": {
+        "total_steps": 100,
+        "total_tokens": 260339,
+        "total_prompt_tokens": 257744,
+        "total_completion_tokens": 2595,
+        "total_reasoning_tokens": 0,
+        "elapsed_seconds": 53.65,
+        "latency_percentiles_ms": {
+          "p50": 2659.14,
+          "p90": 7276.57,
+          "p99": 28740.9
+        },
+        "tokens_per_second": 4852.29,
+        "steps_per_second": 1.86,
+        "model_errors": 0,
+        "total_retries": 0,
+        "finish_reason_counts": {
+          "stop": 100
+        }
+      },
+      "failures": {
+        "total_steps": 100,
+        "total_failures": 0,
+        "failure_rate": 0.0,
+        "categories": {}
+      }
+    }
+  },
+  "n_results": 100
+}

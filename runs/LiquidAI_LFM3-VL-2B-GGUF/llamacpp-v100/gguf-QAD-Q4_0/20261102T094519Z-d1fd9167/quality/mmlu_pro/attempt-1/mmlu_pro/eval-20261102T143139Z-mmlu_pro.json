@@ -1,0 +1,179 @@
+{
+  "run_id": "eval-20261102T143139Z-mmlu_pro",
+  "config_hash": "sha256:ded61342db1a2a6c5fbd03b7bac2631fe283bc3f969916bb781f8fa61d49f2c8",
+  "sdk_version": "0.3.0",
+  "timestamp": "2026-11-02T14:31:39.961201+00:00",
+  "config": {
+    "benchmark": "mmlu_pro",
+    "model": "LiquidAI/LFM3-VL-2B-GGUF",
+    "base_url": "http://127.0.0.1:4000",
+    "repeats": 1,
+    "max_problems": 700,
+    "scorers": null,
+    "_sandbox_config": "capture_cmd=None verify_timeout=600.0 stateful=False type='none'",
+    "shuffle_seed": 0,
+    "shuffle": {
+      "seed": 0,
+      "applied": true,
+      "ds_full_size": 12032,
+      "ds_effective_size": 700
+    }
+  },
+  "benchmark": {
+    "name": "mmlu_pro",
+    "samples": 700,
+    "repeats": 1,
+    "scores": {
+      "pass@1": {
+        "value": 0.3514,
+        "bootstrap_ci_lower": 0.3157,
+        "bootstrap_ci_upper": 0.3871
+      },
+      "summary": {
+        "mean": 0.3514285714285714,
+        "std": 0.4777578945065538,
+        "min": 0.0,
+        "max": 1.0,
+        "median": 0.0,
+        "n": 700
+      },
+      "breakdowns": {
+        "correct": [
+          {
+            "group": "False",
+            "n": 454,
+            "mean_reward": 0.0,
+            "ci_lower": 0.0,
+            "ci_upper": 0.0
+          },
+          {
+            "group": "True",
+            "n": 246,
+            "mean_reward": 1.0,
+            "ci_lower": 1.0,
+            "ci_upper": 1.0
+          }
+        ]
+      },
+      "runtime": {
+        "total_steps": 700,
+        "total_tokens": 2345464,
+        "total_prompt_tokens": 160405,
+        "total_completion_tokens": 2185059,
+        "total_reasoning_tokens": 0,
+        "elapsed_seconds": 8359.45,
+        "latency_percentiles_ms": {
+          "p50": 9948.12,
+          "p90": 316437.74,
+          "p99": 816534.91
+        },
+        "tokens_per_second": 280.58,
+        "steps_per_second": 0.08,
+        "model_errors": 0,
+        "total_retries": 0,
+        "finish_reason_counts": {
+          "stop": 696,
+          "length": 4
+        }
+      },
+      "failures": {
+        "total_steps": 700,
+        "total_failures": 165,
+        "failure_rate": 0.2357,
+        "categories": {
+          "format_error": {
+            "count": 164,
+            "percentage": 0.2343,
+            "exemplars": [
+              {
+                "problem_idx": 322,
+                "repeat": 0,
+                "error": "format_error"
+              },
+              {
+                "problem_idx": 7763,
+                "repeat": 0,
+                "error": "format_error"
+              },
+              {
+                "problem_idx": 8845,
+                "repeat": 0,
+                "error": "format_error"
+              }
+            ]
+          },
+          "refusal": {
+            "count": 1,
+            "percentage": 0.0014,
+            "exemplars": [
+              {
+                "problem_idx": 10433,
+                "repeat": 0,
+                "error": "refusal"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "categories": {
+      "biology": {
+        "mean_reward": 0.7297,
+        "n": 37
+      },
+      "business": {
+        "mean_reward": 0.46,
+        "n": 50
+      },
+      "chemistry": {
+        "mean_reward": 0.3,
+        "n": 70
+      },
+      "computer science": {
+        "mean_reward": 0.25,
+        "n": 20
+      },
+      "economics": {
+        "mean_reward": 0.4286,
+        "n": 63
+      },
+      "engineering": {
+        "mean_reward": 0.25,
+        "n": 48
+      },
+      "health": {
+        "mean_reward": 0.3,
+        "n": 50
+      },
+      "history": {
+        "mean_reward": 0.3636,
+        "n": 22
+      },
+      "law": {
+        "mean_reward": 0.1897,
+        "n": 58
+      },
+      "math": {
+        "mean_reward": 0.2857,
+        "n": 77
+      },
+      "other": {
+        "mean_reward": 0.3878,
+        "n": 49
+      },
+      "philosophy": {
+        "mean_reward": 0.4211,
+        "n": 38
+      },
+      "physics": {
+        "mean_reward": 0.2632,
+        "n": 76
+      },
+      "psychology": {
+        "mean_reward": 0.4762,
+        "n": 42
+      }
+    }
+  },
+  "n_results": 700
+}

@@ -1,0 +1,108 @@
+{
+  "categories": {
+    "irrelevance": {
+      "correct": 95,
+      "total": 108
+    },
+    "java": {
+      "correct": 19,
+      "total": 45
+    },
+    "javascript": {
+      "correct": 9,
+      "total": 23
+    },
+    "live_irrelevance": {
+      "correct": 344,
+      "total": 397
+    },
+    "live_multiple": {
+      "correct": 309,
+      "total": 474
+    },
+    "live_parallel": {
+      "correct": 4,
+      "total": 7
+    },
+    "live_parallel_multiple": {
+      "correct": 3,
+      "total": 11
+    },
+    "live_relevance": {
+      "correct": 3,
+      "total": 9
+    },
+    "live_simple": {
+      "correct": 77,
+      "total": 116
+    },
+    "multi_turn_base": {
+      "correct": 11,
+      "total": 90
+    },
+    "multi_turn_long_context": {
+      "correct": 7,
+      "total": 90
+    },
+    "multi_turn_miss_func": {
+      "correct": 8,
+      "total": 90
+    },
+    "multi_turn_miss_param": {
+      "correct": 6,
+      "total": 90
+    },
+    "multiple": {
+      "correct": 78,
+      "total": 90
+    },
+    "parallel": {
+      "correct": 40,
+      "total": 90
+    },
+    "parallel_multiple": {
+      "correct": 35,
+      "total": 90
+    },
+    "simple": {
+      "correct": 168,
+      "total": 180
+    }
+  },
+  "ci_lower": 0.5864167044467087,
+  "ci_upper": 0.6291692133340206,
+  "concurrency": 8,
+  "context_per_stream": 65536,
+  "harness_metrics": {
+    "bfcl/ast_summary": 57.06,
+    "bfcl/base": 12.22,
+    "bfcl/irrelevance_detection_live": 86.65,
+    "bfcl/irrelevance_detection_non_live": 87.96,
+    "bfcl/java_simple_ast_non_live": 42.22,
+    "bfcl/javascript_simple_ast_non_live": 39.13,
+    "bfcl/live_overall_acc": 73.1,
+    "bfcl/long_context": 7.78,
+    "bfcl/miss_func": 8.89,
+    "bfcl/miss_param": 6.67,
+    "bfcl/multi_turn_overall_acc": 8.89,
+    "bfcl/multiple_ast_non_live": 86.67,
+    "bfcl/non_live_overall_acc": 35.13,
+    "bfcl/parallel_ast_non_live": 44.44,
+    "bfcl/parallel_multiple_ast_non_live": 38.89,
+    "bfcl/python_multiple_ast_live": 65.26,
+    "bfcl/python_parallel_ast_live": 57.14,
+    "bfcl/python_parallel_multiple_ast_live": 27.27,
+    "bfcl/python_simple_ast_live": 66.38,
+    "bfcl/python_simple_ast_non_live": 93.33,
+    "bfcl/relevance_detection_live": 44.44,
+    "bfcl/simple_ast_non_live": 58.23
+  },
+  "image": "nvcr.io/nvidia/eval-factory/bfcl:26.03@sha256:fc6b5f22698b75b759dc29715663d3006b7180847330e06b15ee080346462c03",
+  "limit": 2000,
+  "n": 2000,
+  "primary_metric": "accuracy",
+  "primary_score": 0.608,
+  "scorer": "eval-factory bfclv3_ast",
+  "suite": "bfcl_v3",
+  "task": "bfclv3_ast"
+}

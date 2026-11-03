@@ -1,0 +1,145 @@
+{
+  "run_id": "eval-20261102T162348Z-gpqa",
+  "config_hash": "sha256:953cf8230460f20b787c053a6a60ac90dec49388f0a4bdf9ccc31a87043dc1f2",
+  "sdk_version": "0.3.0",
+  "timestamp": "2026-11-02T16:23:48.323358+00:00",
+  "config": {
+    "benchmark": "gpqa",
+    "model": "LiquidAI/LFM3-VL-2B-GGUF",
+    "base_url": "http://127.0.0.1:4000",
+    "repeats": 1,
+    "max_problems": null,
+    "scorers": null,
+    "_sandbox_config": "capture_cmd=None verify_timeout=600.0 stateful=False type='none'",
+    "shuffle_seed": 0,
+    "shuffle": {
+      "seed": 0,
+      "applied": true,
+      "ds_full_size": 198,
+      "ds_effective_size": 198
+    }
+  },
+  "benchmark": {
+    "name": "gpqa",
+    "samples": 198,
+    "repeats": 1,
+    "scores": {
+      "pass@1": {
+        "value": 0.2778,
+        "bootstrap_ci_lower": 0.2172,
+        "bootstrap_ci_upper": 0.3434
+      },
+      "summary": {
+        "mean": 0.2777777777777778,
+        "std": 0.44903857940947833,
+        "min": 0.0,
+        "max": 1.0,
+        "median": 0.0,
+        "n": 198
+      },
+      "breakdowns": {
+        "correct": [
+          {
+            "group": "False",
+            "n": 143,
+            "mean_reward": 0.0,
+            "ci_lower": 0.0,
+            "ci_upper": 0.0
+          },
+          {
+            "group": "True",
+            "n": 55,
+            "mean_reward": 1.0,
+            "ci_lower": 1.0,
+            "ci_upper": 1.0
+          }
+        ]
+      },
+      "runtime": {
+        "total_steps": 198,
+        "total_tokens": 1706077,
+        "total_prompt_tokens": 50431,
+        "total_completion_tokens": 1655646,
+        "total_reasoning_tokens": 0,
+        "elapsed_seconds": 6721.79,
+        "latency_percentiles_ms": {
+          "p50": 198937.17,
+          "p90": 487285.46,
+          "p99": 2078774.57
+        },
+        "tokens_per_second": 253.81,
+        "steps_per_second": 0.03,
+        "model_errors": 0,
+        "total_retries": 0,
+        "finish_reason_counts": {
+          "stop": 193,
+          "length": 5
+        }
+      },
+      "failures": {
+        "total_steps": 198,
+        "total_failures": 61,
+        "failure_rate": 0.3081,
+        "categories": {
+          "format_error": {
+            "count": 54,
+            "percentage": 0.2727,
+            "exemplars": [
+              {
+                "problem_idx": 172,
+                "repeat": 0,
+                "error": "format_error"
+              },
+              {
+                "problem_idx": 6,
+                "repeat": 0,
+                "error": "format_error"
+              },
+              {
+                "problem_idx": 138,
+                "repeat": 0,
+                "error": "format_error"
+              }
+            ]
+          },
+          "refusal": {
+            "count": 7,
+            "percentage": 0.0354,
+            "exemplars": [
+              {
+                "problem_idx": 71,
+                "repeat": 0,
+                "error": "refusal"
+              },
+              {
+                "problem_idx": 47,
+                "repeat": 0,
+                "error": "refusal"
+              },
+              {
+                "problem_idx": 70,
+                "repeat": 0,
+                "error": "refusal"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "categories": {
+      "Biology": {
+        "mean_reward": 0.3158,
+        "n": 19
+      },
+      "Chemistry": {
+        "mean_reward": 0.2473,
+        "n": 93
+      },
+      "Physics": {
+        "mean_reward": 0.3023,
+        "n": 86
+      }
+    }
+  },
+  "n_results": 198
+}
