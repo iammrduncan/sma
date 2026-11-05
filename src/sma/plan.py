@@ -120,7 +120,8 @@ def render_plan(
     else:
         lines.append(f"memory plan: computed at fetch from the checkpoint's config and file sizes. {memory_note or ''}".rstrip())
     lines.append(
-        f"  Budget {cfg.memory.budget_gb:g} GB. Context starts at {cfg.memory.start_context:,} tokens, or the "
+        f"  Budget {cfg.memory.budget_gb:g} GB{' per GPU' if cfg.remote.enabled else ''}. Context starts at "
+        f"{cfg.memory.start_context:,} tokens, or the "
         "native maximum if smaller, never RoPE-stretched, and halves until one stream fits. "
         "A run that cannot fit is refused before the weight download."
     )

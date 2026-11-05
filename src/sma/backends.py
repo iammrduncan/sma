@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-from sma.config import Config
+from sma.config import Config, split_args
 from sma.errors import SmaError
 
 
@@ -721,6 +721,8 @@ class LlamaCppBackend:
         ]
         if mode == "quality" and cfg.quality.chat_template_kwargs:
             flags.extend(["--chat-template-kwargs", json.dumps(cfg.quality.chat_template_kwargs, sort_keys=True)])
+        # A run across GPUs on the serving machine: the weights and the KV cache split by layer.
+        flags.extend(split_args(cfg))
         flags.extend(cfg.engine.extra_args)
         return flags
 

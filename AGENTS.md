@@ -21,10 +21,14 @@ These are owner decisions. Do not change them without an explicit owner decision
 - SMA never quantizes or converts weights. It downloads GGUF files as published. A checkpoint that
   does not match the quant flag is refused. It is never converted or relabeled. The KV cache is
   always 8-bit: FP8 on vLLM and SGLang, Q8_0 on llama.cpp.
-- Tensor parallelism is always 1. One GPU runs one model at a time: a Spark under `gpu.lock`, a serving
-  machine's GPU slot under its slot's lock (`sma worker --slots`, owner decision 2026-11-01). Runs across
-  GPUs are not built. On a serving machine, the slots' speed steps take turns (a FIFO lock), and the speed
-  summary records what the other slots ran meanwhile.
+- One model per GPU at a time: a Spark under `gpu.lock`, a serving machine's GPU slot under its slot's lock
+  (`sma worker --slots`, owner decision 2026-11-01). Since 2026-11-05 every model is benchmarked on the V100
+  pod with llama.cpp (owner decision), and a run whose plan does not keep the start context on one V100 takes
+  several slots: llama.cpp splits it by layer (`--split-mode layer`; b11960 refuses its tensor split for
+  flint, mellum, and lfm3). The leg's GPU count is the fewest at which every benchmark keeps the start context
+  (`runplan.choose_gpus`), chosen when it is queued. vLLM and SGLang keep tensor parallelism 1. On a serving
+  machine, the slots' speed steps take turns (a FIFO lock), and the speed summary records what the other slots
+  ran meanwhile.
 - The engine is part of the subject. Never switch engines as a fallback. The engine is chosen before
   launch, by checkpoint format, by `--engine`, or because preflight shows that vLLM cannot serve the
   model. Never copy a measurement from one engine into another engine's record. The only fallback is

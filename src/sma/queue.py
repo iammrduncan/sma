@@ -417,6 +417,8 @@ def _leg(item: dict[str, Any]) -> dict[str, Any]:
         # failed tries, and the memory guard's stops (owner decision 2026-11-01).
         "slot": None,
         "pid": None,
+        # The serving machine's GPUs the leg takes, from its memory plan when queued (owner decision 2026-11-05).
+        "gpus": max(1, int(item.get("gpus") or 1)),
         "attempts": 0,
         "guard_trips": 0,
         "guard_notes": [],

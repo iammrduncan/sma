@@ -115,6 +115,8 @@ class MemoryPlan:
     # The streams the pool is capped at, at `context` (llama.cpp's slots). None: the pool is the rest
     # of the budget.
     pool_streams: int | None = None
+    # The GPUs the run serves on. The budget and the engine overhead count once per GPU (runplan.plan_run).
+    gpus: int = 1
 
     def to_json(self) -> dict:
         """Plain JSON: every field, plus a rounded GB value next to each byte count."""

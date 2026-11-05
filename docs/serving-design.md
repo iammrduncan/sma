@@ -99,8 +99,11 @@ of linear-attention state per stream.
 
 - The lab's V100 pod serves GGUF models on llama.cpp (services/v100-serving); the harness stays on the
   Spark. Each of its four V100s (32 GB, PCIe, two per switch) is a slot that runs one model at a time, and
-  `sma worker --slots` keeps all four busy. Runs across two GPUs are not built until a model needs them.
-- The memory plan is per GPU: `memory.budget_gb` 33 (one V100's 32 GiB), the same 8-bit KV cache (Q8_0
+  `sma worker --slots` keeps all four busy. Since 2026-11-05 every model in the list is benchmarked here
+  (owner decision), and a model whose plan does not keep the start context on one V100 runs across 2 to 4 of
+  them, split by layer (README, "The V100 pod").
+- The memory plan is per GPU: `memory.budget_gb` 33 (one V100's 32 GiB), counted once per GPU of a run across
+  GPUs together with the engine overhead and llama.cpp's compute buffers; the same 8-bit KV cache (Q8_0
   with flash attention, which works on Volta) and 64K per stream. llama.cpp's overhead is 1 GB there;
   `engine.llamacpp_cache_ram_mib` is 0, so no host-RAM prompt cache is counted against the GPU.
 - F16 is the 16-bit reference on Volta, not BF16: the same size, and on the V100 its batches and prompts

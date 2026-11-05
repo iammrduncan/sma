@@ -86,6 +86,7 @@
         "gpu_memory": { "type": "array", "items": { "type": "string" } },
         "driver": { "type": ["string", "null"] },
         "build": { "type": "object" },
+        "split": { "description": "How a run across several GPUs splits the model over them (llama.cpp's --split-mode); absent on one GPU.", "enum": ["layer"] },
         "earlier": {
           "description": "Slots a resumed run's servers ran on before this one (a leg the dispatcher retried on another slot), oldest first, each with the time the run left it.",
           "type": "array",

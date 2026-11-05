@@ -648,11 +648,33 @@ def _slots(value: Any, path: str) -> list[RemoteSlot]:
     return slots
 
 
+def gpu_count(cfg: Config) -> int:
+    """The GPUs a run serves on: its slots' GPUs on a serving machine (remote.gpus, "0,1,2"), else one."""
+    if not cfg.remote.enabled:
+        return 1
+    return max(1, len([part for part in str(cfg.remote.gpus or "").split(",") if part.strip()]))
+
+
+def split_args(cfg: Config) -> list[str]:
+    """llama-server's and llama-perplexity's flags for a run across GPUs: split by layer, evenly. llama.cpp
+    b11960 refuses its tensor split for flint, mellum, and lfm3, and its row split is gone on CUDA, so layer is
+    the split every model can take (2026-11-05)."""
+    count = gpu_count(cfg)
+    return ["--split-mode", "layer", "--tensor-split", ",".join(["1"] * count)] if count > 1 else []
+
+
 def slot_config(cfg: Config, name: str) -> Config:
-    """The config a run on one slot uses: the base config with the slot's GPU, ports, and lock file."""
-    slot = next((item for item in cfg.remote.slots if item.name == name), None)
-    if slot is None:
+    """The config a run on one slot uses: the base config with the slot's GPU, ports, and lock file.
+
+    A run across several GPUs (owner decision 2026-11-05) names its slots joined by "+", for example
+    "v100-0+v100-1": it serves on all their GPUs and uses the first slot's ports and lock file. The dispatcher
+    gives the other slots to no other run while it runs."""
+    names = name.split("+")
+    found = [next((item for item in cfg.remote.slots if item.name == part), None) for part in names]
+    if any(item is None for item in found) or len(set(names)) != len(names):
         raise SmaError(f"No slot {name} in remote.slots. Slots: {', '.join(item.name for item in cfg.remote.slots) or 'none'}.")
+    slot = found[0]
+    assert slot is not None
     port = slot.remote_port
     if slot.remote_port_env:
         value = os.environ.get(slot.remote_port_env, "")
@@ -661,13 +683,13 @@ def slot_config(cfg: Config, name: str) -> Config:
         port = int(value)
     if port is None:
         raise SmaError(f"Slot {name} needs remote_port or remote_port_env.")
-    lock = Path(cfg.lock_path).expanduser().parent / f"{cfg.remote.hardware}-{name}.lock"
+    lock = Path(cfg.lock_path).expanduser().parent / f"{cfg.remote.hardware}-{slot.name}.lock"
     return replace(
         cfg,
         lock_path=str(lock),
         engine=replace(cfg.engine, port=int(slot.local_port)),
         browsecomp=replace(cfg.browsecomp, search_port=int(slot.search_port), local_port=int(slot.search_port)),
-        remote=replace(cfg.remote, gpus=slot.gpus, remote_port=port, slot=name),
+        remote=replace(cfg.remote, gpus=",".join(item.gpus for item in found if item), remote_port=port, slot=name),
     )
 
 
@@ -956,7 +978,7 @@ def _validate_slots(cfg: Config) -> None:
         if not all(part.strip().isdigit() for part in parts):
             raise SmaError(f"remote.slots {slot.name}: gpus must be GPU indexes, for example \"0\" or \"0,1\".")
         if len(parts) > 1:
-            raise SmaError(f"remote.slots {slot.name}: one GPU per slot. Runs across GPUs are not built (owner decision 2026-11-01).")
+            raise SmaError(f"remote.slots {slot.name}: one GPU per slot. A run that needs more GPUs takes several slots.")
         if slot.remote_port is None and not slot.remote_port_env:
             raise SmaError(f"remote.slots {slot.name} needs remote_port or remote_port_env.")
         gpus.extend(part.strip() for part in parts)
@@ -978,6 +1000,11 @@ _PLAN_FLAGS = {
     "-c",
     "--ctx-size",
     "--kv-unified-per-slot",
+    # A run across GPUs splits by layer over the GPUs its memory plan counted (gpu_count).
+    "-sm",
+    "--split-mode",
+    "-ts",
+    "--tensor-split",
 }
 
 

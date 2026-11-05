@@ -366,6 +366,24 @@ def _dry_run_plan(
     return plan, None, model_file
 
 
+def _dry_run_gpus(cfg: Config, repo: str, revision: str | None, quant: str, gguf: str | None) -> Config:
+    """On a config with serving-machine slots, a GGUF dry run plans on the GPUs a queued run would take (the
+    first slots' GPUs, as many as choose_gpus picks), so its plan and commands are the run's. Unchanged when
+    the plan cannot be looked up: the dry run then says why."""
+    if quant != "gguf" or not (cfg.remote.enabled and cfg.remote.slots):
+        return cfg
+    from dataclasses import replace
+
+    from sma.pipeline import HubFetcher
+    from sma.runplan import choose_gpus
+
+    try:
+        count = choose_gpus(cfg, lambda trial: HubFetcher(trial, registry=None, engine="llamacpp").plan_only(repo, revision, "gguf", gguf)[0])
+    except Exception:  # noqa: BLE001 - the dry run's own plan call reports the reason
+        return cfg
+    return replace(cfg, remote=replace(cfg.remote, gpus=",".join(slot.gpus for slot in cfg.remote.slots[:count])))
+
+
 def _guard_sglang_prompts(cfg: Config, engine: str) -> None:
     """Fail before a pull, a download, or a quality server when SGLang cannot bench."""
     if engine != "sglang":
@@ -410,6 +428,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         from sma.engines import selected_by
 
         cfg = for_thinking(cfg, args.thinking)
+        cfg = _dry_run_gpus(cfg, args.repo, args.revision, quant, args.gguf)
         memory_plan, memory_note, model_file = _dry_run_plan(cfg, args.repo, args.revision, quant, engine, args.gguf)
         print(
             render_plan(
@@ -767,25 +786,49 @@ def _cmd_publish_check(args: argparse.Namespace) -> int:
     return 0
 
 
+def _leg_gpus(cfg: Config, legs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Each GGUF leg's GPU count on the serving machine's slots (owner decision 2026-11-05): the fewest GPUs at
+    which every benchmark keeps the start context, from the leg's memory plan (ranged header reads, no weights).
+    Printed to stderr, so a script that reads the job id from stdout still gets only that."""
+    if not (cfg.remote.enabled and cfg.remote.slots):
+        return legs
+    from sma.pipeline import HubFetcher
+    from sma.runplan import choose_gpus
+
+    counts: dict[tuple[str, str | None, str | None], int] = {}
+    for leg in legs:
+        if leg.get("quant") != "gguf":
+            continue
+        key = (leg["repo"], leg.get("revision"), leg.get("gguf"))
+        if key not in counts:
+            def plan_for(trial: Config, key: tuple[str, str | None, str | None] = key) -> dict[str, Any]:
+                return HubFetcher(trial, registry=None, engine="llamacpp").plan_only(key[0], key[1], "gguf", key[2])[0]
+
+            try:
+                counts[key] = choose_gpus(cfg, plan_for)
+            except SmaError as exc:
+                raise SmaError(f"{leg['repo']} {leg.get('gguf')} cannot be planned on the serving machine. {exc}") from exc
+            print(f"{leg['repo']} {leg.get('gguf')}: {counts[key]} GPU{'s' if counts[key] > 1 else ''}", file=sys.stderr)
+        leg["gpus"] = counts[key]
+    return legs
+
+
 def _cmd_queue_add(args: argparse.Namespace) -> int:
     cfg = _cfg(args)
     engine = _chosen_engine(args, cfg, _flag(args))
     _guard_sglang_prompts(cfg, engine)
-    job = JobQueue(cfg.queue_path()).add(
-        [
-            {
-                "repo": args.repo,
-                "quant": _flag(args),
-                "revision": args.revision,
-                "engine": engine,
-                "engine_requested": args.engine,
-                "gguf": args.gguf,
-                "thinking": args.thinking,
-            }
-        ],
-        kind="single",
-        tool_parser=args.tool_parser,
-    )
+    legs = [
+        {
+            "repo": args.repo,
+            "quant": _flag(args),
+            "revision": args.revision,
+            "engine": engine,
+            "engine_requested": args.engine,
+            "gguf": args.gguf,
+            "thinking": args.thinking,
+        }
+    ]
+    job = JobQueue(cfg.queue_path()).add(_leg_gpus(cfg, legs), kind="single", tool_parser=args.tool_parser)
     print(job["job_id"])
     return 0
 
@@ -793,7 +836,7 @@ def _cmd_queue_add(args: argparse.Namespace) -> int:
 def _cmd_queue_add_pair(args: argparse.Namespace) -> int:
     cfg = _cfg(args)
     legs, _engine = _pair(args, cfg)
-    job = JobQueue(cfg.queue_path()).add(legs, kind="pair", tool_parser=args.tool_parser)
+    job = JobQueue(cfg.queue_path()).add(_leg_gpus(cfg, legs), kind="pair", tool_parser=args.tool_parser)
     print(job["job_id"])
     return 0
 

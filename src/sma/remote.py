@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from sma.config import Config
+from sma.config import Config, gpu_count
 from sma.errors import SmaError
 from sma.logsetup import log_event
 from sma.proc import Following, follow_to_file
@@ -291,6 +291,8 @@ class RemoteRuntime:
             # The slot (sma worker --slots) is where this run's server ran; runs on any slot are one subject.
             "slot": self.cfg.remote.slot,
             "gpus": self.cfg.remote.gpus,
+            # A run across GPUs (owner decision 2026-11-05) splits the model by layer over them.
+            **({"split": "layer"} if gpu_count(self.cfg) > 1 else {}),
             "gpu_names": [row[0] for row in rows],
             "gpu_memory": [row[1] for row in rows if len(row) > 1],
             "driver": rows[0][2] if rows and len(rows[0]) > 2 else None,

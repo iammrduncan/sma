@@ -5,11 +5,13 @@ memplan.py does the arithmetic. This module knows what SMA runs. See docs/servin
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import replace
 from typing import Any
 
 from sma.backends import ServePlan, get_backend
-from sma.config import Config
+from sma.config import Config, gpu_count
+from sma.errors import SmaError
 from sma.memplan import SHORT_CONTEXT, KvLayout, MemoryPlan, Need, plan_memory
 
 # Determinism prompts are a few tokens plus determinism.max_tokens. This is the ladder's floor.
@@ -61,8 +63,13 @@ def llamacpp_buffer_bytes_per_token(layout: KvLayout) -> int:
 
 
 def plan_run(cfg: Config, *, engine: str, layout: KvLayout, weights_bytes: int) -> MemoryPlan:
-    """The plan for one run on one engine. Raises SmaError when it does not fit the budget."""
-    overhead = int(cfg.memory.overhead_gb[engine] * 1e9)
+    """The plan for one run on one engine. Raises SmaError when it does not fit the budget.
+
+    On a serving machine a run may span several GPUs (owner decision 2026-11-05): memory.budget_gb and the
+    engine overhead are per GPU, so both count once per GPU; llama.cpp splits the weights and the KV cache
+    across them by layer."""
+    gpus = gpu_count(cfg)
+    overhead = int(cfg.memory.overhead_gb[engine] * 1e9) * gpus
     buffer_bytes_per_token, max_streams = 0, None
     if engine == "sglang":
         layout = sglang_layout(layout)
@@ -73,23 +80,57 @@ def plan_run(cfg: Config, *, engine: str, layout: KvLayout, weights_bytes: int) 
         # context. A pool of the rest of the budget held 11.6M tokens for LFM3-1.7B, 5.5 times what 8
         # slots use, and its buffers took 47 GB beyond the plan.
         buffer_bytes_per_token, max_streams = llamacpp_buffer_bytes_per_token(layout), slots(cfg)
+        # Split by layer, each GPU keeps its own compute buffers (the attention mask and the 16-bit K and V
+        # for its layers), so they count once per GPU.
+        buffer_bytes_per_token *= gpus
     wanted = needs(cfg)
     if max_streams is not None:
         # llama-server runs at most -np requests at once and queues the rest, so the determinism probe's batch
         # of 64 runs 8 at a time there. Planning 64 streams refused Gemma 4 12B, 26B, and 31B on any number
         # of GPUs (F4), for streams llama.cpp never holds.
         wanted = [replace(need, streams=min(need.streams, max_streams)) for need in wanted]
-    return plan_memory(
+    plan = plan_memory(
         layout=layout,
         weights_bytes=weights_bytes,
         kv_type=get_backend(engine).kv_cache_type,
-        budget_bytes=int(cfg.memory.budget_gb * 1e9),
+        budget_bytes=int(cfg.memory.budget_gb * 1e9) * gpus,
         overhead_bytes=overhead,
         needs=wanted,
         start=cfg.memory.start_context,
         buffer_bytes_per_token=buffer_bytes_per_token,
         max_streams=max_streams,
     )
+    return replace(plan, gpus=gpus)
+
+
+def keeps_start_context(plan: dict[str, Any]) -> bool:
+    """Every benchmark runs at the plan's first step: the start context, or the native maximum if smaller."""
+    target = (plan.get("ladder") or [None])[0]
+    return plan.get("context") == target and all(value == target for value in (plan.get("benchmarks") or {}).values())
+
+
+def choose_gpus(cfg: Config, plan_for: Callable[[Config], dict[str, Any]]) -> int:
+    """How many of the serving machine's GPUs a run takes (owner decision 2026-11-05): the fewest at which every
+    benchmark keeps the start context, up to every slot; failing that, the fewest at which the plan fits at all,
+    with the context stepped down as on one GPU. plan_for plans the run on a config with that many GPUs and
+    raises SmaError when it does not fit."""
+    slots = cfg.remote.slots
+    if not cfg.remote.enabled or not slots:
+        return 1
+    fits, refusal = None, None
+    for count in range(1, len(slots) + 1):
+        trial = replace(cfg, remote=replace(cfg.remote, gpus=",".join(slot.gpus for slot in slots[:count])))
+        try:
+            plan = plan_for(trial)
+        except SmaError as exc:
+            refusal = exc
+            continue
+        if keeps_start_context(plan):
+            return count
+        fits = fits or count
+    if fits:
+        return fits
+    raise SmaError(f"It does not fit on all {len(slots)} GPUs of the serving machine either: {refusal}")
 
 
 def sglang_layout(layout: KvLayout) -> KvLayout:
@@ -137,7 +178,8 @@ def describe(plan: dict[str, Any]) -> list[str]:
         f"memory: {plan['weights_gb']} GB weights + {plan['overhead_gb']} GB engine overhead + "
         f"{plan['pool_gb']} GB KV pool"
         + (f" + {plan['buffer_gb']} GB engine buffers sized by it" if plan.get("buffer_bytes") else "")
-        + f" = {plan['footprint_gb']} GB of the {plan['budget_gb']} GB budget",
+        + f" = {plan['footprint_gb']} GB of the {plan['budget_gb']} GB budget"
+        + (f" ({plan['gpus']} GPUs, split by layer)" if (plan.get("gpus") or 1) > 1 else ""),
         *(
             [f"KV pool: {plan['pool_streams']} slots at {plan['context']:,} tokens, the most the server runs at once"]
             if plan.get("pool_streams")

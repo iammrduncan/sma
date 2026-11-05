@@ -2,7 +2,7 @@
 
 SMA (Small Model Arena launcher) is a standalone CLI. It takes one Hugging Face checkpoint that is already in the quant you name, serves it, and writes a resumable run folder.
 
-SMA does not quantize or convert weights. It does not use tensor parallelism, including across machines. One GPU runs one model at a time: a Spark runs one model, and the V100 pod one per GPU (`sma worker --slots`). The host alias in the run record is not a hostname, and the HF token is read from the environment or the git-ignored `.env`, never from `sma.yaml`.
+SMA does not quantize or convert weights. vLLM and SGLang run with tensor parallelism 1, and nothing runs across machines. A Spark runs one model at a time, and the V100 pod one per GPU (`sma worker --slots`); since 2026-11-05 a model too big for one V100 takes several of its GPUs, split by layer. The host alias in the run record is not a hostname, and the HF token is read from the environment or the git-ignored `.env`, never from `sma.yaml`.
 
 SMA serves each model the way people really run it on a Spark ([docs/serving-design.md](docs/serving-design.md)). The checkpoint format picks the engine before launch:
 
@@ -233,7 +233,18 @@ served on the same hardware.
 
 The pod's four GPUs are four slots (`remote.slots`), and `sma worker --slots` runs one leg of a queued job on
 each, many at once (owner decisions 2026-11-01). Each leg takes the first free slot, in queue order; when one
-ends, the next starts on that slot. A pair's three legs start together: the 4-bit legs' logprobs step waits
+ends, the next starts on that slot. Since 2026-11-05 every model in the list runs here (owner decision), and a
+leg takes as many slots as its memory plan needs to keep the start context for every benchmark (65,536 tokens
+per stream, or the native maximum if smaller), up to all four; failing that, the fewest at which it fits.
+`sma queue add` and `add-pair` plan each leg on 1, 2, 3, and 4 GPUs from the GGUF header (no weights), record
+its `gpus`, and print the count to stderr. Such a run serves on all its slots' GPUs (`CUDA_VISIBLE_DEVICES`
+"0,1,2"), with `--split-mode layer --tensor-split 1,1,1` for llama-server and llama-perplexity: llama.cpp
+b11960 refuses its tensor split for flint, mellum, and lfm3, and its row split is gone on CUDA. Its plan counts
+`memory.budget_gb` and the engine overhead once per GPU, and the compute buffers too (each GPU keeps its own).
+Its telemetry samples every one of its GPUs: the lowest SM clock, the hottest GPU, their summed power, and any
+GPU's slowdown flag. The manifest's `serving` lists the GPUs and `split: layer`. A leg waits until it has its
+slots, preferring neighbours (GPUs 0-1 and 2-3 share a PCIe switch), and the slots that free up meanwhile wait
+with it, so a wide leg is never starved by narrow ones. `sma watch` shows it once, with all its GPUs. A pair's three legs start together: the 4-bit legs' logprobs step waits
 for the reference's logits (`logprobs.reference_wait_s`), and records KL as null with the reason if they do not
 come. A failed leg resumes its own run on any free slot, up to `queue.max_attempts`. The speed steps of the
 slots take turns, in arrival order, while the other slots keep working, and the speed summary records that

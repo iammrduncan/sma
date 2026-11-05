@@ -351,19 +351,48 @@ class Dispatcher:
                 return job, index
         return None
 
+    def _busy(self) -> set[str]:
+        """The slots running units hold. A unit across GPUs holds every slot its name joins with "+"."""
+        return {part for child in self.children.values() for part in child.slot.split("+")}
+
+    def _pick(self, free: list[str], need: int) -> list[str] | None:
+        """Slots for a unit that needs `need` GPUs, in config order: neighbours aligned to `need` first (on the V100
+        pod GPUs 0-1 and 2-3 share a PCIe switch), then any neighbours, then any. None while too few are free."""
+        if need > len(free):
+            return None
+        order = [slot.name for slot in self.cfg.remote.slots]
+        windows = [order[start : start + need] for start in range(len(order) - need + 1)]
+        windows.sort(key=lambda window: order.index(window[0]) % need != 0)
+        for window in windows:
+            if all(name in free for name in window):
+                return window
+        return [name for name in order if name in free][:need]
+
     def start_ready(self) -> None:
+        """Start ready legs on free slots, in queue order. A leg across GPUs (its "gpus", from its memory plan)
+        waits until that many slots are free, and the slots that free up meanwhile wait with it: a later leg
+        does not take them, so a wide leg is never starved by narrow ones."""
         if self.stopping:
             return
-        for slot in self.cfg.remote.slots:
-            if slot.name in self.children or slot.name in self.down:
-                continue
+        for _ in range(4 * len(self.cfg.remote.slots)):
+            busy = self._busy()
+            free = [slot.name for slot in self.cfg.remote.slots if slot.name not in busy and slot.name not in self.down]
+            if not free:
+                return
             unit = self.next_unit()
             if unit is None or unit == "wait":
                 return
             job, index = unit
+            need = max(1, int((job["legs"][index] or {}).get("gpus") or 1))
+            if need > len(self.cfg.remote.slots):
+                self._fail_leg(job["job_id"], index, f"It needs {need} GPUs, more than the serving machine's {len(self.cfg.remote.slots)} slots.")
+                continue
+            chosen = self._pick(free, need)
+            if chosen is None:
+                return
             if job.get("state") == "pending" and not self.queue.claim_job(job["job_id"], self.identity, self.cfg.host_alias):
                 continue  # Another worker took it between the read and the claim.
-            self.start(slot.name, job["job_id"], index)
+            self.start("+".join(chosen), job["job_id"], index)
 
     def unit_argv(self, slot: str, job_id: str, index: int) -> list[str]:
         argv = [sys.executable, "-m", "sma", "worker", "--run-unit", job_id, str(index), "--slot", slot]
@@ -437,6 +466,8 @@ class Dispatcher:
         self._finish_if_done(child.job_id)
 
     def _slot_health(self, slot: str, server_failed: bool, ok: bool) -> None:
+        if "+" in slot:
+            return  # A server across GPUs that fails to start says nothing about any one of its slots.
         if ok or not server_failed:
             self.slot_failures[slot] = 0 if ok else self.slot_failures.get(slot, 0)
             return
@@ -484,8 +515,10 @@ class Dispatcher:
             for index, leg in enumerate(job.get("legs") or []):
                 if leg.get("status") != "running":
                     continue
-                slot = leg.get("slot")
-                if unit_alive(leg.get("pid")) and slot in {item.name for item in self.cfg.remote.slots} and slot not in self.children:
+                slot = str(leg.get("slot") or "")
+                parts = set(slot.split("+"))
+                known = parts <= {item.name for item in self.cfg.remote.slots}
+                if unit_alive(leg.get("pid")) and slot and known and not parts & self._busy():
                     self.children[slot] = Child(job["job_id"], index, slot, Adopted(int(leg["pid"])), self.deps.clock())
                     if leg.get("run_id"):
                         live_runs.add(str(leg["run_id"]))
@@ -564,14 +597,17 @@ class Dispatcher:
 
     def write_state(self) -> None:
         slots = []
+        owners = {part: child for child in self.children.values() for part in child.slot.split("+")}
         for slot in self.cfg.remote.slots:
-            child = self.children.get(slot.name)
+            child = owners.get(slot.name)
             row: dict[str, Any] = {"name": slot.name, "gpus": slot.gpus, "state": "down" if slot.name in self.down else "busy" if child else "idle"}
             if child is not None:
                 job = self.queue.read(child.job_id) or {}
                 leg = (job.get("legs") or [{}])[child.leg] or {}
                 row.update(job_id=child.job_id, leg=child.leg, run_id=leg.get("run_id"), pid=child.handle.pid,
                            repo=leg.get("repo"), gguf=leg.get("gguf"), thinking=leg.get("thinking"))  # fmt: skip
+                if "+" in child.slot:
+                    row["unit_slot"] = child.slot  # A run across GPUs: every slot it holds.
             if slot.name in self.down:
                 row["reason"] = self.down[slot.name]
             slots.append(row)

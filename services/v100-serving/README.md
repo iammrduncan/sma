@@ -69,6 +69,12 @@ soon as one ends, the next unit starts on that slot.
   seconds; the free slots wait for it rather than go to a later job. The 4-bit leg's logprobs step then waits
   for the reference's logits (`logprobs.reference_wait_s`, 6 h). If the reference's logprobs step fails, or the
   wait runs out, KL is null and the warning says why. `sma watch` shows "waiting for the reference's logits".
+- **Runs across GPUs** (owner decision 2026-11-05). A leg whose memory plan does not keep the start context on
+  one V100 takes several slots, its count (`gpus`) chosen when it is queued (`runplan.choose_gpus`). The unit's
+  slot name joins them (`v100-0+v100-1`): it serves on all their GPUs, with the first slot's ports and lock;
+  llama-server and llama-perplexity split it by layer. The dispatcher starts it once that many slots are free,
+  preferring a PCIe pair for two GPUs, and holds the slots that free up for it meanwhile. A server across GPUs
+  that fails to start marks no slot down.
 - **Retries.** A leg that fails, ends with failed steps, or whose process dies goes back to the queue and
   resumes its own run on whatever slot is free, up to `queue.max_attempts`, after `queue.retry_backoff_s`.
   The run's `serving` then names the new slot, and the earlier ones stay in `serving.earlier`.

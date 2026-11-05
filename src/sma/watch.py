@@ -153,9 +153,8 @@ def board(cfg: Config, view: View, *, plan: Path | None = None, open_item: tuple
         active += [(f"spark {_run_name(row)}", row) for row in spark]
         for one in states:
             alerts += _dispatcher_alerts(cfg, one, by_id, queued, now)
-        busy = sum(1 for slot in state["slots"] if slot.get("state") == "busy")
-        down = sum(1 for slot in state["slots"] if slot.get("state") == "down")
-        activity = f"{busy} of {len(state['slots'])} slots busy" + (f", {down} down" if down else "")
+        busy, total, down = _slot_counts(state["slots"])
+        activity = f"{busy} of {total} slots busy" + (f", {down} down" if down else "")
         activity += f", {_count(len(spark), 'run')} on this Spark" if spark else ""
     else:
         running = spark
@@ -646,7 +645,26 @@ def _dispatcher_state(path: Path) -> dict[str, Any] | None:
         # A slot whose unit process is gone runs nothing, whatever a stopped dispatcher last wrote.
         if slot.get("state") == "busy" and slot.get("pid") and not unit_alive(slot["pid"]):
             slot["state"] = "idle"
+            slot.pop("unit_slot", None)
+    # A run across GPUs shows once, on its first slot, with every GPU it holds.
+    gpus_of = {slot.get("name"): str(slot.get("gpus")) for slot in state["slots"]}
+    merged = []
+    for slot in state["slots"]:
+        parts = str(slot.get("unit_slot") or "").split("+") if slot.get("state") == "busy" and slot.get("unit_slot") else []
+        if parts and slot.get("name") != parts[0]:
+            continue
+        if parts:
+            slot = {**slot, "gpus": ",".join(gpus_of.get(part, "?") for part in parts), "slots": len(parts)}
+        merged.append(slot)
+    state["slots"] = merged
     return state
+
+
+def _slot_counts(slots: list[dict[str, Any]]) -> tuple[int, int, int]:
+    """Busy, all, and down slots; a run across GPUs counts every slot it holds."""
+    count = lambda rows: sum(int(row.get("slots") or 1) for row in rows)  # noqa: E731
+    return (count(row for row in slots if row.get("state") == "busy"), count(slots),
+            count(row for row in slots if row.get("state") == "down"))  # fmt: skip
 
 
 def _decode_rates(cfg: Config, series: list[Series], run_id: str, now: datetime) -> tuple[dict, dict] | None:
@@ -742,8 +760,8 @@ def _slots_panel(cfg: Config, state: dict[str, Any], by_id: dict[str, dict], now
     the last 5 minutes (from the run's own counters); then this Spark's runs at work (plain `sma watch`), the same way.
     The selected run shows whole beneath (its window)."""
     slots = state["slots"]
-    busy = sum(1 for slot in slots if slot.get("state") == "busy")
-    title = paint("SLOTS", "head") + f"  {busy} of {len(slots)} busy on the serving machine"
+    busy, total, _down = _slot_counts(slots)
+    title = paint("SLOTS", "head") + f"  {busy} of {total} busy on the serving machine"
     title += f", {_count(len(spark), 'run')} on this Spark" if spark else ""
     if not state.get("alive"):
         title += paint("  ·  the dispatcher is not running", "failed")

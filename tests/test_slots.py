@@ -891,3 +891,184 @@ def test_the_speed_turn_waits_for_livecodebench_grading_and_holds_its_lock(tmp_p
     os.close(held)
     thread.join(10)
     assert inside == [True] and ctx.speed_turn["grading_waited_s"] >= 0.2
+
+
+# Runs across GPUs (owner decision 2026-11-05): a model too big for one V100 takes several slots, split by layer.
+
+
+def _qwen3_8b_layout():
+    from sma.memplan import kv_layout_from_hf_config
+
+    return kv_layout_from_hf_config(json.loads((Path(__file__).parent / "data" / "configs" / "qwen3-8b.json").read_text()))
+
+
+def test_a_run_across_gpus_takes_its_slots_gpus_and_the_first_slots_ports_and_lock(tmp_path: Path) -> None:
+    from sma.config import gpu_count, split_args
+
+    cfg = _cfg(tmp_path)
+    wide = slot_config(cfg, "v100-0+v100-1+v100-2")
+    assert (wide.remote.gpus, wide.remote.remote_port, wide.remote.slot, wide.engine.port) == ("0,1,2", 8001, "v100-0+v100-1+v100-2", 18001)
+    assert wide.lock_file() == slot_config(cfg, "v100-0").lock_file()
+    assert gpu_count(wide) == 3 and split_args(wide) == ["--split-mode", "layer", "--tensor-split", "1,1,1"]
+    assert gpu_count(slot_config(cfg, "v100-3")) == 1 and split_args(slot_config(cfg, "v100-3")) == []
+    for bad in ("v100-0+v100-9", "v100-0+v100-0"):
+        with pytest.raises(SmaError, match="No slot"):
+            slot_config(cfg, bad)
+
+
+def test_a_plan_across_gpus_counts_the_budget_overhead_and_buffers_once_per_gpu(tmp_path: Path) -> None:
+    from sma.runplan import plan_run, serve_plan
+
+    cfg = _cfg(tmp_path, engine={"llamacpp_cache_ram_mib": 0}, memory={"budget_gb": 33.0, "overhead_gb": {"vllm": 13.0, "sglang": 13.0, "llamacpp": 1.0}})
+    one = plan_run(slot_config(cfg, "v100-0"), engine="llamacpp", layout=_qwen3_8b_layout(), weights_bytes=8_000_000_000)
+    two = plan_run(slot_config(cfg, "v100-0+v100-1"), engine="llamacpp", layout=_qwen3_8b_layout(), weights_bytes=8_000_000_000)
+    assert (one.gpus, two.gpus) == (1, 2)
+    assert two.budget_bytes == 2 * one.budget_bytes and two.overhead_bytes == 2 * one.overhead_bytes
+    assert two.buffer_bytes_per_token == 2 * one.buffer_bytes_per_token
+    # llama-server and llama-perplexity split the model by layer over both GPUs.
+    from sma.backends import get_backend
+    from sma.commands import perplexity_args
+
+    wide = slot_config(cfg, "v100-0+v100-1")
+    argv = get_backend("llamacpp").serve_argv(wide, mode="quality", served_name="m", is_moe=False, quant_flag="gguf",
+                                              moe_backend=None, batch_invariant=False, plan=serve_plan(wide, two.to_json(), model_file="m.gguf"))  # fmt: skip
+    assert argv[argv.index("--split-mode") : argv.index("--split-mode") + 4] == ["--split-mode", "layer", "--tensor-split", "1,1"]
+    assert "--split-mode" in perplexity_args(wide, model="m.gguf", corpus="c.txt", base=None, compare=False)
+    assert "--split-mode" not in perplexity_args(slot_config(cfg, "v100-0"), model="m.gguf", corpus="c.txt", base=None, compare=False)
+
+
+def test_a_leg_takes_the_fewest_gpus_that_keep_the_start_context(tmp_path: Path) -> None:
+    from sma.config import gpu_count
+    from sma.runplan import choose_gpus
+
+    cfg = _cfg(tmp_path)
+    full = {"ladder": [65_536, 32_768], "context": 65_536, "benchmarks": {"quality": 65_536, "browsecomp": 65_536}}
+    stepped = {**full, "benchmarks": {"quality": 32_768, "browsecomp": 65_536}}
+
+    def plans(by_count: dict[int, Any]):
+        def plan_for(trial):
+            found = by_count.get(gpu_count(trial))
+            if found is None:
+                raise SmaError("does not fit")
+            return found
+        return plan_for
+
+    assert choose_gpus(cfg, plans({1: stepped, 2: stepped, 3: full, 4: full})) == 3
+    assert choose_gpus(cfg, plans({2: stepped, 3: stepped, 4: stepped})) == 2  # None keeps it: the fewest that fit.
+    with pytest.raises(SmaError, match="all 4 GPUs"):
+        choose_gpus(cfg, plans({}))
+
+
+def test_telemetry_across_gpus_takes_the_slowest_clock_the_hottest_gpu_and_all_the_power() -> None:
+    from sma.telemetry import combine_gpu_lines
+
+    lines = ["1380, 61, 120.5, Not Active, Not Active, Not Active, Not Active",
+             "1290, 66, 130.0, Not Active, Active, Not Active, Not Active",
+             "1380, 58, 110.0, Not Active, Not Active, Not Active, [N/A]"]  # fmt: skip
+    assert combine_gpu_lines(lines) == "1290, 66, 360.500, Not Active, Active, Not Active, [N/A]"
+    assert combine_gpu_lines(lines[:1]) == lines[0]
+
+
+def _single(queue: JobQueue, gguf: str, gpus: int = 1) -> dict[str, Any]:
+    leg = {"repo": "org/model-GGUF", "quant": "gguf", "gguf": gguf, "engine": "llamacpp", "engine_requested": None, "gpus": gpus}
+    return queue.add([leg], kind="single")
+
+
+def test_a_leg_across_gpus_waits_for_its_slots_and_later_legs_do_not_take_them(tmp_path: Path) -> None:
+    dispatcher, queue, launcher, _ = _dispatcher(tmp_path)
+    first, second = _single(queue, "Q4_K_M"), _single(queue, "Q8_0")
+    wide, after = _single(queue, "F16", gpus=4), _single(queue, "Q6_K")
+    dispatcher.recover()
+    dispatcher.tick()
+    assert launcher.started == [(first["job_id"], 0, "v100-0"), (second["job_id"], 0, "v100-1")]
+    launcher.end(first["job_id"], 0)
+    dispatcher.tick()
+    assert len(launcher.started) == 2  # Three slots free: the 4-GPU leg still waits, and the last job waits behind it.
+    launcher.end(second["job_id"], 0)
+    dispatcher.tick()
+    assert launcher.started[-1] == (wide["job_id"], 0, "v100-0+v100-1+v100-2+v100-3")
+    assert queue.read(wide["job_id"])["legs"][0]["slot"] == "v100-0+v100-1+v100-2+v100-3"
+    state = json.loads((tmp_path / "queue" / "dispatcher" / "v100-pod.json").read_text())
+    assert [row["state"] for row in state["slots"]] == ["busy"] * 4
+    assert {row.get("unit_slot") for row in state["slots"]} == {"v100-0+v100-1+v100-2+v100-3"}
+    launcher.end(wide["job_id"], 0)
+    dispatcher.tick()
+    assert launcher.started[-1] == (after["job_id"], 0, "v100-0")
+
+
+def test_two_gpu_legs_take_a_pcie_pair_and_a_leg_wider_than_the_machine_fails(tmp_path: Path) -> None:
+    dispatcher, queue, launcher, _ = _dispatcher(tmp_path)
+    narrow, pair, impossible = _single(queue, "Q4_0"), _single(queue, "F16", gpus=2), _single(queue, "BF16", gpus=5)
+    dispatcher.recover()
+    dispatcher.tick()
+    # v100-0 is busy, so the pair takes v100-2 and v100-3 (one PCIe switch), not v100-1 and v100-2.
+    assert launcher.started == [(narrow["job_id"], 0, "v100-0"), (pair["job_id"], 0, "v100-2+v100-3")]
+    leg = queue.read(impossible["job_id"])["legs"][0]
+    assert leg["status"] == "failed" and "needs 5 GPUs" in leg["error"]
+
+
+def test_a_restarted_dispatcher_adopts_a_unit_across_gpus(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from sma import dispatcher as module
+
+    dispatcher, queue, launcher, _ = _dispatcher(tmp_path)
+    wide = _single(queue, "F16", gpus=2)
+    dispatcher.recover()
+    dispatcher.tick()
+    monkeypatch.setattr(module, "unit_alive", lambda pid: pid == launcher.handles[(wide["job_id"], 0)].pid)
+    fresh, _, fresh_launcher, _ = _dispatcher(tmp_path)
+    _single(queue, "Q4_0")
+    fresh.recover()
+    assert set(fresh.children) == {"v100-0+v100-1"}
+    fresh.tick()
+    assert [unit[2] for unit in fresh_launcher.started] == ["v100-2"]
+
+
+def test_a_run_across_gpus_refuses_a_server_left_on_any_of_its_gpus(tmp_path: Path) -> None:
+    from sma.pipeline import Ctx, _guard_containers
+
+    cfg = slot_config(_cfg(tmp_path), "v100-0+v100-1")
+    runtime = SimpleNamespace(list_sma=lambda: [], servers_on=lambda: {"sma-other-quality": "2"}, stop=lambda name: None)
+    ctx = Ctx(cfg=cfg, services=SimpleNamespace(runtime=runtime), run_dir=tmp_path, manifest={"run_id": "me"})
+    _guard_containers(ctx)
+    runtime.servers_on = lambda: {"sma-left-quality": "1"}
+    with pytest.raises(SmaError, match="still running on GPU 0,1"):
+        _guard_containers(ctx)
+
+
+def test_watch_shows_a_run_across_gpus_once_with_all_its_gpus(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from sma import watch
+
+    monkeypatch.setattr(watch, "unit_alive", lambda pid: True)
+    path = tmp_path / "state.json"
+    rows = [{"name": f"v100-{index}", "gpus": str(index), "state": "busy", "pid": 1, "run_id": "wide", "unit_slot": "v100-0+v100-1+v100-2"}
+            for index in range(3)] + [{"name": "v100-3", "gpus": "3", "state": "idle"}]  # fmt: skip
+    path.write_text(json.dumps({"pid": os.getpid(), "slots": rows}))
+    state = watch._dispatcher_state(path)
+    assert [(row["name"], row["gpus"]) for row in state["slots"]] == [("v100-0", "0,1,2"), ("v100-3", "3")]
+    assert watch._slot_counts(state["slots"]) == (3, 4, 0)
+
+
+def test_queueing_on_the_serving_machine_records_each_legs_gpus(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys) -> None:
+    # The F16 reference needs two V100s to keep 65,536 tokens per stream; the 4-bit legs keep it on one.
+    from sma import pipeline
+    from sma.cli import main
+    from sma.config import gpu_count
+
+    full = {"ladder": [65_536], "context": 65_536, "benchmarks": {"quality": 65_536}}
+    stepped = {"ladder": [65_536, 32_768], "context": 32_768, "benchmarks": {"quality": 32_768}}
+
+    def plan_only(self, repo, revision, quant, gguf):
+        if gguf == "F16" and gpu_count(self.cfg) < 2:
+            return stepped, "m-F16.gguf"
+        return full, f"m-{gguf}.gguf"
+
+    monkeypatch.setattr(pipeline.HubFetcher, "plan_only", plan_only)
+    config = tmp_path / "sma.yaml"
+    config.write_text(json.dumps({"runs_dir": str(tmp_path / "runs"), "queue": {"dir": str(tmp_path / "q")},
+                                  "remote": {"enabled": True, "slots": SLOTS}}))  # fmt: skip
+    assert main(["queue", "add-pair", "--gguf", "org/model-GGUF", "F16", "Q4_K_M", "--config", str(config)]) == 0
+    out, err = capsys.readouterr()
+    assert out.strip().startswith("job-") and len(out.strip().splitlines()) == 1  # Scripts read the job id alone.
+    assert "org/model-GGUF F16: 2 GPUs" in err and "org/model-GGUF Q4_K_M: 1 GPU" in err
+    (job,) = JobQueue(tmp_path / "q").list_jobs()
+    assert [leg["gpus"] for leg in job["legs"]] == [2, 1, 1]

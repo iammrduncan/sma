@@ -2575,7 +2575,10 @@ def _guard_slot(ctx: Ctx) -> None:
     for name in runtime.list_sma():
         if ctx.run_id in name:
             runtime.stop(name)
-    on_gpu = [name for name, gpus in runtime.servers_on().items() if gpus == ctx.cfg.remote.gpus and ctx.run_id not in name]
+    mine = {part.strip() for part in ctx.cfg.remote.gpus.split(",")}
+    # A run across GPUs shares a GPU with a server on any one of them ("0,1" and "1").
+    on_gpu = [name for name, gpus in runtime.servers_on().items()
+              if mine & {part.strip() for part in gpus.split(",")} and ctx.run_id not in name]  # fmt: skip
     if on_gpu:
         raise SmaError(
             f"Server {', '.join(on_gpu)} is still running on GPU {ctx.cfg.remote.gpus} of the serving machine (slot "

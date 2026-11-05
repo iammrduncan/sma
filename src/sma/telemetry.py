@@ -101,6 +101,33 @@ def _flag_cell(flag: int | None) -> str:
     return str(flag)
 
 
+def combine_gpu_lines(lines: list[str]) -> str:
+    """One nvidia-smi line for a run across GPUs (one line per GPU): the lowest SM clock, the hottest GPU, the
+    power of all of them, and each slowdown flag active when any GPU's is. A value one GPU does not report makes
+    the combined value unreported, and a flag no GPU sets but one cannot report is unverified."""
+    rows = [[part.strip() for part in line.split(",")] for line in lines if line.strip()]
+    rows = [row for row in rows if len(row) >= 7]
+    if len(rows) <= 1:
+        return lines[0] if lines else ""
+
+    def numbers(index: int) -> list[float] | None:
+        try:
+            return [float(row[index]) for row in rows]
+        except ValueError:
+            return None
+
+    clock, temp, power = numbers(0), numbers(1), numbers(2)
+    cells = [
+        "[N/A]" if clock is None else f"{min(clock):g}",
+        "[N/A]" if temp is None else f"{max(temp):g}",
+        "[N/A]" if power is None else f"{sum(power):.3f}",
+    ]
+    for index in range(3, 7):
+        flags = [_flag(row[index]) for row in rows]
+        cells.append("Active" if 1 in flags else "Not Active" if all(flag == 0 for flag in flags) else "[N/A]")
+    return ", ".join(cells)
+
+
 def format_sample_row(parsed: Sample, raw_clock: str, flags: list[int | None]) -> str:
     iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(parsed.ts_unix))
     temp = "" if parsed.temp_c is None else f"{parsed.temp_c:.3f}"
@@ -310,11 +337,12 @@ class TelemetryRecorder:
         self._guard: tuple[int, Any] | None = None
         self._guard_tripped = False
 
-    def _gpu(self) -> int:
-        """The GPU sampled: the first of the remote worker's GPUs, else doctor.gpu_index."""
+    def _gpu(self) -> str:
+        """The GPUs sampled: every GPU the run serves on (remote.gpus, "0,1,2" for a run across GPUs), else
+        doctor.gpu_index."""
         if self.cfg.remote.enabled:
-            return int(str(self.cfg.remote.gpus).split(",")[0])
-        return self.cfg.doctor.gpu_index
+            return ",".join(part.strip() for part in str(self.cfg.remote.gpus).split(","))
+        return str(self.cfg.doctor.gpu_index)
 
     def _remote(self, argv: list[str]) -> list[str]:
         return [*self._prefix, shlex.join(argv)] if self._prefix else argv
@@ -463,7 +491,7 @@ class TelemetryRecorder:
                     self.append_memory(*memory)
                     self.check_memory(memory[0])
                 if result.returncode == 0 and result.stdout.strip():
-                    self.append_parsed(result.stdout.strip().splitlines()[0])
+                    self.append_parsed(combine_gpu_lines(result.stdout.strip().splitlines()))
                     self.failures = 0
                 else:
                     self.failures += 1

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sma.config import Config, QualitySuite
+from sma.config import Config, QualitySuite, split_args
 from sma.errors import SmaError
 
 
@@ -268,7 +268,7 @@ def perplexity_args(cfg: Config, *, model: str, corpus: str, base: str | None, c
     compare (KL against it)."""
     args = [
         "-m", model, "-f", corpus, "-c", str(cfg.logprobs.window_tokens), "--chunks", str(cfg.logprobs.llamacpp_chunks),
-        "-ngl", "all", "-fa", "on", "-ctk", "q8_0", "-ctv", "q8_0", "--seed", str(cfg.seed),
+        "-ngl", "all", "-fa", "on", "-ctk", "q8_0", "-ctv", "q8_0", "--seed", str(cfg.seed), *split_args(cfg),
     ]  # fmt: skip
     if base:
         args += ["--kl-divergence-base", base]
@@ -564,7 +564,8 @@ def eval_factory_argv(
     ]
 
 
-def nvidia_smi_query(gpu_index: int) -> list[str]:
+def nvidia_smi_query(gpu_index: int | str) -> list[str]:
+    """One CSV line per GPU in gpu_index (an index, or several joined by commas)."""
     fields = ",".join(
         [
             "clocks.sm",
@@ -585,7 +586,7 @@ def nvidia_smi_query(gpu_index: int) -> list[str]:
     ]
 
 
-def nvidia_smi_query_legacy(gpu_index: int) -> list[str]:
+def nvidia_smi_query_legacy(gpu_index: int | str) -> list[str]:
     fields = ",".join(
         [
             "clocks.sm",
