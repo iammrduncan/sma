@@ -497,9 +497,9 @@ def test_llama_cpp_pool_holds_its_slots_not_the_rest_of_the_budget() -> None:
     assert plan.buffer_bytes == plan.pool_tokens * 4096
     assert plan.footprint_bytes == 3_470_000_000 + plan.overhead_bytes + plan.pool_bytes + plan.buffer_bytes
     assert plan.footprint_bytes < 40e9
-    # Determinism's 64 prompts share the 8 slots' pool at a shorter step (each stream also keeps its
-    # convolution state, so 64 at 32,768 just miss).
-    assert plan.benchmarks["determinism"] == 16_384
+    # Determinism's 64 prompts run 8 at a time in llama-server's slots, so they get the slots' full context
+    # (before 2026-11-05 SMA planned 64 streams there and gave them 16,384).
+    assert plan.benchmarks["determinism"] == 262_144
     assert any(line.startswith("KV pool: 8 slots at 262,144 tokens") for line in describe(plan.to_json()))
 
 
@@ -673,3 +673,24 @@ def test_sglang_plans_sliding_layers_in_full_and_its_memory_share_holds_the_plan
     # Never above engine.gpu_memory_utilization, and that cap before a plan exists.
     assert sglang_mem_fraction(cfg, plan, memory=(20_000_000_000, 130_660_000_000)) == cfg.engine.gpu_memory_utilization
     assert sglang_mem_fraction(cfg, ServePlan("<context>", "<kv-pool-bytes>", "<kv-pool-tokens>")) == cfg.engine.gpu_memory_utilization
+
+
+def test_llama_cpp_plans_the_determinism_batch_at_its_slots_and_vllm_at_64() -> None:
+    # llama-server runs at most -np requests at once, so the probe's batch of 64 runs 8 at a time. Planning 64
+    # streams of sliding-window state refused Gemma 4 12B, 26B, and 31B on any number of GPUs (F4).
+    from sma.memplan import KvLayout
+    from sma.runplan import plan_run
+
+    cfg = default_config()
+    cfg.memory.budget_gb, cfg.memory.overhead_gb["llamacpp"], cfg.engine.llamacpp_cache_ram_mib = 33.0, 1.0, 0
+    gemma_like = KvLayout(
+        total_layers=48, full_attention_layers=8, full_values_per_token=8 * 2 * 4 * 512, sliding_attention_layers=40,
+        sliding_values_per_token=40 * 2 * 8 * 256, sliding_window=1024, state_bytes_per_stream=0,
+        native_context=131_072, native_source="test", rope_stretched=False,
+    )  # fmt: skip
+    plan = plan_run(cfg, engine="llamacpp", layout=gemma_like, weights_bytes=16_000_000_000)
+    assert plan.context == 65_536 and plan.benchmarks["determinism"] >= 1_024
+    # vLLM and SGLang take the whole batch at once: their plans still count 64 streams.
+    from sma.runplan import needs
+
+    assert {need.name: need.streams for need in needs(cfg)}["determinism"] == 64

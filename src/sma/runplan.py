@@ -73,13 +73,19 @@ def plan_run(cfg: Config, *, engine: str, layout: KvLayout, weights_bytes: int) 
         # context. A pool of the rest of the budget held 11.6M tokens for LFM3-1.7B, 5.5 times what 8
         # slots use, and its buffers took 47 GB beyond the plan.
         buffer_bytes_per_token, max_streams = llamacpp_buffer_bytes_per_token(layout), slots(cfg)
+    wanted = needs(cfg)
+    if max_streams is not None:
+        # llama-server runs at most -np requests at once and queues the rest, so the determinism probe's batch
+        # of 64 runs 8 at a time there. Planning 64 streams refused Gemma 4 12B, 26B, and 31B on any number
+        # of GPUs (F4), for streams llama.cpp never holds.
+        wanted = [replace(need, streams=min(need.streams, max_streams)) for need in wanted]
     return plan_memory(
         layout=layout,
         weights_bytes=weights_bytes,
         kv_type=get_backend(engine).kv_cache_type,
         budget_bytes=int(cfg.memory.budget_gb * 1e9),
         overhead_bytes=overhead,
-        needs=needs(cfg),
+        needs=wanted,
         start=cfg.memory.start_context,
         buffer_bytes_per_token=buffer_bytes_per_token,
         max_streams=max_streams,

@@ -395,8 +395,13 @@ def _native_context(meta: dict[str, Any], arch: str, notes: list[str]) -> tuple[
         original = _count(meta, original_key)
         if original:
             return original, original_key, True
-        notes.append(f"RoPE {scaling} stretching is on but the file has no {original_key}. The native context is unknown.")
-        return None, None, True
+        # Gemma 3 4B, 12B, and 27B ship linear scaling (factor 8) as part of the model and name no original
+        # length, in config.json and in their GGUFs. As on the config path, the file's own context_length,
+        # the longest it was released for, is the native context; SMA adds no stretching (F5, 2026-11-05).
+        context = _count(meta, context_key)
+        notes.append(f"RoPE {scaling} scaling is on but the file has no {original_key}. The native context is "
+                     f"the file's {context_key}; SMA adds no stretching.")
+        return (context, context_key, True) if context else (None, None, True)
     context = _count(meta, context_key)
     if context is None:
         notes.append(f"The file has no {context_key}.")
@@ -448,11 +453,16 @@ _QUANT_TAG = re.compile(r"(?<![^-./])((?:UD-)?(?:I?Q\d|TQ\d|MXFP4|NVFP4|BF16|F16
                         re.IGNORECASE)
 
 
+# Draft models for speculative decoding that publishers ship beside the model: MTP heads (Gemma 4), and
+# ggml-org's DFlash and DSpark drafters (Qwen3.6, Qwen3.8, Gemma 4 26B and 31B, Qwen3-8B).
+_DRAFT_PREFIXES = ("mtp-", "dflash-", "dspark-")
+
+
 def _model_files(files: list[str]) -> list[str]:
-    """GGUF model files. Vision projectors (mmproj) and MTP draft heads (mtp-*, Gemma 4) are not models."""
+    """GGUF model files. Vision projectors (mmproj) and speculative-decoding drafts are not models."""
     names = {f: f.rsplit("/", 1)[-1].lower() for f in files}
     return sorted(f for f, name in names.items()
-                  if name.endswith(".gguf") and "mmproj" not in name and not name.startswith("mtp-"))
+                  if name.endswith(".gguf") and "mmproj" not in name and not name.startswith(_DRAFT_PREFIXES))
 
 
 def match_gguf_files(files: list[str], selector: str) -> list[str]:

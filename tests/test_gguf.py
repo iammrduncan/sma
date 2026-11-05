@@ -218,10 +218,12 @@ def test_native_context_under_yarn_is_the_original_length():
         32768, "qwen3.rope.scaling.original_context_length", True)
 
 
-def test_native_context_is_unknown_when_stretching_has_no_original_length():
-    found = layout("llama", {"rope.scaling.type": "linear", "rope.scaling.factor": 2.0})
-    assert (found.native_context, found.rope_stretched) == (None, True)
-    assert any("original_context_length" in note for note in found.notes)
+def test_native_context_is_the_files_own_length_when_scaling_names_no_original():
+    # Gemma 3 4B, 12B, and 27B ship linear scaling (factor 8) and name no original length. The config path
+    # already planned their released length; the GGUF path refused them (F5) until 2026-11-05.
+    found = layout("llama", {"context_length": 131072, "rope.scaling.type": "linear", "rope.scaling.factor": 8.0})
+    assert (found.native_context, found.native_source, found.rope_stretched) == (131072, "llama.context_length", True)
+    assert any("original_context_length" in note and "no stretching" in note for note in found.notes)
 
 
 def test_scaling_factor_of_one_is_not_stretching():
@@ -412,6 +414,13 @@ def test_match_skips_vision_projectors_and_mtp_drafts():
     gemma = ["gemma-4-E4B-it-Q8_0.gguf", "MTP/mtp-gemma-4-E4B-it-Q8_0.gguf", "mtp-gemma-4-E4B-it.gguf",
              "mmproj-BF16.gguf"]
     assert match_gguf_files(gemma, "Q8_0") == ["gemma-4-E4B-it-Q8_0.gguf"]
+    # ggml-org ships DFlash and DSpark drafters beside the model: BF16 matched two models, and on
+    # ggml-org/Qwen3.8-27B-GGUF Q4_0 picked the draft (2026-11-05).
+    qwen = ["Qwen3.8-27B-BF16.gguf", "dflash-Qwen3.8-27B-BF16.gguf", "dflash-Qwen3.8-27B-Q4_0.gguf",
+            "Qwen3.8-27B-Q8_0.gguf", "dspark-Qwen3-8B-BF16.gguf"]
+    assert match_gguf_files(qwen, "BF16") == ["Qwen3.8-27B-BF16.gguf"]
+    with pytest.raises(SmaError, match="No GGUF model file in this repo matches 'Q4_0'"):
+        match_gguf_files(qwen, "Q4_0")
 
 
 def test_match_refuses_an_ambiguous_selector_and_lists_the_choices():
