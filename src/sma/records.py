@@ -470,6 +470,13 @@ def build_summary(run_dir: Path, manifest: dict[str, Any], cfg: Config) -> dict[
 _KV_LABEL = {"fp8": "an FP8", "q8_0": "a Q8_0"}
 
 
+def served_elsewhere(manifest: dict[str, Any]) -> bool:
+    """True when the run's servers ran on a serving machine (the V100 pod), not on this host. Then memory.csv,
+    which reads this host's available memory, says nothing about the run's memory."""
+    remote = (manifest.get("config_snapshot") or {}).get("remote") or {}
+    return bool(manifest.get("serving")) or bool(remote.get("enabled"))
+
+
 def _deployment(manifest: dict[str, Any], speed: Any, run_dir: Path) -> dict[str, Any]:
     """What someone gets running this model this way on a Spark. Computed values come from the memory
     plan before launch; measured values from the engine's log, the speed cells, and memory samples."""
@@ -489,7 +496,8 @@ def _deployment(manifest: dict[str, Any], speed: Any, run_dir: Path) -> dict[str
     for cell in (_dig(speed, "cells") or []):
         if isinstance(cell, dict) and cell.get("shape") == "sweep" and cell.get("valid") and cell.get("concurrency") in rates:
             rates[cell["concurrency"]] = cell.get("output_tok_s")
-    peak = peak_memory_bytes(read_memory(run_dir / "memory.csv"))
+    # A run served elsewhere has no memory reading of the machine it ran on: its peak is not measured.
+    peak = None if served_elsewhere(manifest) else peak_memory_bytes(read_memory(run_dir / "memory.csv"))
     computed = {
         "weights_gb": plan.get("weights_gb"),
         "kv_bytes_per_token": plan.get("kv_bytes_per_token"),

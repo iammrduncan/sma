@@ -729,7 +729,7 @@ def test_the_speed_summary_names_every_run_on_the_serving_machine_during_its_win
         return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(t)) if t is not None else None
 
     def run(name: str, began: float, finished: float | None = None, *, slot: str = "v100-1", hardware: str | None = None,
-            power_at: tuple[float, ...] = (), tokens: bool = False, speed: bool = False) -> Path:  # fmt: skip
+            power_at: tuple[float, ...] = (), tokens: bool = False, speed: bool = False, left: tuple[str, float] | None = None) -> Path:  # fmt: skip
         run_dir = cfg.runs_path() / "Org_M" / "llamacpp-v100" / name / f"run-{name}"
         (run_dir / "speed").mkdir(parents=True)
         steps = {"quality": {"started": stamp(began), "finished": stamp(finished)}}
@@ -741,6 +741,8 @@ def test_the_speed_summary_names_every_run_on_the_serving_machine_during_its_win
             "serving": {"hardware": hardware or cfg.remote.hardware, "slot": slot, "gpus": slot[-1]},
             "timestamps": {"started": stamp(began), "finished": stamp(finished)},
         }  # fmt: skip
+        if left:  # Resumed on `slot` after leaving this one.
+            manifest["serving"]["earlier"] = [{"hardware": cfg.remote.hardware, "slot": left[0], "gpus": left[0][-1], "until": stamp(left[1])}]
         (run_dir / "manifest.json").write_text(json.dumps(manifest))
         os.utime(run_dir / "manifest.json", (began, began))  # Last written when its step started.
         if power_at:
@@ -755,7 +757,7 @@ def test_the_speed_summary_names_every_run_on_the_serving_machine_during_its_win
 
     own = run("own", start - 7200, end + 60, slot="v100-0", speed=True)
     run("busy", start - 5400, power_at=((start - 30, 50.0), (start + 100, 200.0), (start + 400, 220.0), (end + 100, 50.0)))
-    run("busy-tokens", start - 3600, slot="v100-2", tokens=True)
+    run("busy-tokens", start - 3600, slot="v100-0", tokens=True, left=("v100-2", end + 1800))  # Moved after the window.
     run("ended-in-window", start - 9000, start + 200, slot="v100-3", power_at=((start + 100, 120.0),))
     run("resumed-after", start - 9000, end + 3600, power_at=((start - 60, 90.0), (end + 3000, 90.0)))  # Stopped meanwhile.
     run("crashed", start - 90000, power_at=((start - 80000, 90.0),))  # Left "running" by a crash long ago.
@@ -773,6 +775,13 @@ def test_the_speed_summary_names_every_run_on_the_serving_machine_during_its_win
     redone = json.loads((own / "speed" / "summary.json").read_text())["concurrent_load"]
     assert [row["run_id"] for row in redone] == sorted(rows)
     assert not _redo_concurrent_load(cfg, own, manifest)  # Nothing new: the record is left as it is.
+
+    # A run whose record was moved out of runs/ (LFM3-Audio-2B's, archived) keeps the entry it had.
+    archived = {"run_id": "run-archived", "slot": "v100-3", "gpus": "3", "steps": ["quality"], "gpu_power_w_mean": 80.0, "generated_tok_s": None}
+    (own / "speed" / "summary.json").write_text(json.dumps({"concurrent_load": [*redone[:1], archived, *redone[1:]]}))
+    _redo_concurrent_load(cfg, own, manifest)
+    kept = json.loads((own / "speed" / "summary.json").read_text())["concurrent_load"]
+    assert [row["run_id"] for row in kept] == [*sorted(rows), "run-archived"] and kept[-1] == archived
 
 
 def test_a_run_on_a_slot_refuses_a_server_another_run_left_on_its_gpu(tmp_path: Path) -> None:

@@ -21,11 +21,11 @@
       "output_tok_s_c1": 150.7012479904313,
       "output_tok_s_c4": 242.37512266920774,
       "output_tok_s_c8": null,
-      "peak_memory_gb": 11.19,
+      "peak_memory_gb": null,
       "streams_32k": 16,
       "streams_full_context": 8
     },
-    "sentence": "QAD-Q4_0 weights with a Q8_0 KV cache on llamacpp: 1.05 GB of weights, 65,536 tokens per stream, 8 full-length streams by the engine's own KV report within 33.0 GB. Peak memory 11.19 GB.",
+    "sentence": "QAD-Q4_0 weights with a Q8_0 KV cache on llamacpp: 1.05 GB of weights, 65,536 tokens per stream, 8 full-length streams by the engine's own KV report within 33.0 GB.",
     "weight_format": "QAD-Q4_0"
   },
   "determinism_passed": false,

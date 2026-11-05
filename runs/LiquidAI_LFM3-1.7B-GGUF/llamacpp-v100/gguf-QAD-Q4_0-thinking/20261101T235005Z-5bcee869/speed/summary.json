@@ -149,16 +149,6 @@
   "client_cpus": "5-9",
   "concurrent_load": [
     {
-      "generated_tok_s": 631.4308914230771,
-      "gpu_power_w_mean": 136.0,
-      "gpus": "0",
-      "run_id": "20261102T121356Z-a4e29b87",
-      "slot": "v100-0",
-      "steps": [
-        "quality"
-      ]
-    },
-    {
       "generated_tok_s": 189.21580812343868,
       "gpu_power_w_mean": 106.2,
       "gpus": "3",
@@ -174,6 +164,16 @@
       "gpus": "1",
       "run_id": "20261102T110212Z-31bb0e74",
       "slot": "v100-1",
+      "steps": [
+        "quality"
+      ]
+    },
+    {
+      "generated_tok_s": 631.4308914230771,
+      "gpu_power_w_mean": 136.0,
+      "gpus": "0",
+      "run_id": "20261102T121356Z-a4e29b87",
+      "slot": "v100-0",
       "steps": [
         "quality"
       ]

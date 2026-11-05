@@ -557,6 +557,53 @@ def test_a_run_whose_measured_peak_passed_the_budget_says_so(tmp_path: Path) -> 
     assert any("Peak memory was 102.0 GB, over the 100 GB budget" in w and "memory.overhead_gb.vllm" in w for w in warnings)
 
 
+def test_a_run_served_on_another_machine_is_not_judged_by_this_hosts_memory(tmp_path: Path) -> None:
+    # A V100 run's memory.csv showed the harness 73 GB down, the other slots' load, against the V100's 33 GB
+    # budget, and the run was told to raise memory.overhead_gb.llamacpp.
+    from types import SimpleNamespace
+
+    from sma.pipeline import Ctx, _check_peak_memory
+
+    cfg = make_config(tmp_path)
+    recorder = TelemetryRecorder(tmp_path / "telemetry.csv", cfg)
+    recorder.append_memory(120_000_000_000, 130_700_000_000)
+    recorder.append_memory(18_000_000_000, 130_700_000_000)
+    for serving, warned in (({}, True), ({"hardware": "v100", "slot": "v100-0", "gpus": "0"}, False)):
+        manifest = {"engine": {"name": "llamacpp"}, "warnings": [], **({"serving": serving} if serving else {})}
+        _check_peak_memory(Ctx(cfg=cfg, services=SimpleNamespace(), run_dir=tmp_path, manifest=manifest))
+        assert bool(manifest["warnings"]) is warned
+
+
+def test_rescore_drops_the_host_memory_peak_from_a_run_served_elsewhere(tmp_path: Path) -> None:
+    from sma.pipeline import rescore
+    from sma.records import load_manifest, publish
+
+    cfg = make_config(tmp_path)
+    services, _fetcher, _runtime = make_services(tmp_path, cfg)
+
+    def over(run_dir: Path, config) -> TelemetryRecorder:
+        recorder = telemetry_factory(run_dir, config)
+        recorder.append_memory(120_000_000_000, 130_700_000_000)
+        recorder.append_memory(18_000_000_000, 130_700_000_000)
+        return recorder
+
+    services.telemetry_factory = over
+    run_id = execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
+    run_dir = _run_dir(tmp_path, run_id)
+    # Make it look like a V100 record written before the fix: served on a slot, with the host's peak.
+    manifest = load_manifest(run_dir)
+    manifest["serving"] = {"hardware": "v100", "slot": "v100-0", "gpus": "0"}
+    publish(cfg, run_dir, manifest)
+    assert any(w.startswith("Peak memory was ") for w in _json(run_dir / "summary.json")["warnings"])
+
+    assert "peak_memory" in rescore(cfg, run_id)
+    summary = _json(run_dir / "summary.json")
+    assert summary["deployment"]["measured"]["peak_memory_gb"] is None
+    assert "Peak memory" not in summary["deployment"]["sentence"]
+    assert not any(w.startswith("Peak memory was ") for w in summary["warnings"])
+    assert "peak_memory" not in rescore(cfg, run_id)
+
+
 @pytest.mark.parametrize("quant", ["nvfp4", "mxfp4"])
 def test_quantized_checkpoints_run_their_real_kernels_on_vllm(tmp_path: Path, quant: str) -> None:
     # vLLM's batch-invariant mode served NVFP4 by emulation on a Spark, at about 2 tokens per second.

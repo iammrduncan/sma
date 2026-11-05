@@ -637,6 +637,21 @@
         "livecodebench",
         "concurrent_load"
       ]
+    },
+    {
+      "at": "2026-11-05T05:53:14Z",
+      "sma_commit": "c8a900193eafc791fd41cd17b48df019d306b63c",
+      "sma_dirty": true,
+      "suites": [
+        "ifeval",
+        "gsm8k",
+        "mmlu_pro",
+        "gpqa_diamond",
+        "musique",
+        "bfcl_v3",
+        "livecodebench",
+        "concurrent_load"
+      ]
     }
   ],
   "revision_requested": null,

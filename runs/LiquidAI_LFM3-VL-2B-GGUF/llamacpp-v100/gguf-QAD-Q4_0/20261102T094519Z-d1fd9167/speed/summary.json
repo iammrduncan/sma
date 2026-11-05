@@ -150,7 +150,7 @@
   "concurrent_load": [
     {
       "generated_tok_s": 302.09574268898774,
-      "gpu_power_w_mean": 81.7,
+      "gpu_power_w_mean": 81.6,
       "gpus": "3",
       "run_id": "20261103T015601Z-fa2a9843",
       "slot": "v100-3",
@@ -164,7 +164,7 @@
     },
     {
       "generated_tok_s": 146.06118425361424,
-      "gpu_power_w_mean": 79.4,
+      "gpu_power_w_mean": 79.2,
       "gpus": "0",
       "run_id": "20261103T015712Z-a847ffd4",
       "slot": "v100-0",

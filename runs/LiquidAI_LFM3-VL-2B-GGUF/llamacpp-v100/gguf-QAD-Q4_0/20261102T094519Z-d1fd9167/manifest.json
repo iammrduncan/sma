@@ -995,6 +995,24 @@
   "quant_label": "QAD-Q4_0",
   "quant_producer": null,
   "reference_run_id": "20261101T235005Z-ccdd4a39",
+  "rescored": [
+    {
+      "at": "2026-11-05T05:53:16Z",
+      "sma_commit": "c8a900193eafc791fd41cd17b48df019d306b63c",
+      "sma_dirty": true,
+      "suites": [
+        "ifeval",
+        "gsm8k",
+        "mmlu_pro",
+        "gpqa_diamond",
+        "musique",
+        "bfcl_v3",
+        "livecodebench",
+        "concurrent_load",
+        "peak_memory"
+      ]
+    }
+  ],
   "revision_requested": null,
   "revision_sha": "b36554cfd35854b06429900131730cd80f092cdb",
   "run_id": "20261102T094519Z-d1fd9167",
@@ -1190,7 +1208,6 @@
   "warnings": [
     "Determinism probe failed. The run continues. Use the recorded concurrency for both quants and treat quality deltas against a wider noise band.",
     "Step speed failed, and the run goes on: Speed cannot run: the bench image's transformers cannot read GGUF architecture lfm3, and LiquidAI/LFM3-1.7B-Base's tokenizer does not match the GGUF's: 2 token ids differ, first 125031 ('<|audio|>', the GGUF has '[PAD125031]').",
-    "Peak memory was 73.4 GB, over the 33 GB budget. The plan's engine overhead was too small for this run: raise memory.overhead_gb.llamacpp by the difference.",
     "Speed cell prefill_c1_r1 bench failed on attempt 1: bench completed 29 requests, and speed.num_prompts is 32. A speed cell is invalid unless every prompt finished.. Retrying after backoff. This is not a thermal or power throttle, so there is no cool-down.",
     "Speed cell sweep_c8_r1 bench failed on attempt 1: bench completed 29 requests, and speed.num_prompts is 32. A speed cell is invalid unless every prompt finished.. Retrying after backoff. This is not a thermal or power throttle, so there is no cool-down.",
     "1 speed cell(s) were invalid because the bench failed (completed count, request errors, or a missing bench result). Those retries used a backoff and did not cool down. Bench-failed cells stay on disk and are excluded from the headline tok/s."

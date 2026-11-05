@@ -708,9 +708,14 @@ def _finish(ctx: Ctx) -> None:
 
 
 def _check_peak_memory(ctx: Ctx) -> None:
-    """Warn when the measured peak went past the budget: the plan's overhead was too small for this run."""
+    """Warn when the measured peak went past the budget: the plan's overhead was too small for this run.
+    Not for a run served on another machine: memory.csv reads this host, which the other slots share (a V100
+    run's memory.csv showed the harness 73 GB down, against the V100's 33 GB budget)."""
+    from sma.records import served_elsewhere
     from sma.telemetry import peak_memory_bytes, read_memory
 
+    if served_elsewhere(ctx.manifest):
+        return
     peak = peak_memory_bytes(read_memory(ctx.run_dir / "memory.csv"))
     budget = ctx.cfg.memory.budget_gb * 1e9
     if peak is not None and peak > budget:
@@ -1420,6 +1425,8 @@ def rescore(cfg: Config, run_id: str, *, run_regrade: Callable[[list[str]], None
         redone.append("browsecomp_plus")
     if _redo_concurrent_load(cfg, found, manifest):
         redone.append("concurrent_load")
+    if _drop_host_peak_warning(manifest):
+        redone.append("peak_memory")
     commit, dirty = git_identity()
     manifest.setdefault("rescored", []).append(
         {"at": utc_now(), "sma_commit": commit, "sma_dirty": dirty, "suites": redone}
@@ -1427,6 +1434,20 @@ def rescore(cfg: Config, run_id: str, *, run_regrade: Callable[[list[str]], None
     publish(cfg, found, manifest)
     log_event("rescored", run_id=run_id, suites=redone)
     return redone
+
+
+def _drop_host_peak_warning(manifest: dict[str, Any]) -> bool:
+    """Before 2026-11-04 a run served on another machine was warned when this host's memory fell past the run's
+    budget (_check_peak_memory), which measured the other slots' load, not the run. Drop that warning. True
+    when one was dropped."""
+    from sma.records import served_elsewhere
+
+    warnings = manifest.get("warnings") or []
+    kept = [item for item in warnings if not str(item).startswith("Peak memory was ")]
+    if not served_elsewhere(manifest) or len(kept) == len(warnings):
+        return False
+    manifest["warnings"] = kept
+    return True
 
 
 def _redo_concurrent_load(cfg: Config, run_dir: Path, manifest: dict[str, Any]) -> bool:
@@ -1441,6 +1462,9 @@ def _redo_concurrent_load(cfg: Config, run_dir: Path, manifest: dict[str, Any]) 
         return False
     hardware = (manifest.get("serving") or {}).get("hardware")
     load = _concurrent_load(cfg, str(manifest.get("run_id") or run_dir.name), hardware, start, end)
+    # A run whose record has left runs/ (moved to an archive) cannot be read again: keep the entry it had.
+    present = {path.parent.name for path in cfg.runs_path().glob("*/*/*/*/manifest.json")}
+    load += [row for row in summary["concurrent_load"] or [] if isinstance(row, dict) and row.get("run_id") not in present]
     if load == summary["concurrent_load"]:
         return False
     summary["concurrent_load"] = load
@@ -1783,12 +1807,23 @@ def _concurrent_load(cfg: Config, run_id: str, hardware: str | None, start: floa
         if not power and not windows:
             continue
         rates = combined_rates(windows) if windows else {}
+        held = _slot_at(serving, start)
         rows.append({
-            "run_id": run_dir.name, "slot": serving.get("slot"), "gpus": serving.get("gpus"), "steps": steps,
+            "run_id": run_dir.name, "slot": held.get("slot"), "gpus": held.get("gpus"), "steps": steps,
             "gpu_power_w_mean": round(sum(power) / len(power), 1) if power else None,
             "generated_tok_s": rates.get("generated_tok_s_all"),
         })  # fmt: skip
     return rows
+
+
+def _slot_at(serving: dict[str, Any], when: float) -> dict[str, Any]:
+    """The serving entry a run held at `when`: the first earlier slot it left after then, else its current one.
+    A run resumed on another slot names only its latest slot at the top of serving."""
+    for entry in serving.get("earlier") or []:
+        left = _parse_utc(entry.get("until")) if isinstance(entry, dict) else None
+        if left is not None and left > when:
+            return entry
+    return serving
 
 
 def _refuse_local_gpu(ctx: Ctx, argv: list[str]) -> None:

@@ -990,6 +990,22 @@
   "quant_label": "F16",
   "quant_producer": null,
   "reference_run_id": null,
+  "rescored": [
+    {
+      "at": "2026-11-05T05:53:15Z",
+      "sma_commit": "c8a900193eafc791fd41cd17b48df019d306b63c",
+      "sma_dirty": true,
+      "suites": [
+        "ifeval",
+        "gsm8k",
+        "mmlu_pro",
+        "gpqa_diamond",
+        "musique",
+        "bfcl_v3",
+        "livecodebench"
+      ]
+    }
+  ],
   "revision_requested": null,
   "revision_sha": "b36554cfd35854b06429900131730cd80f092cdb",
   "run_id": "20261101T235005Z-ccdd4a39",
