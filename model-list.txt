@@ -1,8 +1,11 @@
-# SMA model list, planned 2026-10-28.
+# SMA model list, planned 2026-10-28; every model moved to the V100 pod on llama.cpp on 2026-11-05.
 #
 # How to read it
-# - A line that starts with "sma" is a command. Queue every job, then start `sma worker` on each Spark:
+# - A line that starts with "sma" is a command: the V100 batch (the next section). Queue every job, then
+#   start the dispatcher on the harness GB10 (`sudo systemctl start sma-dispatcher.service`):
 #     grep '^sma queue ' model-list.txt | sh
+# - "#SPARK" lines are the Spark plans of 2026-10-28 (vLLM, SGLang, or the Spark's llama.cpp), kept as research
+#   with their notes; they are not run. "#DONE" lines already ran on the V100.
 # - "sma run ... --reference @REPO:QUANT" is a GGUF quant scored against that repo's full-precision GGUF.
 #   Run it by hand after the reference run finishes, with @REPO:QUANT replaced by that run's id
 #   (`sma list`). `sma queue add` has no --reference (F8).
@@ -10,7 +13,8 @@
 # - "#OPTIONAL" lines are extra legs: base models, more quants, and models outside the requested sets.
 # - "#LATER" lines are models to come back to, which SMA cannot measure yet or that nobody has checked.
 # - Each model has a short note: architecture, engine, and the dry-run memory plan (weights, context
-#   per stream, full-length streams within 100 GB). "Gaps" points to the benchmark gaps (G1-G16, at the
+#   per stream, full-length streams within the Spark's 100 GB; the V100 batch's notes give V100 counts).
+#   "Gaps" points to the benchmark gaps (G1-G16, at the
 #   end, followed by LiquidAI's LFM3 benchmark table mapped onto SMA).
 #
 # How checkpoints were picked
@@ -27,9 +31,190 @@
 # (detect_quant and the flag); SMA's GGUF file match and tokenizer match for every --reference; and
 # `sma run --dry-run` for the memory plan of every leg.
 #
-# Read F1 first (cause, fix, and test at the end): `sma queue add-pair` and `sma run-pair` fail today
-# before they do anything, so the 8 pair lines below print an error until it is fixed. The
-# single-model lines queue normally.
+# F1 (pair commands failing) is fixed. Since 2026-11-05 only the V100 batch below runs: "#SPARK" marks the
+# Spark lines of the family sections, "#DONE" the lines that already ran on the V100.
+
+
+# ==== V100 batch: every model on llama.cpp (owner decision 2026-11-05) ================================
+# Every model in this list is benchmarked on the V100 pod (4x V100 32 GB) with llama.cpp b11960, from
+# published GGUF files only. The lines below are the batch; the "sma" lines in the family sections further down
+# are marked #SPARK (the Spark plans of 2026-10-28, kept as research, not run). Queue the batch with
+#   grep '^sma queue ' model-list.txt | sh
+# Each pair runs three legs: the 16-bit reference with thinking off, the 4-bit file with thinking off and on,
+# KL against the reference. llama.cpp needs no tool parser (--jinja).
+# - Reference: F16 where published (Volta's FP16 tensor cores; owner 2026-11-01), else BF16 (Gemma 4, Qwen3.5/3.6/
+#   3.8, Flint, Qwen3 2507 from unsloth). 4-bit: the author's QAT/QAD file where its tokenizer matches the
+#   reference, else Q4_K_M; Q4_0 where Q4_K_M is ambiguous or its tokenizer differs (F7).
+# - GPUs: each leg takes the fewest V100s at which every benchmark keeps the start context (65,536 tokens per
+#   stream, or the native maximum), split by layer; `sma queue add` prints the count. Counts in the notes are
+#   from dry runs on 2026-11-05 (reference / 4-bit).
+# - Checked on 2026-11-05 by five research passes (HF API, ranged GGUF header reads, tokenizer fingerprints,
+#   `sma run --dry-run` on the V100 config). Nothing here has run on the pod yet except LFM3; multi-GPU runs
+#   need a hardware check first (a 2-GPU and a 3-GPU run). Plan: .internal/v100-all-models-plan.md (not in git).
+# - Dropped (owner 2026-11-05): models whose 16-bit file does not fit the pod's 128 GB: Qwen3.8-Flash-Next,
+#   Qwen3-Next-80B-A3B Instruct and Thinking, Qwen3-Coder-Next, Qwen3.5-122B-A10B.
+
+# GPUs per leg (reference / 4-bit), from `sma run --dry-run` on the V100 config for all 120 legs on 2026-11-05;
+#   none refused. 77 legs take 1 V100, 26 take 2, 15 take 3, 2 take 4. `sma queue add` chooses again when queued.
+#   LiquidAI/LFM2.5-24B-A2B-GGUF                     2 / 1
+#   LiquidAI/LFM2.5-8B-A1B-GGUF                      1 / 1
+#   LiquidAI/LFM2.5-2.6B-GGUF                        1 / 1
+#   LiquidAI/LFM2.5-1.2B-Instruct-GGUF               1 / 1
+#   LiquidAI/LFM2.5-1.2B-Thinking-GGUF               1 / 1
+#   LiquidAI/LFM2.5-1.2B-JP-202606-GGUF              1 / 1
+#   LiquidAI/LFM2.5-1.2B-JP-GGUF                     1 / 1
+#   LiquidAI/LFM2.5-350M-GGUF                        1 / 1
+#   LiquidAI/LFM2.5-230M-GGUF                        1 / 1
+#   LiquidAI/LFM2.5-VL-3B-GGUF                       1 / 1
+#   LiquidAI/LFM2.5-VL-1.6B-GGUF                     1 / 1
+#   LiquidAI/LFM2.5-VL-450M-GGUF                     1 / 1
+#   LiquidAI/LFM2.5-1.2B-Base-GGUF                   1 / 1
+#   mradermacher/LFM2.5-2.6B-Base-GGUF               1 / 1
+#   LiquidAI/LFM2-24B-A2B-GGUF                       2 / 1
+#   LiquidAI/LFM2-8B-A1B-GGUF                        1 / 1
+#   LiquidAI/LFM2-2.6B-Exp-GGUF                      1 / 1
+#   LiquidAI/LFM2-2.6B-GGUF                          1 / 1
+#   LiquidAI/LFM2-1.2B-GGUF                          1 / 1
+#   LiquidAI/LFM2-700M-GGUF                          1 / 1
+#   LiquidAI/LFM2-350M-GGUF                          1 / 1
+#   ggml-org/Flint-GGUF                              3 / 2
+#   moeshawky/Nanbeige4.3-33B-GGUF                   3 / 3
+#   mradermacher/Spark-X2.6-4B-GGUF                  1 / 1
+#   ggml-org/gemma-4-E2B-it-GGUF                     1 / 1
+#   ggml-org/gemma-4-E4B-it-GGUF                     1 / 1
+#   unsloth/gemma-4-12b-it-GGUF                      2 / 1
+#   ggml-org/gemma-4-26B-A4B-it-GGUF                 3 / 1
+#   ggml-org/gemma-4-31B-it-GGUF                     4 / 2
+#   unsloth/gemma-3-270m-it-GGUF                     1 / 1
+#   ggml-org/gemma-3-1b-it-GGUF                      1 / 1
+#   ggml-org/gemma-3-4b-it-GGUF                      2 / 2
+#   ggml-org/gemma-3-12b-it-GGUF                     2 / 2
+#   ggml-org/gemma-3-27b-it-GGUF                     3 / 2
+#   unsloth/gemma-3n-E2B-it-GGUF                     1 / 1
+#   unsloth/gemma-3n-E4B-it-GGUF                     1 / 1
+#   ggml-org/Qwen3-0.6B-GGUF                         1 / 1
+#   ggml-org/Qwen3-1.7B-GGUF                         1 / 1
+#   ggml-org/Qwen3-4B-GGUF                           2 / 1
+#   second-state/Qwen3-8B-GGUF                       2 / 2
+#   second-state/Qwen3-14B-GGUF                      2 / 2
+#   ggml-org/Qwen3-32B-GGUF                          4 / 3
+#   ggml-org/Qwen3-30B-A3B-GGUF                      3 / 2
+#   unsloth/Qwen3-4B-Instruct-2507-GGUF              2 / 2
+#   unsloth/Qwen3-4B-Thinking-2507-GGUF              2 / 2
+#   second-state/Qwen3-30B-A3B-Instruct-2507-GGUF    3 / 2
+#   second-state/Qwen3-30B-A3B-Thinking-2507-GGUF    3 / 2
+#   second-state/Qwen3-Coder-30B-A3B-Instruct-GGUF   3 / 2
+#   unsloth/Qwen3.5-0.8B-GGUF                        1 / 1
+#   unsloth/Qwen3.5-2B-GGUF                          1 / 1
+#   unsloth/Qwen3.5-4B-GGUF                          1 / 1
+#   unsloth/Qwen3.5-9B-GGUF                          1 / 1
+#   unsloth/Qwen3.5-27B-GGUF                         3 / 2
+#   unsloth/Qwen3.5-35B-A3B-GGUF                     3 / 1
+#   unsloth/Qwen3.8-27B-GGUF                         3 / 2
+#   unsloth/Qwen3.6-27B-GGUF                         3 / 2
+#   unsloth/Qwen3.6-35B-A3B-GGUF                     3 / 1
+#   Mincofficial/Minico-M1-1105-GGUF                 1 / 1
+
+# LFM3: 1.7B done; VL-2B F16 and QAD-Q4_0 done; VL thinking and Omni-2B x3 in progress (see their #DONE lines).
+
+# LFM2.5 (LiquidAI's own GGUFs; the QAD-Q4_0 files of 1.2B-Instruct, 350M, 230M fail F7, so Q4_K_M there).
+#   24B-A2B: F16 48 GB needs 2 V100s. These templates ignore enable_thinking (2.6B and 24B-A2B always think).
+sma queue add-pair --gguf LiquidAI/LFM2.5-24B-A2B-GGUF F16 QAD-Q4_0 --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf LiquidAI/LFM2.5-8B-A1B-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf LiquidAI/LFM2.5-2.6B-GGUF F16 QAD-Q4_0 --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf LiquidAI/LFM2.5-1.2B-Instruct-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf LiquidAI/LFM2.5-1.2B-Thinking-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf LiquidAI/LFM2.5-1.2B-JP-202606-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf LiquidAI/LFM2.5-1.2B-JP-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf LiquidAI/LFM2.5-350M-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf LiquidAI/LFM2.5-230M-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+#OPTIONAL sma queue add-pair --gguf LiquidAI/LFM2.5-VL-3B-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+#OPTIONAL sma queue add-pair --gguf LiquidAI/LFM2.5-VL-1.6B-GGUF F16 Q4_0 --config .sma/v100/sma-v100.yaml
+#OPTIONAL sma queue add-pair --gguf LiquidAI/LFM2.5-VL-450M-GGUF F16 Q4_0 --config .sma/v100/sma-v100.yaml
+#OPTIONAL sma queue add-pair --gguf LiquidAI/LFM2.5-1.2B-Base-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+#OPTIONAL sma queue add-pair --gguf mradermacher/LFM2.5-2.6B-Base-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+# No GGUF: LFM2.5-24B-A2B-Base, LFM2.5-230M-Base. Third-party 4-bit only (no reference): 8B-A1B-Base, 350M-Base.
+
+# LFM2 (LiquidAI's own GGUFs). 24B-A2B: F16 needs 2 V100s. 2.6B, 1.2B, 700M, 350M: Q4_K_M has a
+#   "-hip-optimized" twin, so Q4_0.
+sma queue add-pair --gguf LiquidAI/LFM2-24B-A2B-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf LiquidAI/LFM2-8B-A1B-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf LiquidAI/LFM2-2.6B-Exp-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf LiquidAI/LFM2-2.6B-GGUF F16 Q4_0 --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf LiquidAI/LFM2-1.2B-GGUF F16 Q4_0 --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf LiquidAI/LFM2-700M-GGUF F16 Q4_0 --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf LiquidAI/LFM2-350M-GGUF F16 Q4_0 --config .sma/v100/sma-v100.yaml
+
+# Flint: no F16 anywhere. ggml-org's BF16 (79.6 GB, one file) needs 3 V100s, split by layer (b11960 refuses
+#   tensor split for flint): 97.3 of 99 GB planned, tight. Q4_K_M on 2 (on 1 it steps below 65,536). RecursiveSI's
+#   own nvfp4/int4 fail F7
+#   against every BF16; NVFP4 runs on Volta only by emulation.
+sma queue add-pair --gguf ggml-org/Flint-GGUF BF16 Q4_K_M --config .sma/v100/sma-v100.yaml
+#OPTIONAL sma queue add RecursiveSI/flint-nvfp4-gguf --gguf nvfp4 --config .sma/v100/sma-v100.yaml
+
+# Nanbeige4.3-33B: no author GGUF. moeshawky's F16 66 GB needs 3 V100s (99.0 of 99 GB); its Q4_K_M needs 3 to keep 65,536
+#   tokens for 8 streams (59 GB of KV cache).
+sma queue add-pair --gguf moeshawky/Nanbeige4.3-33B-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+
+# Spark-X2.6-4B: mradermacher's f16 and Q4_K_M share the author's tokenizer (model-list's old F7 note was for
+#   Mungert's vs XHToken's files). XHToken's own Q4_K_M (a custom mix) can take KL against this f16 by hand:
+#   sma run XHToken/Spark-X2.6-4B-GGUF --gguf Q4_K_M --reference <f16 run id> --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf mradermacher/Spark-X2.6-4B-GGUF f16 Q4_K_M --config .sma/v100/sma-v100.yaml
+
+# Gemma 4 (no F16 published: BF16). ggml-org's BF16 and Q4_0 share Google's QAT tokenizer; Google's QAT Q4_0
+#   (separate repos) can take KL by hand with `sma run --reference`. 12B BF16 on 2 V100s, 26B-A4B on 3, 31B on
+#   4 (dry runs with the F4 fix; before it every leg was refused).
+sma queue add-pair --gguf ggml-org/gemma-4-E2B-it-GGUF BF16 Q4_0 --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf ggml-org/gemma-4-E4B-it-GGUF BF16 Q4_0 --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf unsloth/gemma-4-12b-it-GGUF BF16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf ggml-org/gemma-4-26B-A4B-it-GGUF BF16 Q4_0 --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf ggml-org/gemma-4-31B-it-GGUF BF16 Q4_0 --config .sma/v100/sma-v100.yaml
+
+# Gemma 3 and 3n (gated: the token has the terms). 4b, 12b, 27b plan with the F5 fix (their shipped 131,072 is
+#   native; the ladder starts at 65,536): 12b f16 on 2, 27b f16 on 3. ggml-org's 3n files are refused
+#   (shared_kv_layers stored as a float), so unsloth's. Templates ignore enable_thinking.
+sma queue add-pair --gguf unsloth/gemma-3-270m-it-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf ggml-org/gemma-3-1b-it-GGUF f16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf ggml-org/gemma-3-4b-it-GGUF f16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf ggml-org/gemma-3-12b-it-GGUF f16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf ggml-org/gemma-3-27b-it-GGUF f16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf unsloth/gemma-3n-E2B-it-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf unsloth/gemma-3n-E4B-it-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+
+# Qwen3 (Qwen's own GGUFs have no 16-bit file and a different chat template, so they cannot pair). 40,960
+#   native. 4B F16 on 2 V100s; 8B, 14B, and both 4B-2507 models on 2 for both legs; the 30B-A3B models' F16 on 3
+#   and Q4_K_M on 2; 32B F16 on 4 and Q4_K_M on 3.
+#   Avoid unsloth's 30B-A3B-Thinking-2507 (its template is the Instruct one).
+sma queue add-pair --gguf ggml-org/Qwen3-0.6B-GGUF F16 Q4_0 --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf ggml-org/Qwen3-1.7B-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf ggml-org/Qwen3-4B-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf second-state/Qwen3-8B-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf second-state/Qwen3-14B-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf ggml-org/Qwen3-32B-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf ggml-org/Qwen3-30B-A3B-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf unsloth/Qwen3-4B-Instruct-2507-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf unsloth/Qwen3-4B-Thinking-2507-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf second-state/Qwen3-30B-A3B-Instruct-2507-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf second-state/Qwen3-30B-A3B-Thinking-2507-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf second-state/Qwen3-Coder-30B-A3B-Instruct-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+
+# Qwen3.5, 3.6, 3.8 (no Qwen GGUFs; unsloth's BF16 and 4-bit, tokenizers match). 27B and 35B-A3B BF16 need 3
+#   V100s. Speed uses a stand-in tokenizer (transformers 5.6 cannot read qwen35); it matches.
+sma queue add-pair --gguf unsloth/Qwen3.5-0.8B-GGUF BF16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf unsloth/Qwen3.5-2B-GGUF BF16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf unsloth/Qwen3.5-4B-GGUF BF16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf unsloth/Qwen3.5-9B-GGUF BF16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf unsloth/Qwen3.5-27B-GGUF BF16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf unsloth/Qwen3.5-35B-A3B-GGUF BF16 Q4_K_M --config .sma/v100/sma-v100.yaml
+sma queue add-pair --gguf unsloth/Qwen3.8-27B-GGUF BF16 UD-Q4_K_M --config .sma/v100/sma-v100.yaml
+#OPTIONAL sma queue add-pair --gguf unsloth/Qwen3.6-27B-GGUF BF16 Q4_K_M --config .sma/v100/sma-v100.yaml
+#OPTIONAL sma queue add-pair --gguf unsloth/Qwen3.6-35B-A3B-GGUF BF16 UD-Q4_K_M --config .sma/v100/sma-v100.yaml
+
+# Minico M1 1105 (Mincofficial, 2026-11-05).
+sma queue add-pair --gguf Mincofficial/Minico-M1-1105-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
+
+# Blocked on the V100 too: Mellum2.1 (F18 YaRN and F4's determinism floor), Ministral-3-8B (F18), LFM3-1.7B-Base
+#   (no usable GGUF).
 
 
 # ==== LFM3 (LiquidAI, released 2026-10-27) ===========================================================
@@ -66,7 +251,7 @@
 #   card's benchmark table is mapped onto SMA at the end of this file.
 # Plan (owner, 2026-10-29): native safetensors on SGLang; each pair runs BF16 thinking off, then NVFP4 with
 # thinking off and on. The GGUF pair is left out: NVFP4 covers 4-bit, and a GGUF Q4 needs its own GGUF BF16.
-sma queue add-pair --bf16 LiquidAI/LFM3-1.7B --nvfp4 LiquidAI/LFM3-1.7B-NVFP4 --engine sglang --tool-parser qwen3_coder
+#SPARK sma queue add-pair --bf16 LiquidAI/LFM3-1.7B --nvfp4 LiquidAI/LFM3-1.7B-NVFP4 --engine sglang --tool-parser qwen3_coder
 #OPTIONAL sma queue add-pair --gguf LiquidAI/LFM3-1.7B-GGUF BF16 QAD-Q4_0
 # LFM3-1.7B-FP8 (LiquidAI's SGLang build) also needs an --fp8 flag (F3).
 #BLOCKED sma queue add LiquidAI/LFM3-1.7B-FP8 --fp8 --tool-parser qwen3_coder
@@ -76,7 +261,7 @@ sma queue add-pair --bf16 LiquidAI/LFM3-1.7B --nvfp4 LiquidAI/LFM3-1.7B-NVFP4 --
 
 # LFM3-VL-2B. Lfm3VlForConditionalGeneration, 128,000 native. SMA measures its text side only (G3).
 #   Plan (after F10): BF16 GGUF 3.5 GB, 128,000 per stream, 8 slots, 26.0 GB.
-sma queue add-pair --bf16 LiquidAI/LFM3-VL-2B --nvfp4 LiquidAI/LFM3-VL-2B-NVFP4 --engine sglang --tool-parser qwen3_coder
+#SPARK sma queue add-pair --bf16 LiquidAI/LFM3-VL-2B --nvfp4 LiquidAI/LFM3-VL-2B-NVFP4 --engine sglang --tool-parser qwen3_coder
 #OPTIONAL sma queue add-pair --gguf LiquidAI/LFM3-VL-2B-GGUF BF16 QAD-Q4_0
 
 # LFM3-Omni-2B. Text, images, and audio in, text and speech out. Its GGUF text model is arch lfm3, 128,000
@@ -85,7 +270,7 @@ sma queue add-pair --bf16 LiquidAI/LFM3-VL-2B --nvfp4 LiquidAI/LFM3-VL-2B-NVFP4 
 #   Q4 leg is plain Q4_0 (the format LiquidAI's speed table uses).
 # No 4-bit safetensors exist, so it runs as GGUF on llama.cpp (24 blocks, 128,000 native; b11960 has lfm3):
 # BF16, then Q4_0 thinking off and on. Its native BF16 on SGLang is optional.
-sma queue add-pair --gguf LiquidAI/LFM3-Omni-2B-GGUF BF16 Q4_0
+#DONE sma queue add-pair --gguf LiquidAI/LFM3-Omni-2B-GGUF BF16 Q4_0
 
 # LFM3-Audio-2B. Text and audio in, text and speech out. Out of scope (owner, 2026-11-02): SMA measures
 #   text models and models that also take images. Its V100 pair was dropped mid-run. No command.
@@ -125,31 +310,31 @@ sma queue add-pair --gguf LiquidAI/LFM3-Omni-2B-GGUF BF16 Q4_0
 # LFM2.5-24B-A2B. MoE, 24B total, 2B active; 10 of 40 layers attend. 131,072 native.
 #   Plan: 47.9 GB BF16, 131,072 per stream, 29 streams.
 #   Gaps: G1, G9 (LFM2.5-24B-A2B-DSpark is its speculative draft), F3 (LiquidAI's FP8 build).
-sma queue add LiquidAI/LFM2.5-24B-A2B --bf16 --tool-parser lfm2
+#SPARK sma queue add LiquidAI/LFM2.5-24B-A2B --bf16 --tool-parser lfm2
 #BLOCKED sma queue add LiquidAI/LFM2.5-24B-A2B-FP8 --fp8 --tool-parser lfm2
 
 # LFM2.5-8B-A1B. MoE, 8B total, 1B active; 6 of 24 layers attend. Plan: 16.9 GB, 128,000, 89 streams.
 #   Gaps: G1, G9 (DSpark draft).
-sma queue add LiquidAI/LFM2.5-8B-A1B --bf16 --tool-parser lfm2
+#SPARK sma queue add LiquidAI/LFM2.5-8B-A1B --bf16 --tool-parser lfm2
 
 # LFM2.5-2.6B. 8 of 30 layers attend. Plan: 5.4 GB, 131,072, 75 streams. Gaps: G1, G9 (DSpark draft).
-sma queue add LiquidAI/LFM2.5-2.6B --bf16 --tool-parser lfm2
+#SPARK sma queue add LiquidAI/LFM2.5-2.6B --bf16 --tool-parser lfm2
 
 # LFM2.5-1.2B-Instruct. 6 of 16 layers attend. Plan: 2.3 GB, 128,000, 107 streams. Gaps: G1, G9, G11.
-sma queue add LiquidAI/LFM2.5-1.2B-Instruct --bf16 --tool-parser lfm2
+#SPARK sma queue add LiquidAI/LFM2.5-1.2B-Instruct --bf16 --tool-parser lfm2
 
 # LFM2.5-1.2B-Thinking. Its template always thinks and ignores enable_thinking, so quality answers
 #   are cut at 4,096 tokens (G2). Plan: 2.3 GB, 128,000, 107 streams.
-sma queue add LiquidAI/LFM2.5-1.2B-Thinking --bf16 --tool-parser lfm2
+#SPARK sma queue add LiquidAI/LFM2.5-1.2B-Thinking --bf16 --tool-parser lfm2
 
 # LFM2.5-1.2B-JP-202606 and LFM2.5-1.2B-JP. Japanese models; every SMA suite is English (G5).
 #   Their templates have no tool-call format, so tool suites will score near zero.
-sma queue add LiquidAI/LFM2.5-1.2B-JP-202606 --bf16 --tool-parser lfm2
-sma queue add LiquidAI/LFM2.5-1.2B-JP --bf16 --tool-parser lfm2
+#SPARK sma queue add LiquidAI/LFM2.5-1.2B-JP-202606 --bf16 --tool-parser lfm2
+#SPARK sma queue add LiquidAI/LFM2.5-1.2B-JP --bf16 --tool-parser lfm2
 
 # LFM2.5-350M and LFM2.5-230M. Plan: 0.7 and 0.5 GB, 128,000, about 110 streams.
-sma queue add LiquidAI/LFM2.5-350M --bf16 --tool-parser lfm2
-sma queue add LiquidAI/LFM2.5-230M --bf16 --tool-parser lfm2
+#SPARK sma queue add LiquidAI/LFM2.5-350M --bf16 --tool-parser lfm2
+#SPARK sma queue add LiquidAI/LFM2.5-230M --bf16 --tool-parser lfm2
 
 # Outside the LFM2.5 collection: the VL models (vision not measured, G3) and the base models (G10).
 #   LFM2.5-Audio-1.5B (Lfm2AudioForConditionalGeneration) is in no pinned engine (G4). The encoder,
@@ -191,13 +376,13 @@ sma queue add LiquidAI/LFM2.5-230M --bf16 --tool-parser lfm2
 # vLLM, tool parser lfm2. All run today. LFM2-1.2B, 700M, and 350M name their attention layers in
 # full_attn_idxs, which the planner does not read, so it counts all 16 layers as attention and plans
 # about 40 streams where about 107 fit (F6). The run is still correct; its deployment notes undercount.
-sma queue add LiquidAI/LFM2-24B-A2B --bf16 --tool-parser lfm2
-sma queue add LiquidAI/LFM2-8B-A1B --bf16 --tool-parser lfm2
-sma queue add LiquidAI/LFM2-2.6B-Exp --bf16 --tool-parser lfm2
-sma queue add LiquidAI/LFM2-2.6B --bf16 --tool-parser lfm2
-sma queue add LiquidAI/LFM2-1.2B --bf16 --tool-parser lfm2
-sma queue add LiquidAI/LFM2-700M --bf16 --tool-parser lfm2
-sma queue add LiquidAI/LFM2-350M --bf16 --tool-parser lfm2
+#SPARK sma queue add LiquidAI/LFM2-24B-A2B --bf16 --tool-parser lfm2
+#SPARK sma queue add LiquidAI/LFM2-8B-A1B --bf16 --tool-parser lfm2
+#SPARK sma queue add LiquidAI/LFM2-2.6B-Exp --bf16 --tool-parser lfm2
+#SPARK sma queue add LiquidAI/LFM2-2.6B --bf16 --tool-parser lfm2
+#SPARK sma queue add LiquidAI/LFM2-1.2B --bf16 --tool-parser lfm2
+#SPARK sma queue add LiquidAI/LFM2-700M --bf16 --tool-parser lfm2
+#SPARK sma queue add LiquidAI/LFM2-350M --bf16 --tool-parser lfm2
 
 # LFM2 GGUF legs. The 2.6B, 1.2B, 700M, and 350M repos also hold a Q4_K_M "-hip-optimized" file, so
 #   --gguf Q4_K_M matches two files there; Q4_0 is used instead.
@@ -218,12 +403,12 @@ sma queue add LiquidAI/LFM2-350M --bf16 --tool-parser lfm2
 # Terminal-Bench), G1, G2.
 # Reference: Unsloth's BF16 split set. Plan: 79.6 GB, 262,144 per stream for 1 stream; quality gets
 #   32,768 and SWE-bench 65,536 per stream.
-sma queue add unsloth/flint-GGUF --gguf BF16
+#SPARK sma queue add unsloth/flint-GGUF --gguf BF16
 # Plan: 25.1 GB, 262,144 per stream, 14 streams. Tokenizer matches the reference.
-sma run unsloth/flint-GGUF --gguf UD-Q4_K_XL --reference @unsloth/flint-GGUF:BF16
+#SPARK sma run unsloth/flint-GGUF --gguf UD-Q4_K_XL --reference @unsloth/flint-GGUF:BF16
 # RecursiveSI's own NVFP4 GGUF, 22.9 GB. Its tokenizer flags (add_eos_token, add_sep_token, padding id)
 #   differ from Unsloth's file, so SMA refuses KL against it (F7). No --reference.
-sma queue add RecursiveSI/flint-nvfp4-gguf --gguf nvfp4
+#SPARK sma queue add RecursiveSI/flint-nvfp4-gguf --gguf nvfp4
 #OPTIONAL sma queue add RecursiveSI/flint-int4-gguf --gguf q4_1
 #BLOCKED sma queue add RecursiveSI/flint --bf16 --tool-parser glm47
 
@@ -236,7 +421,7 @@ sma queue add RecursiveSI/flint-nvfp4-gguf --gguf nvfp4
 #   The NVFP4 is a community build (hsam007, ModelOpt W4A4, 4 days old); swap it when NVIDIA or Nanbeige
 #   publishes one. esatapedico's NVFP4 is W4A16, which SMA refuses by design.
 #   Gaps: G1 (512K native), G2, G7.
-sma queue add-pair --bf16 Nanbeige/Nanbeige4.3-33B --nvfp4 hsam007/Nanbeige4.3-33B-NVFP4 --tool-parser qwen3_coder
+#SPARK sma queue add-pair --bf16 Nanbeige/Nanbeige4.3-33B --nvfp4 hsam007/Nanbeige4.3-33B-NVFP4 --tool-parser qwen3_coder
 # GGUF: mradermacher has no BF16 file, so no KL. csdhall's files join the quant with "_" and SMA's
 #   selector cannot pick them.
 #OPTIONAL sma queue add mradermacher/Nanbeige4.3-33B-GGUF --gguf Q4_K_M
@@ -250,10 +435,10 @@ sma queue add-pair --bf16 Nanbeige/Nanbeige4.3-33B --nvfp4 hsam007/Nanbeige4.3-3
 # Gaps: G1 (1M native), G2, G5, G7.
 # Reference: XHToken's own full-precision GGUF has no quant in its file name, so SMA cannot select it.
 #   Mungert's bf16 file is used. Plan: 8.2 GB, 262,144 per stream, 13 streams.
-sma queue add Mungert/Spark-X2.6-4B-GGUF --gguf bf16
+#SPARK sma queue add Mungert/Spark-X2.6-4B-GGUF --gguf bf16
 # XHToken's official Q4_K_M, the file people download. Its tokenizer differs from Mungert's only in
 #   clean_spaces, but SMA refuses that KL (F7), so it runs with no --reference.
-sma queue add XHToken/Spark-X2.6-4B-GGUF --gguf Q4_K_M
+#SPARK sma queue add XHToken/Spark-X2.6-4B-GGUF --gguf Q4_K_M
 #OPTIONAL sma run Mungert/Spark-X2.6-4B-GGUF --gguf q4_k_m --reference @Mungert/Spark-X2.6-4B-GGUF:bf16
 #OPTIONAL sma queue add XHToken/Spark-X2.6-4B-GGUF --gguf Q8_0
 # Safetensors need an engine with Spark2_5ForCausalLM (F9). XHToken's FP8 build also needs F3.
@@ -266,24 +451,24 @@ sma queue add XHToken/Spark-X2.6-4B-GGUF --gguf Q4_K_M
 # SMA measures text only. Gaps: G3, G4 (E2B, E4B), G1, G2, G5, G9 (the "-assistant" MTP drafters).
 
 # gemma-4-E2B-it. Plan: 10.3 GB, 131,072 per stream, 160 streams.
-sma queue add google/gemma-4-E2B-it --bf16 --tool-parser gemma4
+#SPARK sma queue add google/gemma-4-E2B-it --bf16 --tool-parser gemma4
 
 # gemma-4-E4B-it. Unsloth's NVFP4 is FP8+NVFP4 mixed. Plans: 16.0 GB and 8.1 GB, 131,072 per stream.
-sma queue add-pair --bf16 google/gemma-4-E4B-it --mixed unsloth/gemma-4-E4B-it-NVFP4 --tool-parser gemma4
+#SPARK sma queue add-pair --bf16 google/gemma-4-E4B-it --mixed unsloth/gemma-4-E4B-it-NVFP4 --tool-parser gemma4
 
 # gemma-4-12B-it. Gemma4UnifiedForConditionalGeneration is not in vLLM 0.21 (it is in vLLM main, F9),
 #   so it runs as Unsloth GGUF. Plans: BF16 23.8 GB and UD-Q4_K_XL 7.4 GB, 262,144 per stream.
-sma queue add unsloth/gemma-4-12b-it-GGUF --gguf BF16
-sma run unsloth/gemma-4-12b-it-GGUF --gguf UD-Q4_K_XL --reference @unsloth/gemma-4-12b-it-GGUF:BF16
+#SPARK sma queue add unsloth/gemma-4-12b-it-GGUF --gguf BF16
+#SPARK sma run unsloth/gemma-4-12b-it-GGUF --gguf UD-Q4_K_XL --reference @unsloth/gemma-4-12b-it-GGUF:BF16
 #BLOCKED sma queue add-pair --bf16 google/gemma-4-12B-it --nvfp4 RedHatAI/gemma-4-12B-it-NVFP4 --tool-parser gemma4
 
 # gemma-4-26B-A4B-it. MoE. Plans: BF16 51.6 GB, 6 streams at 262,144; NVFP4 18.8 GB, 12 streams.
-sma queue add-pair --bf16 google/gemma-4-26B-A4B-it --nvfp4 nvidia/Gemma-4-26B-A4B-NVFP4 --tool-parser gemma4
+#SPARK sma queue add-pair --bf16 google/gemma-4-26B-A4B-it --nvfp4 nvidia/Gemma-4-26B-A4B-NVFP4 --tool-parser gemma4
 
 # gemma-4-31B-it. The BF16 leg is refused before launch: the determinism probe's 64 streams need
 #   32.2 GB of KV and the pool holds 24.5 GB (F4). NVIDIA's NVFP4 runs alone, with no KL.
 #   NVFP4 plan: 32.6 GB, 262,144 per stream, 2 streams.
-sma queue add nvidia/Gemma-4-31B-IT-NVFP4 --nvfp4 --tool-parser gemma4
+#SPARK sma queue add nvidia/Gemma-4-31B-IT-NVFP4 --nvfp4 --tool-parser gemma4
 #BLOCKED sma queue add-pair --bf16 google/gemma-4-31B-it --nvfp4 nvidia/Gemma-4-31B-IT-NVFP4 --tool-parser gemma4
 #OPTIONAL sma queue add RedHatAI/gemma-4-26B-A4B-it-NVFP4 --nvfp4 --tool-parser gemma4
 #OPTIONAL sma queue add RedHatAI/gemma-4-31B-it-NVFP4 --nvfp4 --tool-parser gemma4
@@ -293,11 +478,11 @@ sma queue add nvidia/Gemma-4-31B-IT-NVFP4 --nvfp4 --tool-parser gemma4
 # The chat templates have no tool-call format and vLLM has no Gemma 3 tool parser, so BFCL, SWE-bench,
 # and BrowseComp-Plus record null for every Gemma 3 run (G7). Gaps: G3 (4B and up, 3n), G4 (3n), G5.
 # gemma-3-270m-it and gemma-3-1b-it: 32,768 native. Plans: 0.5 and 2.0 GB.
-sma queue add google/gemma-3-270m-it --bf16
-sma queue add google/gemma-3-1b-it --bf16
+#SPARK sma queue add google/gemma-3-270m-it --bf16
+#SPARK sma queue add google/gemma-3-1b-it --bf16
 # gemma-3n-E2B-it and E4B-it: 32,768 native. Plans: 10.9 and 15.7 GB.
-sma queue add google/gemma-3n-E2B-it --bf16
-sma queue add google/gemma-3n-E4B-it --bf16
+#SPARK sma queue add google/gemma-3n-E2B-it --bf16
+#SPARK sma queue add google/gemma-3n-E4B-it --bf16
 # gemma-3-4b-it, 12b-it, and 27b-it cannot be planned by either route (F5): their config.json leaves
 #   head counts to the library's defaults, and their GGUFs turn on linear RoPE scaling with no original
 #   length.
@@ -311,28 +496,28 @@ sma queue add google/gemma-3n-E4B-it --bf16
 # ==== Qwen3 =========================================================================================
 # vLLM. Tool parser hermes, or qwen3_coder for the Coder models. The original Qwen3 models are 40,960
 # native; the 2507, Next, and Coder models are 262,144. Gaps: G1 (2507, Next, Coder), G2, G5.
-sma queue add Qwen/Qwen3-0.6B --bf16 --tool-parser hermes
-sma queue add Qwen/Qwen3-1.7B --bf16 --tool-parser hermes
-sma queue add Qwen/Qwen3-4B --bf16 --tool-parser hermes
+#SPARK sma queue add Qwen/Qwen3-0.6B --bf16 --tool-parser hermes
+#SPARK sma queue add Qwen/Qwen3-1.7B --bf16 --tool-parser hermes
+#SPARK sma queue add Qwen/Qwen3-4B --bf16 --tool-parser hermes
 # NVIDIA NVFP4 pairs. Every leg plans at 40,960 per stream. Qwen3-32B BF16 (65.5 GB) leaves 4 streams,
 #   so its quality and KernelBench get 16,384 per stream.
-sma queue add-pair --bf16 Qwen/Qwen3-8B --nvfp4 nvidia/Qwen3-8B-NVFP4 --tool-parser hermes
-sma queue add-pair --bf16 Qwen/Qwen3-14B --nvfp4 nvidia/Qwen3-14B-NVFP4 --tool-parser hermes
-sma queue add-pair --bf16 Qwen/Qwen3-32B --nvfp4 nvidia/Qwen3-32B-NVFP4 --tool-parser hermes
-sma queue add-pair --bf16 Qwen/Qwen3-30B-A3B --nvfp4 nvidia/Qwen3-30B-A3B-NVFP4 --tool-parser hermes
+#SPARK sma queue add-pair --bf16 Qwen/Qwen3-8B --nvfp4 nvidia/Qwen3-8B-NVFP4 --tool-parser hermes
+#SPARK sma queue add-pair --bf16 Qwen/Qwen3-14B --nvfp4 nvidia/Qwen3-14B-NVFP4 --tool-parser hermes
+#SPARK sma queue add-pair --bf16 Qwen/Qwen3-32B --nvfp4 nvidia/Qwen3-32B-NVFP4 --tool-parser hermes
+#SPARK sma queue add-pair --bf16 Qwen/Qwen3-30B-A3B --nvfp4 nvidia/Qwen3-30B-A3B-NVFP4 --tool-parser hermes
 # 2507 updates. The Thinking templates always think and ignore enable_thinking, so quality answers are
 #   cut at 4,096 tokens (G2). 30B-A3B BF16 plan: 61.1 GB, 2 streams at 262,144.
-sma queue add Qwen/Qwen3-4B-Instruct-2507 --bf16 --tool-parser hermes
-sma queue add Qwen/Qwen3-4B-Thinking-2507 --bf16 --tool-parser hermes
-sma queue add Qwen/Qwen3-30B-A3B-Instruct-2507 --bf16 --tool-parser hermes
-sma queue add Qwen/Qwen3-30B-A3B-Thinking-2507 --bf16 --tool-parser hermes
+#SPARK sma queue add Qwen/Qwen3-4B-Instruct-2507 --bf16 --tool-parser hermes
+#SPARK sma queue add Qwen/Qwen3-4B-Thinking-2507 --bf16 --tool-parser hermes
+#SPARK sma queue add Qwen/Qwen3-30B-A3B-Instruct-2507 --bf16 --tool-parser hermes
+#SPARK sma queue add Qwen/Qwen3-30B-A3B-Thinking-2507 --bf16 --tool-parser hermes
 # Coder. Gaps: G6.
-sma queue add Qwen/Qwen3-Coder-30B-A3B-Instruct --bf16 --tool-parser qwen3_coder
+#SPARK sma queue add Qwen/Qwen3-Coder-30B-A3B-Instruct --bf16 --tool-parser qwen3_coder
 # Next (80B-A3B, 12 of 48 layers attend). BF16 is 163 GB, so only NVFP4 runs, with no KL.
 #   Plans: about 50 GB, 262,144 per stream, 11 to 12 streams.
-sma queue add nvidia/Qwen3-Next-80B-A3B-Instruct-NVFP4 --nvfp4 --tool-parser hermes
-sma queue add nvidia/Qwen3-Next-80B-A3B-Thinking-NVFP4 --nvfp4 --tool-parser hermes
-sma queue add RedHatAI/Qwen3-Coder-Next-NVFP4 --nvfp4 --tool-parser qwen3_coder
+#SPARK sma queue add nvidia/Qwen3-Next-80B-A3B-Instruct-NVFP4 --nvfp4 --tool-parser hermes
+#SPARK sma queue add nvidia/Qwen3-Next-80B-A3B-Thinking-NVFP4 --nvfp4 --tool-parser hermes
+#SPARK sma queue add RedHatAI/Qwen3-Coder-Next-NVFP4 --nvfp4 --tool-parser qwen3_coder
 
 
 # ==== Qwen3.5 =======================================================================================
@@ -340,13 +525,13 @@ sma queue add RedHatAI/Qwen3-Coder-Next-NVFP4 --nvfp4 --tool-parser qwen3_coder
 # are linear attention. Tool parser qwen3_coder. Thinking on by default. The small models ship no
 # generation_config.json, so KernelBench, SWE-bench, and BrowseComp-Plus use vLLM's default sampling.
 # Gaps: G1, G2, G3, G5, G9 (MTP heads).
-sma queue add Qwen/Qwen3.5-0.8B --bf16 --tool-parser qwen3_coder
-sma queue add Qwen/Qwen3.5-2B --bf16 --tool-parser qwen3_coder
-sma queue add Qwen/Qwen3.5-4B --bf16 --tool-parser qwen3_coder
-sma queue add Qwen/Qwen3.5-9B --bf16 --tool-parser qwen3_coder
+#SPARK sma queue add Qwen/Qwen3.5-0.8B --bf16 --tool-parser qwen3_coder
+#SPARK sma queue add Qwen/Qwen3.5-2B --bf16 --tool-parser qwen3_coder
+#SPARK sma queue add Qwen/Qwen3.5-4B --bf16 --tool-parser qwen3_coder
+#SPARK sma queue add Qwen/Qwen3.5-9B --bf16 --tool-parser qwen3_coder
 # 27B plan: 55.6 GB, 3 streams at 262,144. 35B-A3B plan: 71.9 GB, 5 streams at 262,144.
-sma queue add Qwen/Qwen3.5-27B --bf16 --tool-parser qwen3_coder
-sma queue add Qwen/Qwen3.5-35B-A3B --bf16 --tool-parser qwen3_coder
+#SPARK sma queue add Qwen/Qwen3.5-27B --bf16 --tool-parser qwen3_coder
+#SPARK sma queue add Qwen/Qwen3.5-35B-A3B --bf16 --tool-parser qwen3_coder
 # Qwen3.5-122B-A10B is refused before launch in NVFP4 too: the determinism probe's 64 streams need
 #   10.64 GB of KV; NVIDIA's build leaves a 3.5 GB pool and Red Hat's 10.56 GB (F4). BF16 is 250 GB.
 #BLOCKED sma queue add RedHatAI/Qwen3.5-122B-A10B-NVFP4 --nvfp4 --tool-parser qwen3_coder
@@ -358,17 +543,13 @@ sma queue add Qwen/Qwen3.5-35B-A3B --bf16 --tool-parser qwen3_coder
 #   Plans: BF16 55.6 GB, 3 streams at 262,144; Unsloth NVFP4 (FP8+NVFP4 mixed, the most-downloaded
 #   NVFP4 build) 23.4 GB, 7 streams. Gaps: G1 (1M with extension), G2, G3, G6 (its card reports
 #   SWE-bench Pro and DeepSWE), G9.
-sma queue add-pair --bf16 Qwen/Qwen3.8-27B --mixed unsloth/Qwen3.8-27B-NVFP4 --tool-parser qwen3_coder
+#SPARK sma queue add-pair --bf16 Qwen/Qwen3.8-27B --mixed unsloth/Qwen3.8-27B-NVFP4 --tool-parser qwen3_coder
 #OPTIONAL sma queue add RedHatAI/Qwen3.8-27B-NVFP4 --mixed --tool-parser qwen3_coder
 # NVIDIA's NVFP4 is ModelOpt MIXED_PRECISION, which SMA's quant check reads as "other" and refuses (F2).
 #BLOCKED sma queue add nvidia/Qwen3.8-27B-NVFP4 --mixed --tool-parser qwen3_coder
 
-# Qwen3.8-Flash-Next. Qwen4ExpForConditionalGeneration, 360 GB in BF16 and 133 GB in NVFP4, so neither
-#   fits; vLLM 0.21 lacks the class anyway (F9). The pinned llama.cpp serves Unsloth's GGUF. The largest
-#   file that plans is UD-Q2_K_XL: 78.9 GB, 2 streams at 262,144, determinism at 1,024 tokens per stream.
-#   UD-IQ3_XXS (82 GB) is refused by the determinism floor (F4). No BF16 reference fits, so no KL.
-sma queue add unsloth/Qwen3.8-Flash-Next-GGUF --gguf UD-Q2_K_XL
-#BLOCKED sma queue add unsloth/Qwen3.8-Flash-Next-GGUF --gguf UD-IQ3_XXS
+# Qwen3.8-Flash-Next. Removed from the benchmark list (owner, 2026-11-05): far too large. 360 GB in BF16, so
+#   no 16-bit reference fits the V100 pod's 128 GB, and even its 2-bit GGUF is 79 GB. No command.
 
 
 # ==== Qwen3.6 (not requested; between 3.5 and 3.8) ==================================================
@@ -399,6 +580,26 @@ sma queue add unsloth/Qwen3.8-Flash-Next-GGUF --gguf UD-Q2_K_XL
 #   Pro, and Terminal-Bench 2.1), G7 (BFCL v4, WorkBench, ToolHop), G9 (MTP head).
 #BLOCKED sma queue add JetBrains/Mellum2.1-12B-A2.5B-Thinking-MTP --bf16 --tool-parser hermes
 #BLOCKED sma queue add-pair --gguf JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF Thinking-BF16 Thinking-Q4_K_M
+
+
+# ==== Minico M1 (Mincofficial) ======================================================================
+# Added 2026-11-05 at the owner's request; released that day. Minico-M1-1105 is a fine-tune of LFM2.5-350M
+# (SFT, DPO, GRPO, then a merge): Lfm2ForCausalLM, 354M, 6 of 16 layers attend, 128,000 native, text only.
+# LFM Open License v1.0 (commercial use limited above $10M revenue; benchmarking is fine). Thinking has five
+# efforts in its template (off, low, medium, high, max; default medium). SMA's enable_thinking false is
+# "off", and thinking on is "medium". Tool calls are LFM-style (<|tool_call_start|>), so tool parser lfm2.
+# Checked 2026-11-05 with `sma run --dry-run` and the GGUF headers:
+#   - BF16 safetensors on vLLM (Spark): 0.71 GB, 65,536 per stream, 214 streams.
+#   - GGUF (Mincofficial/Minico-M1-1105-GGUF at eee16357): BF16, F16, Q4_K_M, Q6_K, Q8_0 (the quants with
+#     an imatrix); no Q4_0 or QAD file. All five share one tokenizer, so KL works. On the V100 config F16 is
+#     7.28 GB of 33 and Q4_K_M 6.8 GB, 8 streams at 65,536. The bench image's transformers reads lfm2, so
+#     speed uses the GGUF's own tokenizer.
+# Gaps: G1 (128,000 native, runs at 65,536), G2 (only "medium" of its five efforts is measured with thinking
+#   on; the card scores at temperature 0.1), G7 (the card's own tool-call test), G11 (the card's multi-turn
+#   test). The card's MATH-500 is not an SMA suite.
+#SPARK sma queue add Mincofficial/Minico-M1-1105 --bf16 --tool-parser lfm2
+# On the V100 pod, F16 reference and Q4_K_M with thinking off and on (as the LFM3 pairs there):
+#   sma queue add-pair --gguf Mincofficial/Minico-M1-1105-GGUF F16 Q4_K_M --config .sma/v100/sma-v100.yaml
 
 
 # ==== Later: Nemotron retriever (NVIDIA, blog 2026-10-21) ==========================================
