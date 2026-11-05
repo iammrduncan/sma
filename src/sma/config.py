@@ -290,7 +290,8 @@ class BrowseCompConfig:
 
     The model runs on this Spark; the BM25 search server and its index run on the x86 runner
     (services/browsecomp-plus), reached over SSH with the SWE_RUNNER_* names in the root .env, so the
-    document store takes nothing from the Spark. The judge is SMA_JUDGE_URL and SMA_JUDGE_API_KEY in .env.
+    document store takes nothing from the Spark. The judge is judge_url (a public service) or SMA_JUDGE_URL in
+    .env (a lab endpoint), with its key in .env under judge_key_env.
     Requests use the model's own sampling and thinking mode, as BrowseComp-Plus's chat client sends no
     sampling field.
     """
@@ -318,18 +319,27 @@ class BrowseCompConfig:
     local_port: int = 8790
     # Starting the search server loads its 2.2 GB index.
     search_start_s: float = 600.0
-    # The judge model's name on SMA_JUDGE_URL. Scores are compared only within one judge. Owner decision
-    # 2026-11-01: Qwen 3.8 Flash (FP4) behind an OpenAI-compatible endpoint, which takes SMA's thinking-off
-    # setting. Before (2026-10-28): Ornith 1.5 122B, which read 98 of 99 published
-    # BrowseComp-Plus answers correctly with thinking off (docs/judge.md). BrowseComp-Plus's own judge also
-    # runs with thinking off. The grader's token limit is the repo's (4096).
-    judge_model: str = "qwen3.8-flash-fp4"
+    # The judge model's name on its endpoint. Scores are compared only within one judge (docs/judge.md). Owner
+    # decision 2026-11-04: Qwen 3.8 Flash on OpenRouter, its dated name pinning the version, after the lab's FP4
+    # copy (2026-11-01 to 2026-11-03, qwen3.8-flash-fp4) was removed; Ornith 1.5 122B before that (2026-10-28).
+    # BrowseComp-Plus's own judge runs with thinking off. The grader's token limit is the repo's (4096).
+    judge_model: str = "qwen/qwen3.8-flash-20260826"
+    # The endpoint when it is a public service, named here. Empty: the lab's, SMA_JUDGE_URL in .env, which a
+    # record names only as ${SMA_JUDGE_URL}. The key is always in .env, under judge_key_env, which must be a
+    # name SMA scrubs from records (scrub.TOKEN_ENV).
+    judge_url: str | None = "https://openrouter.ai/api/v1"
+    judge_key_env: str = "OPENROUTER_KEY"
     judge_max_tokens: int = 4096
     judge_temperature: float | None = 0.0
-    # Merged into every judge request. llama.cpp is not batch-invariant, so docs/judge.md asks for no prompt
-    # cache and one request at a time; on 2026-10-28 three identical requests then gave identical replies.
+    # Merged into every judge request. OpenRouter turns thinking off with reasoning.enabled false; it ignores
+    # chat_template_kwargs, so a 2026-11-04 probe got a reply with reasoning under the lab's settings. The
+    # provider block keeps the requests on Alibaba's endpoint (the only one), never falls back elsewhere, and
+    # uses only providers OpenRouter lists as not collecting prompts. No endpoint offers zero retention.
     judge_extra_body: dict[str, Any] = field(
-        default_factory=lambda: {"chat_template_kwargs": {"enable_thinking": False}, "cache_prompt": False}
+        default_factory=lambda: {
+            "reasoning": {"enabled": False},
+            "provider": {"only": ["alibaba"], "allow_fallbacks": False, "data_collection": "deny"},
+        }
     )
     judge_concurrency: int = 1
     judge_timeout_s: float = 900.0
@@ -799,7 +809,14 @@ def validate_config(cfg: Config) -> None:
     if cfg.browsecomp.limit is not None and (not isinstance(cfg.browsecomp.limit, int) or cfg.browsecomp.limit < 1):
         raise SmaError("browsecomp.limit must be a positive integer, or empty to run all 830 questions")
     if not cfg.browsecomp.judge_model:
-        raise SmaError("browsecomp.judge_model must name the judge model on SMA_JUDGE_URL")
+        raise SmaError("browsecomp.judge_model must name the judge model on its endpoint")
+    from sma.scrub import TOKEN_ENV
+
+    if cfg.browsecomp.judge_key_env not in TOKEN_ENV:
+        raise SmaError(
+            f"browsecomp.judge_key_env is {cfg.browsecomp.judge_key_env!r}, which SMA does not scrub from records. "
+            f"Use one of {', '.join(TOKEN_ENV)}, or add it to scrub.TOKEN_ENV."
+        )
     if not isinstance(cfg.browsecomp.judge_extra_body, dict):
         raise SmaError("browsecomp.judge_extra_body must be a mapping")
     if not isinstance(cfg.kernelbench.options, dict):

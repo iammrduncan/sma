@@ -123,10 +123,13 @@ def runner_machine(cfg: Config) -> Machine:
         return Machine("swe", False)
 
 
-def judge_machine() -> Machine:
-    from sma.judge import KEY_ENV, URL_ENV
+def judge_machine(cfg: Config) -> Machine:
+    """Whether the judge's endpoint answers and lists the judge model. A public service lists hundreds of
+    models, so only the configured one is named."""
+    from sma.judge import judge_endpoint
 
-    url, key = os.environ.get(URL_ENV), os.environ.get(KEY_ENV)
+    model = cfg.browsecomp.judge_model
+    url, key = judge_endpoint(cfg.browsecomp.judge_url, cfg.browsecomp.judge_key_env)
     if not url or not key:
         return Machine("judge", None)
     base = url.rstrip("/")
@@ -137,10 +140,11 @@ def judge_machine() -> Machine:
         )
     except SmaError:
         return Machine("judge", False)
-    models = [str(item.get("id")) for item in (reply.get("data") or []) if isinstance(item, dict)] if isinstance(reply, dict) else []
-    serves = f"serves {', '.join(models)} · " if models else ""
-    return Machine("judge", True, serves + "hardware not reported")
+    items = [item for item in (reply.get("data") or []) if isinstance(item, dict)] if isinstance(reply, dict) else []
+    names = {str(item.get(key)) for item in items for key in ("id", "canonical_slug") if item.get(key)}
+    serves = f"serves {model}" if model in names else f"does not list {model}"
+    return Machine("judge", True, serves + " · hardware not reported")
 
 
 def gather(cfg: Config) -> list[Machine]:
-    return [local_machine(), kernelbench_machine(), runner_machine(cfg), judge_machine()]
+    return [local_machine(), kernelbench_machine(), runner_machine(cfg), judge_machine(cfg)]

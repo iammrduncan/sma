@@ -1,8 +1,9 @@
-"""The lab's judge model, an OpenAI-compatible chat endpoint (owner decision 2026-10-27: judges are allowed).
+"""The judge model, an OpenAI-compatible chat endpoint (owner decision 2026-10-27: judges are allowed).
 
-The endpoint and its key come from the root .env (SMA_JUDGE_URL, SMA_JUDGE_API_KEY), never from sma.yaml or
-a run folder. The model is set in sma.yaml, and every score it grades names it: scores are compared only
-within one judge.
+A lab endpoint comes from the root .env (SMA_JUDGE_URL), never from sma.yaml or a run folder. A public
+service (OpenRouter, owner decision 2026-11-04) is named in sma.yaml as browsecomp.judge_url. The key is
+always in .env, under browsecomp.judge_key_env, which SMA scrubs from records. The model is set in sma.yaml,
+and every score it grades names it: scores are compared only within one judge.
 """
 
 from __future__ import annotations
@@ -27,7 +28,7 @@ class Judge:
     ) -> dict[str, Any]:
         """One user message. The reply's text, its reasoning when the server returns it apart, and usage.
 
-        extra_body is merged into the request (chat_template_kwargs, llama.cpp's cache_prompt).
+        extra_body is merged into the request (OpenRouter's reasoning and provider settings).
         """
         body: dict[str, Any] = {"model": self.model, "messages": [{"role": "user", "content": prompt}], "max_tokens": max_tokens}
         if temperature is not None:
@@ -53,8 +54,20 @@ class Judge:
         }
 
 
-def judge_from_env(model: str, *, timeout_s: float, attempts: int, backoff_s: float) -> Judge | None:
-    url, key = os.environ.get(URL_ENV), os.environ.get(KEY_ENV)
-    if not url or not key:
+def judge_endpoint(url: str | None, key_env: str) -> tuple[str | None, str | None]:
+    """The judge's base URL and key: browsecomp.judge_url when set, else SMA_JUDGE_URL; the key from key_env."""
+    return (url or os.environ.get(URL_ENV) or None), (os.environ.get(key_env) or None)
+
+
+def judge_needs(url: str | None, key_env: str) -> str:
+    """The .env names the judge needs, for an error that says what to set."""
+    return key_env if url else f"{URL_ENV} and {key_env}"
+
+
+def judge_from_env(
+    model: str, *, url: str | None = None, key_env: str = KEY_ENV, timeout_s: float, attempts: int, backoff_s: float
+) -> Judge | None:
+    base, key = judge_endpoint(url, key_env)
+    if not base or not key:
         return None
-    return Judge(url=url, key=key, model=model, timeout_s=timeout_s, attempts=attempts, backoff_s=backoff_s)
+    return Judge(url=base, key=key, model=model, timeout_s=timeout_s, attempts=attempts, backoff_s=backoff_s)

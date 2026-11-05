@@ -308,15 +308,17 @@ def test_a_run_answers_with_search_on_the_runner_grades_with_the_judge_and_keeps
     assert all(r["tools"][0]["function"]["name"] == "search" and r["chat_template_kwargs"] == {"enable_thinking": False} for r in requests)
     assert not any(key in requests[0] for key in ("temperature", "top_p", "top_k"))
 
-    # The judge saw each question and its answer, with thinking off, no prompt cache, at temperature 0.
+    # The judge saw each question and its answer, with thinking off, on its pinned provider, at temperature 0.
     assert len(judge.asked) == 2
-    want_body = {"chat_template_kwargs": {"enable_thinking": False}, "cache_prompt": False}
+    want_body = cfg.browsecomp.judge_extra_body
+    assert want_body["reasoning"] == {"enabled": False}
     assert all(a["extra_body"] == want_body and a["temperature"] == 0.0 for a in judge.asked)
     want_right = sum(1 for q in picked if QUESTIONS[q][1] == "Paris")
     scores = _json(suite / "scores.json")
     assert (scores["primary_metric"], scores["n"], scores["correct"]) == ("accuracy", 2, want_right)
     assert scores["primary_score"] == pytest.approx(want_right / 2)
-    assert scores["judge"] == "qwen3.8-flash-fp4" and scores["context_per_stream"] is not None
+    assert scores["judge"] == "qwen/qwen3.8-flash-20260826" and scores["context_per_stream"] is not None
+    assert scores["judge_settings"]["url"] == "https://openrouter.ai/api/v1"
     evidence = bcp.read_qrels(QRELS_EVIDENCE)
     assert scores["evidence_recall"] == pytest.approx(sum(len({"11", "12"} & set(evidence[q])) / len(evidence[q]) for q in picked) / 2)
 
@@ -407,14 +409,14 @@ def test_rescore_nulls_a_browsecomp_score_whose_questions_met_a_dead_server(tmp_
 
 
 def test_without_a_judge_or_a_tool_parser_the_score_is_null_and_says_why(tmp_path: Path, monkeypatch) -> None:
-    for name in ("SMA_JUDGE_URL", "SMA_JUDGE_API_KEY"):
+    for name in ("SMA_JUDGE_URL", "SMA_JUDGE_API_KEY", "OPENROUTER_KEY"):
         monkeypatch.delenv(name, raising=False)
     cfg, services = _setup(tmp_path)
     services.research_runner = FakeRunner()
     run_id = execute(RunSpec(repo="example/tiny", quant_flag="bf16"), cfg, services)
     summary = _json(next((tmp_path / "runs").glob(f"*/*/*/{run_id}")) / "summary.json")
     assert summary["quality"]["browsecomp_plus"]["score"] is None
-    assert "SMA_JUDGE_URL" in summary["quality"]["browsecomp_plus"]["error"]
+    assert "OPENROUTER_KEY" in summary["quality"]["browsecomp_plus"]["error"]
 
     cfg, services = _setup(tmp_path / "second", tool_parser=None)
     services.research_runner, services.judge = FakeRunner(), FakeJudge()
@@ -437,3 +439,25 @@ def test_the_runner_pins_the_same_files_as_sma_and_every_package() -> None:
     assert {"pyserini==1.2.0", "torch==2.7.0+cpu", "openai==1.97.0", "transformers==4.53.2"} <= set(pins)
     server = (folder / "search_server.py").read_text(encoding="utf-8")
     assert '"127.0.0.1"' in server and "def log_message" in server  # loopback only, and no query text in its log
+
+
+def test_the_judge_key_comes_from_the_env_name_the_config_gives_and_is_scrubbed(monkeypatch) -> None:
+    # Owner decision 2026-11-04: the judge is Qwen 3.8 Flash on OpenRouter, with OPENROUTER_KEY in .env.
+    from sma.config import default_config, validate_config
+    from sma.judge import judge_from_env
+    from sma.scrub import scrub_text
+
+    key = "sk-or-" + "v1-" + "ab" * 32
+    monkeypatch.setenv("OPENROUTER_KEY", key)
+    monkeypatch.delenv("SMA_JUDGE_URL", raising=False)
+    cfg = default_config().browsecomp
+    judge = judge_from_env(cfg.judge_model, url=cfg.judge_url, key_env=cfg.judge_key_env, timeout_s=1, attempts=1, backoff_s=0)
+    assert judge is not None and judge.url == "https://openrouter.ai/api/v1/chat/completions" and judge.key == key
+    assert scrub_text(f"401 for Bearer {key}") == "401 for Bearer <redacted>"
+    # A lab judge keeps its URL in .env: without SMA_JUDGE_URL there is none.
+    assert judge_from_env("m", url=None, key_env="OPENROUTER_KEY", timeout_s=1, attempts=1, backoff_s=0) is None
+
+    unscrubbed = default_config()
+    unscrubbed.browsecomp.judge_key_env = "MY_JUDGE_KEY"
+    with pytest.raises(SmaError, match="does not scrub"):
+        validate_config(unscrubbed)

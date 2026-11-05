@@ -77,4 +77,5 @@ def test_key_shapes_are_found_whatever_their_source() -> None:
     # Built here, so this file does not trip the check it tests.
     assert scrub.find_leaks("-----BEGIN " + "OPENSSH PRIVATE KEY-----") == ["a private key"]
     assert scrub.find_leaks("ghp_" + "b" * 36) == ["a GitHub token"]
+    assert scrub.find_leaks("sk-or-" + "v1-" + "0a" * 32) == ["an OpenRouter key"]
     assert scrub.find_leaks('{"Authorization": "Bearer your_api_key_here", "hf_token": null}') == []

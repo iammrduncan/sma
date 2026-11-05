@@ -222,8 +222,11 @@ def test_repo_config_loads() -> None:
     # Nested sections load as their dataclasses, not plain mappings.
     assert (cfg.kernelbench.level, cfg.kernelbench.enabled) == (1, True)
     assert (cfg.swebench.workers, cfg.swebench.step_limit) == (8, 250)
-    assert (cfg.browsecomp.limit, cfg.browsecomp.judge_model, cfg.browsecomp.judge_concurrency) == (100, "qwen3.8-flash-fp4", 1)
-    assert cfg.browsecomp.judge_extra_body == {"chat_template_kwargs": {"enable_thinking": False}, "cache_prompt": False}
+    assert (cfg.browsecomp.limit, cfg.browsecomp.judge_model, cfg.browsecomp.judge_concurrency) == (100, "qwen/qwen3.8-flash-20260826", 1)
+    assert (cfg.browsecomp.judge_url, cfg.browsecomp.judge_key_env) == ("https://openrouter.ai/api/v1", "OPENROUTER_KEY")
+    # OpenRouter ignores chat_template_kwargs: thinking goes off through its reasoning setting (2026-11-04 probe).
+    assert cfg.browsecomp.judge_extra_body["reasoning"] == {"enabled": False}
+    assert cfg.browsecomp.judge_extra_body["provider"] == {"only": ["alibaba"], "allow_fallbacks": False, "data_collection": "deny"}
     assert cfg.browsecomp == default_config().browsecomp
     assert [suite.name for suite in cfg.quality.suites] == ["ifeval", "gsm8k", "mmlu_pro", "gpqa_diamond", "musique", "bfcl_v3", "livecodebench"]
     # Owner decisions 2026-10-29 and 2026-10-30: LiveCodeBench in place of SWE-bench, its newest 105 problems.

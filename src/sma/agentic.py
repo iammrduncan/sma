@@ -22,7 +22,7 @@ from sma import swebench as sb
 from sma.atomic import atomic_write_bytes, atomic_write_json, atomic_write_text
 from sma.errors import SmaError
 from sma.httpapi import ApiError, request_json
-from sma.judge import judge_from_env
+from sma.judge import judge_from_env, judge_needs
 from sma.kbservice import QueueFull, finished, queue_position, service_from_env
 from sma.logsetup import log_event
 from sma.qualityout import wilson_interval
@@ -470,8 +470,9 @@ def _research_runner(ctx: Any) -> Any:
 def _judge(ctx: Any) -> Any:
     cfg = ctx.cfg.browsecomp
     return ctx.services.judge or judge_from_env(
-        cfg.judge_model, timeout_s=cfg.judge_timeout_s, attempts=max(1, ctx.cfg.retries.attempts), backoff_s=ctx.cfg.retries.backoff_s
-    )
+        cfg.judge_model, url=cfg.judge_url, key_env=cfg.judge_key_env, timeout_s=cfg.judge_timeout_s,
+        attempts=max(1, ctx.cfg.retries.attempts), backoff_s=ctx.cfg.retries.backoff_s,
+    )  # fmt: skip
 
 
 def _bcp_data(runner: Any) -> tuple[dict[str, dict[str, str]], dict[str, list[str]], dict[str, list[str]]]:
@@ -503,7 +504,8 @@ def browsecomp_step(ctx: Any, *, ensure_server: EnsureServer, warn: Warn) -> Non
     if not cfg.enabled:
         return  # Off in config; the config snapshot says so, and the summary has no BrowseComp-Plus suite.
     if _judge(ctx) is None:
-        _skip(ctx, warn, bcp.SUITE, "SMA_JUDGE_URL and SMA_JUDGE_API_KEY are not both set (see .env.example), so no answer could be graded. BrowseComp-Plus did not run.")
+        needs = judge_needs(cfg.judge_url, cfg.judge_key_env)
+        _skip(ctx, warn, bcp.SUITE, f"The judge needs {needs} in .env (see .env.example), and not all are set, so no answer could be graded. BrowseComp-Plus did not run.")
         return
     runner = _research_runner(ctx)
     if runner is None:
@@ -624,7 +626,8 @@ def browsecomp_results_step(ctx: Any, *, warn: Warn) -> None:
         raise SmaError(f"{len(missing)} BrowseComp-Plus questions have no answer yet. Resume the run.")
     judge = _judge(ctx)
     if judge is None:
-        raise SmaError("SMA_JUDGE_URL and SMA_JUDGE_API_KEY are not both set, and this run's BrowseComp-Plus answers are waiting for the judge. Set them in .env and resume.")
+        needs = judge_needs(cfg.judge_url, cfg.judge_key_env)
+        raise SmaError(f"The judge needs {needs} in .env, and not all are set; this run's BrowseComp-Plus answers are waiting for the judge. Set them in .env and resume.")
     runner = _research_runner(ctx)
     if runner is None:
         raise SmaError("The SWE_RUNNER_* names are not set, and the judge needs the answers kept on the BrowseComp-Plus runner. Set them in .env and resume.")
@@ -653,7 +656,7 @@ def browsecomp_results_step(ctx: Any, *, warn: Warn) -> None:
     atomic_write_text(suite_dir / "per_query.jsonl", "".join(json.dumps(row, sort_keys=True) + "\n" for row in table))
     scores = bcp.score(table, judge=cfg.judge_model, limit=cfg.limit)
     scores.update(context_per_stream=_context(ctx, "browsecomp"), concurrency=cfg.workers,
-                  judge_settings={"max_tokens": cfg.judge_max_tokens, "temperature": cfg.judge_temperature,
+                  judge_settings={"url": cfg.judge_url, "max_tokens": cfg.judge_max_tokens, "temperature": cfg.judge_temperature,
                                   "extra_body": cfg.judge_extra_body, "concurrency": cfg.judge_concurrency})
     if scores["judge_parse_errors"]:
         warn(ctx, f"The judge's reply could not be read for {scores['judge_parse_errors']} BrowseComp-Plus answers; they count as wrong, as in BrowseComp-Plus.")

@@ -50,12 +50,14 @@ def host_names() -> list[str]:
     return sorted(set(found), key=len, reverse=True)
 
 
-_TOKEN_ENV = ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN", "HUGGINGFACE_TOKEN", "SMA_JUDGE_API_KEY")
+# Secrets in .env whose values never reach a record. browsecomp.judge_key_env must name one of them.
+TOKEN_ENV = ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN", "HUGGINGFACE_TOKEN", "SMA_JUDGE_API_KEY", "OPENROUTER_KEY")
 
 # Keys by their shape, wherever they came from. sma publish-check refuses them; scrub_text cannot know them.
 _KEY_SHAPES = (
     ("a Hugging Face token", re.compile(r"hf_[A-Za-z0-9]{30,}")),
     ("a GitHub token", re.compile(r"gh[pousr]_[A-Za-z0-9]{30,}")),
+    ("an OpenRouter key", re.compile(r"sk-or-v1-[0-9a-f]{32,}")),
     ("a private key", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY")),
 )
 
@@ -76,7 +78,7 @@ def scrub_text(text: str) -> str:
     redacted = text
     for pattern in _host_patterns():
         redacted = pattern.sub("<host>", redacted)
-    for key in _TOKEN_ENV:
+    for key in TOKEN_ENV:
         value = os.environ.get(key)
         if value and len(value) >= 4:
             redacted = redacted.replace(value, "<redacted>")
@@ -101,7 +103,7 @@ def find_leaks(text: str) -> list[str]:
     found = []
     if any(pattern.search(text) for pattern in _host_patterns()):
         found.append("this machine's hostname")
-    for key in _TOKEN_ENV + LAB_ENV:
+    for key in TOKEN_ENV + LAB_ENV:
         value = (os.environ.get(key) or "").rstrip("/")
         if len(value) >= 4 and value in text:
             found.append(key)

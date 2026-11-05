@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from sma.config import default_config
 from sma.errors import SmaError
 from sma.machines import Machine, describe_host, judge_machine, kernelbench_machine, parse_facts, runner_machine
 from sma.watch import View, render
@@ -29,10 +30,12 @@ def test_a_spark_and_a_qemu_runner_are_described_by_kind_and_chip() -> None:
 
 
 def test_services_report_what_their_apis_give_or_say_they_are_down_or_unset(monkeypatch) -> None:
+    lab = default_config()
+    lab.browsecomp.judge_model, lab.browsecomp.judge_url, lab.browsecomp.judge_key_env = "ornith-1.5-122b", None, "SMA_JUDGE_API_KEY"
     monkeypatch.delenv("KERNELBENCH_URL", raising=False)
     monkeypatch.delenv("SMA_JUDGE_URL", raising=False)
     assert kernelbench_machine() == Machine("kernel", None)
-    assert judge_machine() == Machine("judge", None)
+    assert judge_machine(lab) == Machine("judge", None)
 
     monkeypatch.setenv("KERNELBENCH_URL", "http://kb.example:9000")
     monkeypatch.setenv("SMA_JUDGE_URL", "http://judge.example:8000/v1")
@@ -43,18 +46,38 @@ def test_services_report_what_their_apis_give_or_say_they_are_down_or_unset(monk
         asked.append((url, headers))
         if url.endswith("/v1/environment"):
             return {"gpu": {"name": "NVIDIA GB10", "compute_capability": "12.1"}, "cuda_runtime": "13.0", "torch": "2.9.1+cu130"}
-        return {"data": [{"id": "ornith-1.5-122b"}]}
+        return {"data": [{"id": "ornith-1.5-122b"}, {"id": "other-model"}]}
 
     monkeypatch.setattr("sma.machines.request_json", reply)
     assert kernelbench_machine() == Machine("kernel", True, "GB10 GPU (sm 12.1) · CUDA 13.0 · torch 2.9.1 · type not reported")
-    assert judge_machine() == Machine("judge", True, "serves ornith-1.5-122b · hardware not reported")
+    assert judge_machine(lab) == Machine("judge", True, "serves ornith-1.5-122b · hardware not reported")
     assert asked[1] == ("http://judge.example:8000/v1/models", {"Authorization": "Bearer secret-key"})
 
     def down(*args, **kwargs):
         raise SmaError("connection refused")
 
     monkeypatch.setattr("sma.machines.request_json", down)
-    assert kernelbench_machine().up is False and judge_machine().up is False
+    assert kernelbench_machine().up is False and judge_machine(lab).up is False
+
+
+def test_a_public_judge_names_only_the_configured_model_and_says_when_it_is_missing(monkeypatch) -> None:
+    # OpenRouter lists hundreds of models; the dated name pins the judge and is its canonical slug.
+    cfg = default_config()
+    monkeypatch.setenv("OPENROUTER_KEY", "or-test-key")
+    listing = {"data": [{"id": "qwen/qwen3.8-flash", "canonical_slug": "qwen/qwen3.8-flash-20260826"}, {"id": "x/y"}]}
+    asked = []
+
+    def reply(method, url, *, timeout_s, attempts, headers=None):
+        asked.append((url, headers))
+        return listing
+
+    monkeypatch.setattr("sma.machines.request_json", reply)
+    assert judge_machine(cfg) == Machine("judge", True, "serves qwen/qwen3.8-flash-20260826 · hardware not reported")
+    assert asked == [("https://openrouter.ai/api/v1/models", {"Authorization": "Bearer or-test-key"})]
+    listing["data"] = [{"id": "x/y"}]
+    assert judge_machine(cfg).summary == "does not list qwen/qwen3.8-flash-20260826 · hardware not reported"
+    monkeypatch.delenv("OPENROUTER_KEY")
+    assert judge_machine(cfg) == Machine("judge", None)
 
 
 def test_the_runner_is_asked_over_ssh_once_and_may_be_down(tmp_path: Path, monkeypatch) -> None:

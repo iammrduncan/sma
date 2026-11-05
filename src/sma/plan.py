@@ -222,7 +222,7 @@ def render_plan(
             "  search: " + search_command(cfg, run_id),
             "",
             "6d browsecomp_plus_results: the judge grades each final answer with BrowseComp-Plus's grader prompt "
-            f"({bc.judge_model} at $SMA_JUDGE_URL); accuracy over every picked question, evidence recall, and search calls.",
+            f"({bc.judge_model} at {bc.judge_url or '$SMA_JUDGE_URL'}); accuracy over every picked question, evidence recall, and search calls.",
         ]
     if cfg.kernelbench.enabled:
         lines += ["", "6e kernelbench_results: wait for the service's job, then score it with KernelBench's fast_p."]
